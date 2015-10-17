@@ -1,0 +1,423 @@
+#!/usr/bin/python
+#-------------------------------------------------------------------------------
+# Copyright (c) 2015 manxinator
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+#-------------------------------------------------------------------------------
+# launchTest
+# Author :  manxinator
+# Created:  Wed Oct  7 02:28:49 PDT 2015
+# Language: Python 2.7.6
+#-------------------------------------------------------------------------------
+
+import os, sys, getopt
+import signal, subprocess, time
+import atexit
+from datetime import datetime
+from os.path import basename
+
+g_proc = None
+
+#-------------------------------------------------------------------------------
+class launcher:
+  '''Launcher class is a top level regressable script'''
+
+  #= = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
+  class testClass:
+    def __init__(self,**kwargs):
+      self.bin      = None
+      self.testName = None
+      self.testFile = None
+      self.numRuns  = None
+      self.runDir   = None
+      self.runSeed  = None
+      self.preRun   = None
+      self.postRun  = None
+      self.testSuff = None
+      self.exArgs   = None
+      if kwargs is not None:
+        if 'testSuff' in kwargs:
+          self.testSuff = kwargs['testSuff']
+
+    def dummy(self,a_bin,a_tn,xArg):
+      self.bin      = a_bin
+      self.testName = a_tn
+      self.testFile = a_tn + self.testSuff
+      self.numRuns  = 1
+      self.runDir   = '.'
+      self.exArgs   = xArg
+
+    def getCmdArray(self):
+      whichBin = subprocess.Popen(['which',self.bin],shell=False,stdout=subprocess.PIPE,preexec_fn=os.setsid)
+      binPath = whichBin.stdout.read().strip()
+      return [binPath,self.exArgs]
+  #= = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
+
+  def __init__(self):
+    self.progName = None
+
+    self.opt_verbose   = True
+    self.opt_bin       = None
+    self.opt_testFile  = None
+    self.opt_numRuns   = None
+    self.opt_runDir    = None
+    self.opt_runSeed   = None
+    self.opt_preRun    = None
+    self.opt_postRun   = None
+    self.opt_testSuff  = ".aok"
+    self.opt_exArgs    = None
+    self.testLabel     = None
+
+    self.e_cwd = None
+    self.e_lwd = None
+
+  def setProgName(self,a_progName):
+    """ Sets program name for printing -- may be cleaned up: basename, etc. """
+    self.progName = a_progName
+
+  def printHelp(self,exitCode):
+    """ Prints the help instructions and exits. """
+    print("Usage: %s [OPTIONS] TEST_LABEL" % basename(self.progName))
+    print("  -b <STR>, --bin=<STR>         Executable binary")
+    print("  -t <STR>, --testFile=<STR>    Test file; defaults to <TEST_NAME>.%s" % self.opt_testSuff)
+    print("  -n <NUM>, --numRuns=<NUM>     Number of runs")
+    print("  -d <STR>, --runDir=<STR>      Directory for results")
+    print("  -r <NUM>, --runSeed=<NUM>     Random seed")
+    print("  -P <STR>, --preRun=<STR>      Comma-separated list of pre-run scripts")
+    print("  -p <STR>, --postRun=<STR>     Comma-separated list of post-run scripts")
+    print("  -z <STR>, --testSuffix=<STR>  Specify test suffix; defaults to '.aok'")
+    print("  -x <STR>, --extraArgs=<STR>   Additional arguments")
+    print("--------------------------------------------------")
+    print("  -h, --help                    Help")
+    print("  -v, --verbose                 Verbose")
+    sys.exit(exitCode)
+
+  def readArgs(self,a_argv):
+    longArgs = [
+        "bin=",
+        "testFile=",
+        "numRuns=",
+        "runDir=",
+        "runSeed=",
+        "preRun=",
+        "postRun=",
+        "testSuffix=",
+        "extraArgs=",
+      ]
+    try:
+      opts, remainder = getopt.getopt(a_argv,"hvb:t:n:d:r:P:p:z:x:",longArgs)
+    except getopt.GetoptError:
+      self.printHelp(2)
+
+    for opt, arg in opts:
+      if   opt in ("-h","--help"):       self.printHelp(0)
+      elif opt in ("-v","--verbose"):    self.opt_verbose   = True
+      elif opt in ("-b","--bin"):        self.opt_bin       = arg
+      elif opt in ("-t","--testFile"):   self.opt_testFile  = arg
+      elif opt in ("-n","--numRuns"):    self.opt_numRuns   = arg
+      elif opt in ("-d","--runDir"):     self.opt_runDir    = arg
+      elif opt in ("-r","--runSeed"):    self.opt_runSeed   = arg
+      elif opt in ("-P","--preRun"):     self.opt_preRun    = arg
+      elif opt in ("-p","--postRun"):    self.opt_postRun   = arg
+      elif opt in ("-z","--testSuffix"): self.opt_testSuff  = arg
+      elif opt in ("-x","--extraArgs"):  self.opt_exArgs    = arg
+      else:
+        print("Unknown option %s" % opt);
+
+    if not self.opt_testSuff.strip():
+      print "\nERROR: empty test suffix not supported!!!"
+      sys.exit(-1)
+    else:
+      if self.opt_testSuff[0] != '.':
+        self.opt_testSuff = '.' + self.opt_testSuff
+
+    if len(remainder) != 1:
+      self.printHelp(0)
+    self.testLabel = remainder[0]
+    #
+    # TODO:
+    # if testLabel == '.'
+    #   find <TEST_LABEL>.<TEST_SUFF> in local directory
+    #   find <CWD>.<TEST_SUFF> in local directory ---> TEST_LABEL = CWD
+    #
+
+    if True:    # self.opt_verbose
+      if self.opt_bin       is not None: print("- opt_bin      : %s" % self.opt_bin      )
+      if self.opt_testFile  is not None: print("- opt_testFile : %s" % self.opt_testFile )
+      if self.opt_numRuns   is not None: print("- opt_numRuns  : %d" % self.opt_numRuns  )
+      if self.opt_runDir    is not None: print("- opt_runDir   : %s" % self.opt_runDir   )
+      if self.opt_runSeed   is not None: print("- opt_runSeed  : %d" % self.opt_runSeed  )
+      if self.opt_preRun    is not None: print("- opt_preRun   : %s" % self.opt_preRun   )
+      if self.opt_postRun   is not None: print("- opt_postRun  : %s" % self.opt_postRun  )
+      if self.opt_testSuff  is not None: print("- opt_testSuff : %s" % self.opt_testSuff )
+      if self.opt_exArgs    is not None: print("- opt_exArgs   : %s" % self.opt_exArgs   )
+      if self.testLabel     is not None: print("- testLabel    : %s" % self.testLabel    )
+
+  #-----------------------------------------------------------------------------
+  def loadTestConfig(self):
+    if self.opt_verbose:
+      print("\n[launcher::loadTestConfig()]\n")
+    self.e_cwd = os.getcwd().rstrip('/')
+    self.e_lwd = os.environ['LOCAL_WS_DIR'].rstrip('/')
+
+    # Check script's CWD
+    l_lwdTest = self.e_lwd + '/test'
+    if l_lwdTest != self.e_cwd[:len(l_lwdTest)]:
+      print "\nERROR: %s must be invoked under %s* !!!" %(basename(self.progName),l_lwdTest)
+      print "  CWD: %s" %self.e_cwd
+      sys.exit(-1)
+    if self.opt_verbose:
+      print "  CWD:   %s" %self.e_cwd
+      print "  Local: %s" %self.e_lwd
+
+    load_testList = []
+    def_testList  = []
+
+    # Load regular testLists
+    #
+    rootDir = '.'
+    for dirName, subdirList, fileList in os.walk(rootDir):
+      # modify subdirList to skip unwanted subdirectories
+      # Note: os.walk flattens the structure
+      #
+      if 'CVS' in subdirList:
+        subdirList.remove('CVS') # TODO: add other names to be skipped programatically
+
+      for fname in fileList:
+        if '.' in fname:
+          fBase, fExt = os.path.splitext(fname)
+          if fBase != 'default' and fExt == '.testList':
+            load_testList.append(dirName + '/' + fname)
+
+    # Load default testLists
+    #
+    startStr = None
+    srchStr  = self.e_cwd[len(l_lwdTest):]
+    slPos    = srchStr.find('/')
+    if slPos < 0:
+      startStr = self.e_cwd
+    else:
+      startStr = self.e_cwd[:len(l_lwdTest)+slPos]
+    if self.opt_verbose:
+      print "  - For default.testLists, start at %s" % startStr
+
+    for dirName, subdirList, fileList in os.walk(startStr):
+      # modify subdirList to skip unwanted subdirectories
+      # Note: os.walk flattens the structure
+      #
+      if 'CVS' in subdirList:
+        subdirList.remove('CVS') # TODO: add other names to be skipped programatically
+
+      for fname in fileList:
+        if fname == 'default.testList':
+          def_testList.append(dirName + '/' + fname)
+
+    if self.opt_verbose:
+      print "\n  testLists to be loaded:"
+      for fname in load_testList:
+        print "  - %s" % fname
+      print "  default.testLists:"
+      for fname in def_testList:
+        print "  - %s" % fname
+
+  def checkTestConfig(self):
+    #pass
+    if self.opt_bin is None:
+      self.opt_bin = 'runDelaySecs'  # TEMP for debugging
+
+  #-----------------------------------------------------------------------------
+  def getTestList(self):
+    l_testList = []
+
+    #
+    # 1- Find testLabel in test classes
+    # 2- Find testLabel in test names
+    # 3- Find testLabel as test file in local directory
+    #
+
+    tcArgDict = {
+        'testSuff' : self.opt_testSuff
+      }
+
+    aTest = self.testClass(**tcArgDict)
+    aTest.dummy(self.opt_bin,self.testLabel,"15000")
+    l_testList.append(aTest)
+
+    bTest = self.testClass(**tcArgDict)
+    bTest.dummy(self.opt_bin,self.testLabel,"22000")
+    l_testList.append(bTest)
+
+    cTest = self.testClass(**tcArgDict)
+    cTest.dummy(self.opt_bin,self.testLabel,"6000")
+    l_testList.append(cTest)
+
+    return l_testList
+
+  #-----------------------------------------------------------------------------
+  def launchTest(self,oneTest,idx):
+    # TODO:
+    # - create run directory here in order to avoid name collision [DONE]
+    # - get argument array from class                              [DONE]
+    # - redirect output to log file; stderr?                       [DONE]
+    # - launch pre-run and post-run scripts -- Rethink the logging!
+    # - create script that deletes all RUN.* directories
+    # - add secondary github account as tdeloco@gmail
+
+    def genRunDir(testObj,runIdx):
+      runDir = testObj.runDir # TODO: expand to full path -- os.path.abspath()?
+      i = 0
+      while True:
+        newDir = "%s/RUN.%s.%s.%d" %(runDir,testObj.bin,testObj.testName,i)
+        if not os.path.isdir(newDir):
+          return newDir
+        i += 1
+
+    def openLog(logName):
+      try:
+        logHand = open(logName,'w')
+      except IOError:
+        sys.stderr.write("Failed to open %s for writing" %logName)
+        sys.exit(5)
+      return logHand
+    #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+    # 1- Create run directory here in order to avoid name collision
+    #
+    targetDir = genRunDir(oneTest,idx)
+    print "  +   Create dir: %s" %targetDir
+    os.makedirs(targetDir)
+
+    # 2- Get command array from class
+    #
+    cmdArray = oneTest.getCmdArray()
+    print "  +   %s" % cmdArray
+
+    # 3- Create log file
+    #
+    logFile = targetDir + "/run.log"
+    logFh = openLog(logFile)
+    logFh.write('%s\n' % cmdArray)
+    logFh.write('%s\n' % datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f'))
+    logFh.write('--------------------------------------------------\n')
+
+    # 4- Launch process; redirect both STDOUT and STDERR to log file
+    # Note:
+    #   http://stackoverflow.com/questions/18344932/python-subprocess-call-stdout-to-file-stderr-to-file-display-stderr-on-scree
+    # Long Term:
+    #   Have the option to redirect STDERR to its own file
+    #   Have the option to re-run the test
+    subProc = subprocess.Popen(cmdArray, stdout=logFh, stderr=subprocess.STDOUT, shell=False, preexec_fn=os.setsid, cwd=targetDir)
+    return subProc
+
+  #-----------------------------------------------------------------------------
+  def run(self):
+    if self.opt_verbose:
+      print "\n[launcher::run()]\n"
+
+
+    #
+    # 1- Search for any *.testList within current directory tree
+    #    Search for default.testList until top-level test tree: ${LOCAL_WS_DIR}/test*
+    # 2- Figure out testLabel:
+    #   a) Standalone (not in *.testList)
+    #   b) Test Name
+    #   c) Test Class
+    # 3- Launch tests
+    # 4- Wait for child processes to complete, print every 5 secs
+    #
+
+    # 1
+    #
+    self.loadTestConfig()
+    self.checkTestConfig()
+
+    # 2
+    #
+    self.testList = self.getTestList()
+
+    # 3
+    #
+    if self.opt_verbose:
+      print "\n  Launching %d tests!" % len(self.testList)
+
+    #if len(self.testList) == 1 and numRuns == 1
+    #  #
+    #  # This is for standalone interactive mode
+    #  # TODO: interactive should be the default if there's only one test
+    #  #
+    #  os.system(self.testList[0].bin)
+    #  return
+
+
+    global g_proc
+    g_proc = []
+    for testObj in self.testList:
+      if self.opt_verbose:
+        print "  + launch: %s | %s | %s" %(testObj.bin,testObj.testName,testObj.testFile)
+      for idx in range(testObj.numRuns):
+        g_proc.append( self.launchTest(testObj,idx) )
+
+    # 4
+    #
+    l_doLoop = True
+    while l_doLoop:
+      numPend = 0
+      numRun  = 0
+      numDone = 0
+      for oneProc in g_proc:
+        if oneProc.poll() is None:
+          numRun = numRun + 1
+        else:
+          numDone = numDone + 1
+      if numPend == 0 and numRun == 0:
+        # TODO: create a maximum time limit
+        l_doLoop = False
+
+      print "\n\n\n"
+      print "--------------------"
+      print "- Polling Tests [%s]" %datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+      print "- Pending: %d, Running: %d, Done: %d" %(numPend,numRun,numDone)
+      print "--------------------"
+      time.sleep(4)
+
+
+  #-----------------------------------------------------------------------------
+  @atexit.register
+  def launcherCleanup():
+    #
+    # Kill any remaining child processes here
+    #
+    global g_proc
+    if g_proc is not None:
+      print "\n[launcherCleanup()]"
+      for oneProc in g_proc:
+        if oneProc.poll() is None:
+          print "- killing subprocess [pid=%d]" %oneProc.pid
+          os.killpg(oneProc.pid,signal.SIGTERM)
+      print "\n"
+
+
+#-------------------------------------------------------------------------------
+
+if __name__ == "__main__":
+  launObj = launcher()
+  launObj.setProgName( sys.argv[0]  )
+  launObj.readArgs   ( sys.argv[1:] )
+  launObj.run        ()
+
