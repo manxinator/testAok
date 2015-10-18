@@ -66,7 +66,7 @@ class launcher:
     def getCmdArray(self):
       whichBin = subprocess.Popen(['which',self.bin],shell=False,stdout=subprocess.PIPE,preexec_fn=os.setsid)
       binPath = whichBin.stdout.read().strip()
-      return [binPath,self.exArgs]
+      return [binPath,"--extraArgs=" + self.exArgs]
   #= = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 
   def __init__(self):
@@ -288,13 +288,26 @@ class launcher:
           return newDir
         i += 1
 
-    def openLog(logName):
+    def createLog(logName,cmdLst):
       try:
         logHand = open(logName,'w')
       except IOError:
         sys.stderr.write("Failed to open %s for writing" %logName)
         sys.exit(5)
-      return logHand
+      logHand.write('%s\n' % cmdLst)
+      logHand.write('%s\n' % datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f'))
+      logHand.write('--------------------------------------------------\n')
+      logHand.close()
+
+    def runLaunchDelegate(cmdLst,runDir):
+      launchLogName = runDir + '/launch.log'
+      try:
+        launchLogHand = open(launchLogName,'w')
+      except IOError:
+        sys.stderr.write("Failed to open %s for writing" %launchLogName)
+        sys.exit(5)
+      delgProc = subprocess.Popen(['uLaunch.py'] + cmdArray, stdout=launchLogHand, stderr=launchLogHand, shell=False, preexec_fn=os.setsid, cwd=runDir)
+      return delgProc
     #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
     # 1- Create run directory here in order to avoid name collision
@@ -310,11 +323,7 @@ class launcher:
 
     # 3- Create log file
     #
-    logFile = targetDir + "/run.log"
-    logFh = openLog(logFile)
-    logFh.write('%s\n' % cmdArray)
-    logFh.write('%s\n' % datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f'))
-    logFh.write('--------------------------------------------------\n')
+    createLog(targetDir + "/run.log",cmdArray)
 
     # 4- Launch process; redirect both STDOUT and STDERR to log file
     # Note:
@@ -322,7 +331,10 @@ class launcher:
     # Long Term:
     #   Have the option to redirect STDERR to its own file
     #   Have the option to re-run the test
-    subProc = subprocess.Popen(cmdArray, stdout=logFh, stderr=subprocess.STDOUT, shell=False, preexec_fn=os.setsid, cwd=targetDir)
+    #subProc = subprocess.Popen(cmdArray, stdout=logFh, stderr=subprocess.STDOUT, shell=False, preexec_fn=os.setsid, cwd=targetDir)
+    #subProc = subprocess.Popen(['uLaunch.py'] + cmdArray, stdout=logFh, stderr=subprocess.STDOUT, shell=False, preexec_fn=os.setsid, cwd=targetDir)
+    subProc = runLaunchDelegate(cmdArray,targetDir)
+
     return subProc
 
   #-----------------------------------------------------------------------------
@@ -411,6 +423,9 @@ class launcher:
           print "- killing subprocess [pid=%d]" %oneProc.pid
           os.killpg(oneProc.pid,signal.SIGTERM)
       print "\n"
+    #
+    # Question: Should we save the launch log file handles and close them here?
+    #
 
 
 #-------------------------------------------------------------------------------
