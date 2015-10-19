@@ -21,7 +21,7 @@
 # SOFTWARE.
 #-------------------------------------------------------------------------------
 # uLaunch.py
-# Author :  manxinator
+# Author:   manxinator
 # Created:  Sun Oct 18 00:41:31 PDT 2015
 # Language: Python 2.7.6
 #-------------------------------------------------------------------------------
@@ -34,38 +34,64 @@ from os.path import basename
 g_child_pid = None
 g_progName  = None
 g_verbose   = None
+  #
+  # TODO:
+  # 1- figure out a mechanism for re-running tests
+  #   A- inside RUN.* directory
+  #   B- from parent directory
+  # 2- what to do with random seed?
+  #
 
 #-------------------------------------------------------------------------------
 class launchDelegate:
+  """Launches a set of scripts and programs which constitutes a single test
+  """
+
   def __init__(self):
     self.prog = basename(sys.argv[0])
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('-v', '--verbose',   action='count',                                  help='Increase verbosity')
-    parser.add_argument('-l', '--logFile',   nargs=1,   dest='logFile',   default='run_log',  help='Log File')
-    parser.add_argument('-r', '--runSeed',   nargs=1,   dest='runSeed',                       help='Random seed')
-    parser.add_argument('-P', '--preRun',    nargs=1,   dest='preRun',                        help='Comma-separated list of pre-run scripts')
-    parser.add_argument('-p', '--postRun',   nargs=1,   dest='postRun',                       help='Comma-separated list of post-run scripts')
-    parser.add_argument('-x', '--extraArgs', nargs='+', dest='extraArgs',                     help='Arguments for the executable')
-    parser.add_argument('bin',                                                                help='Executable program to launch')
+    parser.add_argument('-v', '--verbose',   action='count',                                    help='Increase verbosity')
+    parser.add_argument('-l', '--logFile',   nargs=1,   dest='logFile',   default=['run_log'],  help='Log File')
+    parser.add_argument('-r', '--runSeed',   nargs=1,   dest='runSeed',                         help='Random seed')
+    parser.add_argument('-P', '--preRun',    nargs=1,   dest='preRun',                          help='Comma-separated list of pre-run scripts')
+    parser.add_argument('-p', '--postRun',   nargs=1,   dest='postRun',                         help='Comma-separated list of post-run scripts')
+    parser.add_argument('-x', '--extraArgs', nargs='+', dest='extraArgs',                       help='Arguments for the executable')
+    parser.add_argument('bin',                                                                  help='Executable program to launch')
 
     self.args = parser.parse_args()
     print "\n-----"
     print "- ", self.args
-    print "-"
+    print "-\n"
+
+    #= = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
+    runResultFile = 'result.launchTest.temp'
+    if os.path.isfile(runResultFile):
+      os.remove(runResultFile)
 
     #= = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
     global g_progName
     global g_verbose
     g_progName = self.prog
     g_verbose  = 0 if self.args.verbose is None else self.args.verbose
-    g_verbose  = 10 # Temporary override
+    g_verbose  = 10 # Temporary override -- TODO: remove this
+
+
+  def getExecPath(self,execFile):
+    """Returns an array with a single entry -- full path of a given executable
+    """
+    # TODO: Create a pythonic version of this function
+    whichEx = subprocess.Popen(['which',execFile],shell=False,stdout=subprocess.PIPE,preexec_fn=os.setsid)
+    exePath = whichEx.stdout.read().strip()
+    return [exePath]
 
 
   def launchAndWait(self,execFile,logHand,exArgs=[]):
-    cmd = [execFile] + exArgs
+    """Launches a single script / executable and waits for its completion
+    """
+    cmd = self.getExecPath(execFile) + exArgs
 
-    print "[%s] launching: %s, [%s]" %(self.prog, cmd[0], datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f'))
+    print "[%s] LAUNCH: %s, [%s]" %(self.prog, execFile, datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f'))
     print "[%s] %s" %(self.prog,cmd)
 
     # Run
@@ -81,28 +107,30 @@ class launchDelegate:
     childProc.wait()
 
     g_child_pid = None
-    print "[%s] %s done" %(self.prog, cmd[0])
+    print "[%s] DONE: %s" %(self.prog, execFile)
 
 
   def launchList(self,cmdStr,logFileHand):
+    """Splits a comma-separated list of scripts and calls them one at a time
+    """
     cmdList = cmdStr.split(",")
     for oneScript in cmdList:
-      print "  + %s" % oneScript
+      print "  -- -- -- -- -- -- -- -> %s" % oneScript
       self.launchAndWait(oneScript,logFileHand)
 
 
   def run(self):
+    """Performs the following operation:
+      1- run pre-run scripts in order
+      2- run program
+      3- run post-run scripts in order
+    """
+
     try:
       logFH = open(self.args.logFile[0],'a')
     except IOError:
       sys.stderr.write("Failed to open %s for writing" %self.args.logFile[0])
       sys.exit(-1)
-
-    #---------------------------------------------------------------------------
-    # 1- run pre-run scripts in order
-    # 2- run program
-    # 3- run post-run scripts in order
-    #---------------------------------------------------------------------------
 
     # 1- run pre-run scripts
     #
@@ -121,15 +149,16 @@ class launchDelegate:
       print "------------------------- postRun: %s" % self.args.preRun
       self.launchList(self.args.postRun[0],logFH)
 
-    print "[%s] %s; Done!" %(self.prog, datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f'))
-    print "--------------------------------------------------"
+    print "++++++++++++++++++++++++++++++++++++++++++++++++++"
+    print "+ [%s] %s Done! [%s]" %(self.prog, self.prog, datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f'))
+    print "++++++++++++++++++++++++++++++++++++++++++++++++++"
 
 
   #-----------------------------------------------------------------------------
   def killChild():
-    #
-    # Kill child processes -- uLaunch will only have one child process at a time
-    #
+    """Kill child process
+      Note: this script will only have one child process at a time
+    """
     global g_child_pid
     global g_progName
     global g_verbose

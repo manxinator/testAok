@@ -21,7 +21,7 @@
 # SOFTWARE.
 #-------------------------------------------------------------------------------
 # launchTest
-# Author :  manxinator
+# Author:   manxinator
 # Created:  Wed Oct  7 02:28:49 PDT 2015
 # Language: Python 2.7.6
 #-------------------------------------------------------------------------------
@@ -36,7 +36,7 @@ g_proc = None
 
 #-------------------------------------------------------------------------------
 class launcher:
-  '''Launcher class is a top level regressable script'''
+  """Launcher class is a top level regressable script"""
 
   #= = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
   class testClass:
@@ -272,12 +272,12 @@ class launcher:
   #-----------------------------------------------------------------------------
   def launchTest(self,oneTest,idx):
     # TODO:
-    # - create run directory here in order to avoid name collision [DONE]
-    # - get argument array from class                              [DONE]
-    # - redirect output to log file; stderr?                       [DONE]
-    # - launch pre-run and post-run scripts -- Rethink the logging!
+    # - create run directory here in order to avoid name collision  [DONE]
+    # - get argument array from class                               [DONE]
+    # - redirect output to log file; stderr?                        [DONE]
+    # - launch pre-run and post-run scripts -- Rethink the logging! [DONE]
     # - create script that deletes all RUN.* directories
-    # - add secondary github account as tdeloco@gmail
+    # - add secondary github account repo                           [DONE]
 
     def genRunDir(testObj,runIdx):
       runDir = testObj.runDir # TODO: expand to full path -- os.path.abspath()?
@@ -386,6 +386,10 @@ class launcher:
         g_proc.append( self.launchTest(testObj,idx) )
 
     # 4
+    # TODO: design a cleaner mechanism
+    #   - remove finished processes from array
+    #   - if the file result.launchTest.temp exists, read it, save the result and delete
+    #   - create a maximum time limit
     #
     l_doLoop = True
     while l_doLoop:
@@ -398,7 +402,6 @@ class launcher:
         else:
           numDone = numDone + 1
       if numPend == 0 and numRun == 0:
-        # TODO: create a maximum time limit
         l_doLoop = False
 
       print "\n\n\n"
