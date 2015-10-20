@@ -41,16 +41,17 @@ class launcher:
   #= = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
   class testClass:
     def __init__(self,**kwargs):
-      self.bin      = None
-      self.testName = None
-      self.testFile = None
-      self.numRuns  = None
-      self.runDir   = None
-      self.runSeed  = None
-      self.preRun   = None
-      self.postRun  = None
-      self.testSuff = None
-      self.exArgs   = None
+      self.bin        = None
+      self.testName   = None
+      self.testFile   = None
+      self.numRuns    = None
+      self.runDir     = None
+      self.forceSeed  = None
+      self.randScript = None
+      self.preRun     = None
+      self.postRun    = None
+      self.testSuff   = None
+      self.exArgs     = None
       if kwargs is not None:
         if 'testSuff' in kwargs:
           self.testSuff = kwargs['testSuff']
@@ -65,27 +66,33 @@ class launcher:
 
     def getCmdArray(self):
       whichBin = subprocess.Popen(['which',self.bin],shell=False,stdout=subprocess.PIPE,preexec_fn=os.setsid)
-      binPath = whichBin.stdout.read().strip()
-      return [binPath,"--extraArgs=" + self.exArgs]
+      binPath  = whichBin.stdout.read().strip()
+      retArray = [binPath,"--extraArgs=" + self.exArgs]
+      if self.randScript is not None:
+        retArray = retArray + ["--randScript=" + self.randScript]
+      return retArray
   #= = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 
   def __init__(self):
     self.progName = None
 
-    self.opt_verbose   = True
-    self.opt_bin       = None
-    self.opt_testFile  = None
-    self.opt_numRuns   = None
-    self.opt_runDir    = None
-    self.opt_runSeed   = None
-    self.opt_preRun    = None
-    self.opt_postRun   = None
-    self.opt_testSuff  = ".aok"
-    self.opt_exArgs    = None
-    self.testLabel     = None
+    self.opt_verbose     = True
+    self.opt_bin         = None
+    self.opt_testFile    = None
+    self.opt_numRuns     = None
+    self.opt_runDir      = None
+    self.opt_forceSeed   = None
+    self.opt_randScript  = None
+    self.opt_preRun      = None
+    self.opt_postRun     = None
+    self.opt_testSuff    = ".aok"
+    self.opt_exArgs      = None
+    self.testLabel       = None
 
     self.e_cwd = None
     self.e_lwd = None
+
+    self.runLogName = "run.log"   # Perhaps make this programmable
 
   def setProgName(self,a_progName):
     """ Sets program name for printing -- may be cleaned up: basename, etc. """
@@ -97,8 +104,9 @@ class launcher:
     print("  -b <STR>, --bin=<STR>         Executable binary")
     print("  -t <STR>, --testFile=<STR>    Test file; defaults to <TEST_NAME>.%s" % self.opt_testSuff)
     print("  -n <NUM>, --numRuns=<NUM>     Number of runs")
-    print("  -d <STR>, --runDir=<STR>      Directory for results")
-    print("  -r <NUM>, --runSeed=<NUM>     Random seed")
+    print("  -d <STR>, --runDir=<STR>      Directory which will contain the run directories")
+    print("  -F <NUM>, --forceSeed=<NUM>   Run test with given random seed")
+    print("  -r <STR>, --randScript=<STR>  Specify random seed generator script")
     print("  -P <STR>, --preRun=<STR>      Comma-separated list of pre-run scripts")
     print("  -p <STR>, --postRun=<STR>     Comma-separated list of post-run scripts")
     print("  -z <STR>, --testSuffix=<STR>  Specify test suffix; defaults to '.aok'")
@@ -114,29 +122,31 @@ class launcher:
         "testFile=",
         "numRuns=",
         "runDir=",
-        "runSeed=",
+        "forceSeed=",
+        "randScript=",
         "preRun=",
         "postRun=",
         "testSuffix=",
         "extraArgs=",
       ]
     try:
-      opts, remainder = getopt.getopt(a_argv,"hvb:t:n:d:r:P:p:z:x:",longArgs)
+      opts, remainder = getopt.getopt(a_argv,"hvb:t:n:d:F:r:P:p:z:x:",longArgs)
     except getopt.GetoptError:
       self.printHelp(2)
 
     for opt, arg in opts:
       if   opt in ("-h","--help"):       self.printHelp(0)
-      elif opt in ("-v","--verbose"):    self.opt_verbose   = True
-      elif opt in ("-b","--bin"):        self.opt_bin       = arg
-      elif opt in ("-t","--testFile"):   self.opt_testFile  = arg
-      elif opt in ("-n","--numRuns"):    self.opt_numRuns   = arg
-      elif opt in ("-d","--runDir"):     self.opt_runDir    = arg
-      elif opt in ("-r","--runSeed"):    self.opt_runSeed   = arg
-      elif opt in ("-P","--preRun"):     self.opt_preRun    = arg
-      elif opt in ("-p","--postRun"):    self.opt_postRun   = arg
-      elif opt in ("-z","--testSuffix"): self.opt_testSuff  = arg
-      elif opt in ("-x","--extraArgs"):  self.opt_exArgs    = arg
+      elif opt in ("-v","--verbose"):    self.opt_verbose    = True
+      elif opt in ("-b","--bin"):        self.opt_bin        = arg
+      elif opt in ("-t","--testFile"):   self.opt_testFile   = arg
+      elif opt in ("-n","--numRuns"):    self.opt_numRuns    = arg
+      elif opt in ("-d","--runDir"):     self.opt_runDir     = arg
+      elif opt in ("-F","--forceSeed"):  self.opt_forceSeed  = arg
+      elif opt in ("-r","--randScript"): self.opt_randScript = arg
+      elif opt in ("-P","--preRun"):     self.opt_preRun     = arg
+      elif opt in ("-p","--postRun"):    self.opt_postRun    = arg
+      elif opt in ("-z","--testSuffix"): self.opt_testSuff   = arg
+      elif opt in ("-x","--extraArgs"):  self.opt_exArgs     = arg
       else:
         print("Unknown option %s" % opt);
 
@@ -158,16 +168,17 @@ class launcher:
     #
 
     if True:    # self.opt_verbose
-      if self.opt_bin       is not None: print("- opt_bin      : %s" % self.opt_bin      )
-      if self.opt_testFile  is not None: print("- opt_testFile : %s" % self.opt_testFile )
-      if self.opt_numRuns   is not None: print("- opt_numRuns  : %d" % self.opt_numRuns  )
-      if self.opt_runDir    is not None: print("- opt_runDir   : %s" % self.opt_runDir   )
-      if self.opt_runSeed   is not None: print("- opt_runSeed  : %d" % self.opt_runSeed  )
-      if self.opt_preRun    is not None: print("- opt_preRun   : %s" % self.opt_preRun   )
-      if self.opt_postRun   is not None: print("- opt_postRun  : %s" % self.opt_postRun  )
-      if self.opt_testSuff  is not None: print("- opt_testSuff : %s" % self.opt_testSuff )
-      if self.opt_exArgs    is not None: print("- opt_exArgs   : %s" % self.opt_exArgs   )
-      if self.testLabel     is not None: print("- testLabel    : %s" % self.testLabel    )
+      if self.opt_bin        is not None: print("- opt_bin       : %s" % self.opt_bin       )
+      if self.opt_testFile   is not None: print("- opt_testFile  : %s" % self.opt_testFile  )
+      if self.opt_numRuns    is not None: print("- opt_numRuns   : %d" % self.opt_numRuns   )
+      if self.opt_runDir     is not None: print("- opt_runDir    : %s" % self.opt_runDir    )
+      if self.opt_forceSeed  is not None: print("- opt_forceSeed : %d" % self.opt_forceSeed )
+      if self.opt_randScript is not None: print("- opt_randScript: %s" % self.opt_randScript)
+      if self.opt_preRun     is not None: print("- opt_preRun    : %s" % self.opt_preRun    )
+      if self.opt_postRun    is not None: print("- opt_postRun   : %s" % self.opt_postRun   )
+      if self.opt_testSuff   is not None: print("- opt_testSuff  : %s" % self.opt_testSuff  )
+      if self.opt_exArgs     is not None: print("- opt_exArgs    : %s" % self.opt_exArgs    )
+      if self.testLabel      is not None: print("- testLabel     : %s" % self.testLabel     )
 
   #-----------------------------------------------------------------------------
   def loadTestConfig(self):
@@ -237,7 +248,6 @@ class launcher:
         print "  - %s" % fname
 
   def checkTestConfig(self):
-    #pass
     if self.opt_bin is None:
       self.opt_bin = 'runDelaySecs'  # TEMP for debugging
 
@@ -280,6 +290,8 @@ class launcher:
     # - add secondary github account repo                           [DONE]
 
     def genRunDir(testObj,runIdx):
+      """Creates the run directory
+      """
       runDir = testObj.runDir # TODO: expand to full path -- os.path.abspath()?
       i = 0
       while True:
@@ -289,6 +301,8 @@ class launcher:
         i += 1
 
     def createLog(logName,cmdLst):
+      """Creates the executable's log file and writes preliminary info
+      """
       try:
         logHand = open(logName,'w')
       except IOError:
@@ -299,14 +313,25 @@ class launcher:
       logHand.write('--------------------------------------------------\n')
       logHand.close()
 
-    def runLaunchDelegate(cmdLst,runDir):
+    def runLaunchDelegate(cmdLaunch,runDir):
+      """Launches the actual process and returns the proc object
+         NOTE:
+           run.log    - executable's log file; set in self.runLogName
+           launch.log - the launcher script's log file
+      """
       launchLogName = runDir + '/launch.log'
       try:
         launchLogHand = open(launchLogName,'w')
       except IOError:
         sys.stderr.write("Failed to open %s for writing" %launchLogName)
         sys.exit(5)
-      delgProc = subprocess.Popen(['uLaunch.py'] + cmdArray, stdout=launchLogHand, stderr=launchLogHand, shell=False, preexec_fn=os.setsid, cwd=runDir)
+      l_cmd = ['uLaunch.py'] + cmdLaunch + ["--logFile=" + self.runLogName]
+      #
+      # Call createLog here to print the final values for the command
+      #
+      createLog(runDir + "/" + self.runLogName,l_cmd)
+      print "  +   %s" % l_cmd
+      delgProc = subprocess.Popen(l_cmd, stdout=launchLogHand, stderr=launchLogHand, shell=False, preexec_fn=os.setsid, cwd=runDir)
       return delgProc
     #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
@@ -319,20 +344,13 @@ class launcher:
     # 2- Get command array from class
     #
     cmdArray = oneTest.getCmdArray()
-    print "  +   %s" % cmdArray
 
-    # 3- Create log file
-    #
-    createLog(targetDir + "/run.log",cmdArray)
-
-    # 4- Launch process; redirect both STDOUT and STDERR to log file
+    # 3- Launch process; redirect both STDOUT and STDERR to log file
     # Note:
     #   http://stackoverflow.com/questions/18344932/python-subprocess-call-stdout-to-file-stderr-to-file-display-stderr-on-scree
     # Long Term:
     #   Have the option to redirect STDERR to its own file
     #   Have the option to re-run the test
-    #subProc = subprocess.Popen(cmdArray, stdout=logFh, stderr=subprocess.STDOUT, shell=False, preexec_fn=os.setsid, cwd=targetDir)
-    #subProc = subprocess.Popen(['uLaunch.py'] + cmdArray, stdout=logFh, stderr=subprocess.STDOUT, shell=False, preexec_fn=os.setsid, cwd=targetDir)
     subProc = runLaunchDelegate(cmdArray,targetDir)
 
     return subProc

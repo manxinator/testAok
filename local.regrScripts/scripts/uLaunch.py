@@ -54,7 +54,7 @@ class launchDelegate:
     parser.add_argument('-v', '--verbose',    action='count',                                     help='Increase verbosity')
     parser.add_argument('-l', '--logFile',    nargs=1,   dest='logFile',    default=['run_log'],  help='Log File')
     parser.add_argument('-F', '--forceSeed',  nargs=1,   dest='forceSeed',                        help='Forcibly override random seed')
-    parser.add_argument('-r', '--randScript', nargs=1,   dest='randScript',                       help='Specify random generation script')
+    parser.add_argument('-r', '--randScript', nargs=1,   dest='randScript',                       help='Specify random seed generator script')
     parser.add_argument('-P', '--preRun',     nargs=1,   dest='preRun',                           help='Comma-separated list of pre-run scripts')
     parser.add_argument('-p', '--postRun',    nargs=1,   dest='postRun',                          help='Comma-separated list of post-run scripts')
     parser.add_argument('-x', '--extraArgs',  nargs='+', dest='extraArgs',                        help='Arguments for the executable')
