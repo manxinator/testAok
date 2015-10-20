@@ -51,18 +51,15 @@ class launchDelegate:
     self.prog = basename(sys.argv[0])
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('-v', '--verbose',   action='count',                                    help='Increase verbosity')
-    parser.add_argument('-l', '--logFile',   nargs=1,   dest='logFile',   default=['run_log'],  help='Log File')
-    parser.add_argument('-r', '--runSeed',   nargs=1,   dest='runSeed',                         help='Random seed')
-    parser.add_argument('-P', '--preRun',    nargs=1,   dest='preRun',                          help='Comma-separated list of pre-run scripts')
-    parser.add_argument('-p', '--postRun',   nargs=1,   dest='postRun',                         help='Comma-separated list of post-run scripts')
-    parser.add_argument('-x', '--extraArgs', nargs='+', dest='extraArgs',                       help='Arguments for the executable')
-    parser.add_argument('bin',                                                                  help='Executable program to launch')
-
+    parser.add_argument('-v', '--verbose',    action='count',                                     help='Increase verbosity')
+    parser.add_argument('-l', '--logFile',    nargs=1,   dest='logFile',    default=['run_log'],  help='Log File')
+    parser.add_argument('-F', '--forceSeed',  nargs=1,   dest='forceSeed',                        help='Forcibly override random seed')
+    parser.add_argument('-r', '--randScript', nargs=1,   dest='randScript',                       help='Specify random generation script')
+    parser.add_argument('-P', '--preRun',     nargs=1,   dest='preRun',                           help='Comma-separated list of pre-run scripts')
+    parser.add_argument('-p', '--postRun',    nargs=1,   dest='postRun',                          help='Comma-separated list of post-run scripts')
+    parser.add_argument('-x', '--extraArgs',  nargs='+', dest='extraArgs',                        help='Arguments for the executable')
+    parser.add_argument('bin',                                                                    help='Executable program to launch')
     self.args = parser.parse_args()
-    print "\n-----"
-    print "- ", self.args
-    print "-\n"
 
     #= = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
     runResultFile = 'result.launchTest.temp'
@@ -75,6 +72,18 @@ class launchDelegate:
     g_progName = self.prog
     g_verbose  = 0 if self.args.verbose is None else self.args.verbose
     g_verbose  = 10 # Temporary override -- TODO: remove this
+
+    #= = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
+    # Introspect argument members that are not methods and not private
+    #
+    if g_verbose > 2:
+      methodList = [method for method in dir(self.args) if (not callable(getattr(self.args,method))) and (method[0] != '_')]
+      strLen     = len(max(methodList,key=len))
+      fmtStr     = '{:' + str(strLen) + '}'
+      print "\n********** %s arguments:" % self.prog
+      for oneStr in methodList:
+        print "* ", fmtStr.format(oneStr), " = ", self.args.__dict__[oneStr]
+      print "******************************\n"
 
 
   def getExecPath(self,execFile):
@@ -134,6 +143,8 @@ class launchDelegate:
 
     # 1- run pre-run scripts
     #
+    if self.args.randScript is not None:
+      print "------------------------- randScript TODO: Implement me!"
     if self.args.preRun is not None:
       print "------------------------- preRun: %s" % self.args.preRun
       self.launchList(self.args.preRun[0],logFH)
