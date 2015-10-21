@@ -74,7 +74,7 @@ class launchDelegate:
     g_verbose  = 10 # Temporary override -- TODO: remove this
 
     #= = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
-    # Introspect argument members that are not methods and not private
+    # Introspect argument members that are neither methods nor private
     #
     if g_verbose > 2:
       methodList = [method for method in dir(self.args) if (not callable(getattr(self.args,method))) and (method[0] != '_')]
@@ -130,9 +130,9 @@ class launchDelegate:
 
   def run(self):
     """Performs the following operation:
-      1- run pre-run scripts in order
-      2- run program
-      3- run post-run scripts in order
+       1- run pre-run scripts in order
+       2- run program
+       3- run post-run scripts in order
     """
 
     try:
@@ -145,6 +145,7 @@ class launchDelegate:
     #
     if self.args.randScript is not None:
       print "------------------------- randScript TODO: Implement me!"
+      #self.launchAndWait(self.args.randScript,logFH,--forceSeed argument goes here)
     if self.args.preRun is not None:
       print "------------------------- preRun: %s" % self.args.preRun
       self.launchList(self.args.preRun[0],logFH)
@@ -168,18 +169,19 @@ class launchDelegate:
   #-----------------------------------------------------------------------------
   def killChild():
     """Kill child process
-      Note: this script will only have one child process at a time
+       Note: this script will only have one child process at a time
     """
     global g_child_pid
     global g_progName
     global g_verbose
 
+    sys.stdout.flush()
     if g_child_pid is None:
       if g_verbose > 0:
-        sys.stderr.write("\n[%s] launcherCleanup() g_child_pid is None" % g_progName)
+        sys.stderr.write("\n[%s] killChild() g_child_pid is None\n" % g_progName)
     else:
       if g_verbose > 0:
-        sys.stderr.write("\n[%s] launcherCleanup() killing g_child_pid=%d" % (g_progName,g_child_pid))
+        sys.stderr.write("\n[%s] killChild() killing g_child_pid=%d\n" % (g_progName,g_child_pid))
       os.kill(g_child_pid, signal.SIGTERM)
 
   import atexit

@@ -74,6 +74,7 @@ class launcher:
   #= = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 
   def __init__(self):
+    """Initialization for launcher class"""
     self.progName = None
 
     self.opt_verbose     = True
@@ -253,13 +254,12 @@ class launcher:
 
   #-----------------------------------------------------------------------------
   def getTestList(self):
+    """Returns a list of tests associated with the given label
+       1- Find testLabel in test classes
+       2- Find testLabel in test names
+       3- Find testLabel as test file in local directory
+    """
     l_testList = []
-
-    #
-    # 1- Find testLabel in test classes
-    # 2- Find testLabel in test names
-    # 3- Find testLabel as test file in local directory
-    #
 
     tcArgDict = {
         'testSuff' : self.opt_testSuff
@@ -281,13 +281,11 @@ class launcher:
 
   #-----------------------------------------------------------------------------
   def launchTest(self,oneTest,idx):
-    # TODO:
-    # - create run directory here in order to avoid name collision  [DONE]
-    # - get argument array from class                               [DONE]
-    # - redirect output to log file; stderr?                        [DONE]
-    # - launch pre-run and post-run scripts -- Rethink the logging! [DONE]
-    # - create script that deletes all RUN.* directories
-    # - add secondary github account repo                           [DONE]
+    """Prepares and launches the test
+       - Run directory created here in order to avoid name collision
+       - Get the argument array from testClass
+       - Creates the child process
+    """
 
     def genRunDir(testObj,runIdx):
       """Creates the run directory
@@ -357,20 +355,19 @@ class launcher:
 
   #-----------------------------------------------------------------------------
   def run(self):
+    """The main function of this class
+       1- Search for any *.testList within current directory tree
+          Search for default.testList until top-level test tree: ${LOCAL_WS_DIR}/test*
+       2- Figure out testLabel:
+         a) Standalone (not in *.testList)
+         b) Test Name
+         c) Test Class
+       3- Launch tests
+       4- Wait for child processes to complete, print every 5 secs
+    """
+
     if self.opt_verbose:
       print "\n[launcher::run()]\n"
-
-
-    #
-    # 1- Search for any *.testList within current directory tree
-    #    Search for default.testList until top-level test tree: ${LOCAL_WS_DIR}/test*
-    # 2- Figure out testLabel:
-    #   a) Standalone (not in *.testList)
-    #   b) Test Name
-    #   c) Test Class
-    # 3- Launch tests
-    # 4- Wait for child processes to complete, print every 5 secs
-    #
 
     # 1
     #
@@ -433,17 +430,24 @@ class launcher:
   #-----------------------------------------------------------------------------
   @atexit.register
   def launcherCleanup():
-    #
-    # Kill any remaining child processes here
-    #
+    """Kill any remaining child processes here
+       - Invoked when program is terminating (via SIGKILL or finishing naturally)
+    """
     global g_proc
     if g_proc is not None:
-      print "\n[launcherCleanup()]"
+      pidKillList = []
+      sys.stdout.flush()
+      sys.stderr.write( "\n[launcherCleanup()]\n" )
+
       for oneProc in g_proc:
         if oneProc.poll() is None:
-          print "- killing subprocess [pid=%d]" %oneProc.pid
-          os.killpg(oneProc.pid,signal.SIGTERM)
-      print "\n"
+          sys.stderr.write( "- killing subprocess [pid=%d]\n" %oneProc.pid )
+          pidKillList.append(oneProc.pid)
+          oneProc.send_signal(signal.SIGINT)
+
+      for onePid in pidKillList:
+        os.killpg(onePid,signal.SIGTERM)
+      sys.stderr.write( "\n\n" )
     #
     # Question: Should we save the launch log file handles and close them here?
     #
