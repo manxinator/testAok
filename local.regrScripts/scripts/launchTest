@@ -56,20 +56,24 @@ class launcher:
         if 'testSuff' in kwargs:
           self.testSuff = kwargs['testSuff']
 
-    def dummy(self,a_bin,a_tn,xArg):
+    def dummy(self,a_bin,a_tn,xArg,forceSeed):
       self.bin      = a_bin
       self.testName = a_tn
       self.testFile = a_tn + self.testSuff
       self.numRuns  = 1
       self.runDir   = '.'
       self.exArgs   = xArg
+      if forceSeed is not None:
+        self.forceSeed = forceSeed
 
     def getCmdArray(self):
       whichBin = subprocess.Popen(['which',self.bin],shell=False,stdout=subprocess.PIPE,preexec_fn=os.setsid)
       binPath  = whichBin.stdout.read().strip()
       retArray = [binPath,"--extraArgs=" + self.exArgs]
-      if self.randScript is not None:
-        retArray = retArray + ["--randScript=" + self.randScript]
+      if self.randScript is not None: retArray = retArray + ["--randScript=" + self.randScript]
+      if self.forceSeed  is not None: retArray = retArray + ["--forceSeed=%d" % self.forceSeed]
+      if self.preRun     is not None: retArray = retArray + ["--preRun=%s"    % self.preRun]
+      if self.postRun    is not None: retArray = retArray + ["--postRun=%s"   % self.postRun]
       return retArray
   #= = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 
@@ -140,9 +144,9 @@ class launcher:
       elif opt in ("-v","--verbose"):    self.opt_verbose    = True
       elif opt in ("-b","--bin"):        self.opt_bin        = arg
       elif opt in ("-t","--testFile"):   self.opt_testFile   = arg
-      elif opt in ("-n","--numRuns"):    self.opt_numRuns    = arg
+      elif opt in ("-n","--numRuns"):    self.opt_numRuns    = int(arg)
       elif opt in ("-d","--runDir"):     self.opt_runDir     = arg
-      elif opt in ("-F","--forceSeed"):  self.opt_forceSeed  = arg
+      elif opt in ("-F","--forceSeed"):  self.opt_forceSeed  = int(arg)
       elif opt in ("-r","--randScript"): self.opt_randScript = arg
       elif opt in ("-P","--preRun"):     self.opt_preRun     = arg
       elif opt in ("-p","--postRun"):    self.opt_postRun    = arg
@@ -266,15 +270,21 @@ class launcher:
       }
 
     aTest = self.testClass(**tcArgDict)
-    aTest.dummy(self.opt_bin,self.testLabel,"15000")
+    aTest.dummy(self.opt_bin,self.testLabel,"15000",self.opt_forceSeed)
+    if self.opt_preRun  is not None: aTest.preRun  = self.opt_preRun
+    if self.opt_postRun is not None: aTest.postRun = self.opt_postRun
     l_testList.append(aTest)
 
     bTest = self.testClass(**tcArgDict)
-    bTest.dummy(self.opt_bin,self.testLabel,"22000")
+    bTest.dummy(self.opt_bin,self.testLabel,"22000",self.opt_forceSeed)
+    if self.opt_preRun  is not None: bTest.preRun  = self.opt_preRun
+    if self.opt_postRun is not None: bTest.postRun = self.opt_postRun
     l_testList.append(bTest)
 
     cTest = self.testClass(**tcArgDict)
-    cTest.dummy(self.opt_bin,self.testLabel,"6000")
+    cTest.dummy(self.opt_bin,self.testLabel,"6000",self.opt_forceSeed)
+    if self.opt_preRun  is not None: cTest.preRun  = self.opt_preRun
+    if self.opt_postRun is not None: cTest.postRun = self.opt_postRun
     l_testList.append(cTest)
 
     return l_testList
@@ -316,6 +326,8 @@ class launcher:
          NOTE:
            run.log    - executable's log file; set in self.runLogName
            launch.log - the launcher script's log file
+                      - hardcoded file name cannot be changed
+                      - contains metadata for pre/post scripts
       """
       launchLogName = runDir + '/launch.log'
       try:
@@ -350,6 +362,7 @@ class launcher:
     #   Have the option to redirect STDERR to its own file
     #   Have the option to re-run the test
     subProc = runLaunchDelegate(cmdArray,targetDir)
+    print "  +"
 
     return subProc
 

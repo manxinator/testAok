@@ -53,7 +53,7 @@ class launchDelegate:
     parser = argparse.ArgumentParser()
     parser.add_argument('-v', '--verbose',    action='count',                                     help='Increase verbosity')
     parser.add_argument('-l', '--logFile',    nargs=1,   dest='logFile',    default=['run_log'],  help='Log File')
-    parser.add_argument('-F', '--forceSeed',  nargs=1,   dest='forceSeed',                        help='Forcibly override random seed')
+    parser.add_argument('-F', '--forceSeed',  nargs=1,   dest='forceSeed',  type=int,             help='Forcibly override random seed')
     parser.add_argument('-r', '--randScript', nargs=1,   dest='randScript',                       help='Specify random seed generator script')
     parser.add_argument('-P', '--preRun',     nargs=1,   dest='preRun',                           help='Comma-separated list of pre-run scripts')
     parser.add_argument('-p', '--postRun',    nargs=1,   dest='postRun',                          help='Comma-separated list of post-run scripts')
@@ -75,15 +75,15 @@ class launchDelegate:
 
     #= = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
     # Introspect argument members that are neither methods nor private
+    # This metadata is required
     #
-    if g_verbose > 2:
-      methodList = [method for method in dir(self.args) if (not callable(getattr(self.args,method))) and (method[0] != '_')]
-      strLen     = len(max(methodList,key=len))
-      fmtStr     = '{:' + str(strLen) + '}'
-      print "\n********** %s arguments:" % self.prog
-      for oneStr in methodList:
-        print "* ", fmtStr.format(oneStr), " = ", self.args.__dict__[oneStr]
-      print "******************************\n"
+    methodList = [method for method in dir(self.args) if (not callable(getattr(self.args,method))) and (method[0] != '_')]
+    strLen     = len(max(methodList,key=len))
+    fmtStr     = '{:' + str(strLen) + '}'
+    print "********** %s arguments:" % self.prog
+    for oneStr in methodList:
+      print "* ", fmtStr.format(oneStr), " = ", self.args.__dict__[oneStr]
+    print "******************************\n"
 
 
   def getExecPath(self,execFile):
@@ -141,11 +141,15 @@ class launchDelegate:
       sys.stderr.write("Failed to open %s for writing" %self.args.logFile[0])
       sys.exit(-1)
 
-    # 1- run pre-run scripts
+    # 1- run random script and pre-run scripts
     #
     if self.args.randScript is not None:
-      print "------------------------- randScript TODO: Implement me!"
-      #self.launchAndWait(self.args.randScript,logFH,--forceSeed argument goes here)
+      print "------------------------- randScript: %s" % self.args.randScript[0]
+      forceSeedArgLst = []
+      if self.args.forceSeed is not None:
+        forceSeedArgLst.append('--forceSeed=%d' % self.args.forceSeed[0])
+      self.launchAndWait(self.args.randScript[0],logFH,forceSeedArgLst)
+
     if self.args.preRun is not None:
       print "------------------------- preRun: %s" % self.args.preRun
       self.launchList(self.args.preRun[0],logFH)
@@ -158,7 +162,8 @@ class launchDelegate:
     # 3- run post-run scripts
     #
     if self.args.postRun is not None:
-      print "------------------------- postRun: %s" % self.args.preRun
+      print "------------------------- postRun: %s" % self.args.postRun
+      logFH.flush()
       self.launchList(self.args.postRun[0],logFH)
 
     print "++++++++++++++++++++++++++++++++++++++++++++++++++"
