@@ -50,30 +50,39 @@ class launcher:
       self.randScript = None
       self.preRun     = None
       self.postRun    = None
-      self.testSuff   = None
       self.exArgs     = None
       if kwargs is not None:
-        if 'testSuff' in kwargs:
-          self.testSuff = kwargs['testSuff']
+        if 'bin'        in kwargs: self.bin        = kwargs['bin'       ]
+        if 'testName'   in kwargs: self.testName   = kwargs['testName'  ]
+        if 'testFile'   in kwargs: self.testFile   = kwargs['testFile'  ]
+        if 'numRuns'    in kwargs: self.numRuns    = kwargs['numRuns'   ]
+        if 'runDir'     in kwargs: self.runDir     = kwargs['runDir'    ]
+        if 'forceSeed'  in kwargs: self.forceSeed  = kwargs['forceSeed' ]
+        if 'randScript' in kwargs: self.randScript = kwargs['randScript']
+        if 'preRun'     in kwargs: self.preRun     = kwargs['preRun'    ]
+        if 'postRun'    in kwargs: self.postRun    = kwargs['postRun'   ]
+        if 'exArgs'     in kwargs: self.exArgs     = kwargs['exArgs'    ]
 
-    def dummy(self,a_bin,a_tn,xArg,forceSeed):
-      self.bin      = a_bin
-      self.testName = a_tn
-      self.testFile = a_tn + self.testSuff
-      self.numRuns  = 1
-      self.runDir   = '.'
-      self.exArgs   = xArg
-      if forceSeed is not None:
-        self.forceSeed = forceSeed
+    #def dummy(self,a_bin,a_tn,xArg,forceSeed):
+    #  self.bin      = a_bin
+    #  self.testName = a_tn
+    #  self.testFile = a_tn + self.testSuff
+    #  self.numRuns  = 1
+    #  self.runDir   = '.'
+    #  self.exArgs   = xArg
+    #  if forceSeed is not None:
+    #    self.forceSeed = forceSeed
 
     def getCmdArray(self):
       whichBin = subprocess.Popen(['which',self.bin],shell=False,stdout=subprocess.PIPE,preexec_fn=os.setsid)
       binPath  = whichBin.stdout.read().strip()
-      retArray = [binPath,"--extraArgs=" + self.exArgs]
+      retArray = [binPath]
       if self.randScript is not None: retArray = retArray + ["--randScript=" + self.randScript]
       if self.forceSeed  is not None: retArray = retArray + ["--forceSeed=%d" % self.forceSeed]
       if self.preRun     is not None: retArray = retArray + ["--preRun=%s"    % self.preRun]
       if self.postRun    is not None: retArray = retArray + ["--postRun=%s"   % self.postRun]
+      if self.testFile   is not None: retArray = retArray + ["--testFile="  + self.testFile]
+      if self.exArgs     is not None: retArray = retArray + ["--extraArgs=" + self.exArgs]
       return retArray
   #= = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 
@@ -84,8 +93,8 @@ class launcher:
     self.opt_verbose     = True
     self.opt_bin         = None
     self.opt_testFile    = None
-    self.opt_numRuns     = None
-    self.opt_runDir      = None
+    self.opt_numRuns     = 1
+    self.opt_runDir      = '.'
     self.opt_forceSeed   = None
     self.opt_randScript  = None
     self.opt_preRun      = None
@@ -97,7 +106,8 @@ class launcher:
     self.e_cwd = None
     self.e_lwd = None
 
-    self.runLogName = "run.log"   # Perhaps make this programmable
+    self.testLabelInferred = False
+    self.runLogName        = "run.log"   # Perhaps make this programmable
 
   def setProgName(self,a_progName):
     """ Sets program name for printing -- may be cleaned up: basename, etc. """
@@ -153,24 +163,19 @@ class launcher:
       elif opt in ("-z","--testSuffix"): self.opt_testSuff   = arg
       elif opt in ("-x","--extraArgs"):  self.opt_exArgs     = arg
       else:
-        print("Unknown option %s" % opt);
+        print("Unknown option %s" % opt)
 
     if not self.opt_testSuff.strip():
       print "\nERROR: empty test suffix not supported!!!"
-      sys.exit(-1)
+      sys.exit(-9)
     else:
       if self.opt_testSuff[0] != '.':
         self.opt_testSuff = '.' + self.opt_testSuff
 
-    if len(remainder) != 1:
-      self.printHelp(0)
-    self.testLabel = remainder[0]
-    #
-    # TODO:
-    # if testLabel == '.'
-    #   find <TEST_LABEL>.<TEST_SUFF> in local directory
-    #   find <CWD>.<TEST_SUFF> in local directory ---> TEST_LABEL = CWD
-    #
+    # Determine the test label here
+    remLen = len(remainder)
+    if remLen == 0: self.testLabel = self.inferTestLabel()
+    else:           self.testLabel = self.preCheckLabel(remainder)
 
     if True:    # self.opt_verbose
       if self.opt_bin        is not None: print("- opt_bin       : %s" % self.opt_bin       )
@@ -185,8 +190,42 @@ class launcher:
       if self.opt_exArgs     is not None: print("- opt_exArgs    : %s" % self.opt_exArgs    )
       if self.testLabel      is not None: print("- testLabel     : %s" % self.testLabel     )
 
+  def inferTestLabel(self):
+    """Try to figure out test label
+       1- if testFile specified, use it
+       2- find <CWD>.<TEST_SUFF> in local directory ---> TEST_LABEL = basename(pwd)
+       3- find <TEST_LABEL>.<TEST_SUFF> in local directory
+       NOTE: self.opt_testFile ends up being defined either way
+    """
+    self.testLabelInferred = True
+    if self.opt_testFile is not None:
+      pass  # TODO!!!
+    bpwd = basename(os.environ.get('PWD'))
+    if os.path.isfile(bpwd + self.opt_testSuff):
+      self.opt_testFile = bpwd + self.opt_testSuff
+      return bpwd
+    fileList = [oneF for oneF in os.listdir('.') if os.path.isfile(oneF) and oneF.endswith(self.opt_testSuff)]
+    if len(fileList) == 1:
+      # Strip out the suffix
+      self.opt_testFile = fileList[0]
+      fileStr = self.opt_testFile[:len(self.opt_testFile)-len(self.opt_testSuff)]
+      return fileStr
+    print "ERROR: couldn't figure out test case"
+    sys.exit(-6)
+
+  def preCheckLabel(self,argLst):
+    """Preliminary checking of testLabel argument"""
+    l_label = argLst[0]
+    if len(argLst) > 1:
+      print "WARNING: multiple labels not supported at this time!"
+    if l_label == '.':
+      l_label = self.inferTestLabel()
+    return l_label
+
   #-----------------------------------------------------------------------------
   def loadTestConfig(self):
+    """Loads test list files
+    """
     if self.opt_verbose:
       print("\n[launcher::loadTestConfig()]\n")
     self.e_cwd = os.getcwd().rstrip('/')
@@ -245,16 +284,22 @@ class launcher:
           def_testList.append(dirName + '/' + fname)
 
     if self.opt_verbose:
-      print "\n  testLists to be loaded:"
-      for fname in load_testList:
-        print "  - %s" % fname
-      print "  default.testLists:"
-      for fname in def_testList:
-        print "  - %s" % fname
+      if len(load_testList) == 0:
+        print "\n  No *.testLists found!"
+      else:
+        print "\n  *.testLists to be loaded:"
+        for fname in load_testList:
+          print "  - %s" % fname
+      if len(def_testList) == 0:
+        print "  No default.testLists found!"
+      else:
+        print "  default.testLists to be loaded:"
+        for fname in def_testList:
+          print "  - %s" % fname
 
   def checkTestConfig(self):
     if self.opt_bin is None:
-      self.opt_bin = 'runDelaySecs'  # TEMP for debugging
+      self.opt_bin = 'runDelaySecs'  # TEMP for debugging -- TODO
 
   #-----------------------------------------------------------------------------
   def getTestList(self):
@@ -263,29 +308,98 @@ class launcher:
        2- Find testLabel in test names
        3- Find testLabel as test file in local directory
     """
+
+    l_testList = None
+
+    #
+    # TODO: get from testList config here
+    #
+
+    # No corresponding tests found, try local test
+    #
+    if l_testList == None:
+      if self.testLabelInferred:
+        return self.getLocalTest()
+      else:
+        print "ERROR: No tests to run!\n"
+        self.printHelp(7)
+
+    #tcArgDict = {
+    #    'testSuff' : self.opt_testSuff
+    #  }
+    #
+    #aTest = self.testClass(**tcArgDict)
+    #aTest.dummy(self.opt_bin,self.testLabel,"15000",self.opt_forceSeed)
+    #if self.opt_preRun  is not None: aTest.preRun  = self.opt_preRun
+    #if self.opt_postRun is not None: aTest.postRun = self.opt_postRun
+    #l_testList.append(aTest)
+    #
+    #bTest = self.testClass(**tcArgDict)
+    #bTest.dummy(self.opt_bin,self.testLabel,"22000",self.opt_forceSeed)
+    #if self.opt_preRun  is not None: bTest.preRun  = self.opt_preRun
+    #if self.opt_postRun is not None: bTest.postRun = self.opt_postRun
+    #l_testList.append(bTest)
+    #
+    #cTest = self.testClass(**tcArgDict)
+    #cTest.dummy(self.opt_bin,self.testLabel,"6000",self.opt_forceSeed)
+    #if self.opt_preRun  is not None: cTest.preRun  = self.opt_preRun
+    #if self.opt_postRun is not None: cTest.postRun = self.opt_postRun
+    #l_testList.append(cTest)
+
+    return l_testList
+
+  def getLocalTest(self):
     l_testList = []
 
+    # Both self.opt_testFile and testLabel should be defined
+    #
+    assert self.opt_testFile is not None
+    assert self.testLabel    is not None
+
     tcArgDict = {
-        'testSuff' : self.opt_testSuff
+        'bin'        : self.opt_bin,
+        'testName'   : self.testLabel,
+        'testFile'   : self.opt_testFile,
+        'numRuns'    : self.opt_numRuns,
+        'runDir'     : self.opt_runDir,
+        'forceSeed'  : self.opt_forceSeed,
+        'randScript' : self.opt_randScript,
+        'preRun'     : self.opt_preRun,
+        'postRun'    : self.opt_postRun,
+        'exArgs'     : self.opt_exArgs
       }
 
     aTest = self.testClass(**tcArgDict)
-    aTest.dummy(self.opt_bin,self.testLabel,"15000",self.opt_forceSeed)
-    if self.opt_preRun  is not None: aTest.preRun  = self.opt_preRun
-    if self.opt_postRun is not None: aTest.postRun = self.opt_postRun
+
+    #aTest.dummy(self.opt_bin,self.testLabel,"15000",self.opt_forceSeed)
+    #if self.opt_preRun  is not None: aTest.preRun  = self.opt_preRun
+    #if self.opt_postRun is not None: aTest.postRun = self.opt_postRun
+
+    #  self.bin        = None
+    #  self.testName   = None
+    #  self.testFile   = None
+    #  self.numRuns    = None
+    #  self.runDir     = None
+    #  self.forceSeed  = None
+    #  self.randScript = None
+    #  self.preRun     = None
+    #  self.postRun    = None
+    #  self.testSuff   = None
+    #  self.exArgs     = None
+    #
+    #self.opt_bin         = None
+    #self.opt_testFile    = None
+    #self.opt_numRuns     = None
+    #self.opt_runDir      = None
+    #self.opt_forceSeed   = None
+    #self.opt_randScript  = None
+    #self.opt_preRun      = None
+    #self.opt_postRun     = None
+    #self.opt_testSuff    = ".aok"
+    #self.opt_exArgs      = None
+    #self.testLabel       = None
+
     l_testList.append(aTest)
-
-    bTest = self.testClass(**tcArgDict)
-    bTest.dummy(self.opt_bin,self.testLabel,"22000",self.opt_forceSeed)
-    if self.opt_preRun  is not None: bTest.preRun  = self.opt_preRun
-    if self.opt_postRun is not None: bTest.postRun = self.opt_postRun
-    l_testList.append(bTest)
-
-    cTest = self.testClass(**tcArgDict)
-    cTest.dummy(self.opt_bin,self.testLabel,"6000",self.opt_forceSeed)
-    if self.opt_preRun  is not None: cTest.preRun  = self.opt_preRun
-    if self.opt_postRun is not None: cTest.postRun = self.opt_postRun
-    l_testList.append(cTest)
 
     return l_testList
 
@@ -295,11 +409,17 @@ class launcher:
        - Run directory created here in order to avoid name collision
        - Get the argument array from testClass
        - Creates the child process
+       NOTE: Operates on one instance of a test, index is provided
     """
 
+    def launchCheckTest(testObj,runIdx):
+      """Checks the configuration before launching"""
+      if testObj.bin is None:
+        sys.stderr.write("ERROR: couldn't figure out binary file")
+        sys.exit(8)
+
     def genRunDir(testObj,runIdx):
-      """Creates the run directory
-      """
+      """Creates the run directory"""
       runDir = testObj.runDir # TODO: expand to full path -- os.path.abspath()?
       i = 0
       while True:
@@ -309,8 +429,7 @@ class launcher:
         i += 1
 
     def createLog(logName,cmdLst):
-      """Creates the executable's log file and writes preliminary info
-      """
+      """Creates the executable's log file and writes preliminary info"""
       try:
         logHand = open(logName,'w')
       except IOError:
@@ -334,7 +453,7 @@ class launcher:
         launchLogHand = open(launchLogName,'w')
       except IOError:
         sys.stderr.write("Failed to open %s for writing" %launchLogName)
-        sys.exit(5)
+        sys.exit(4)
       l_cmd = ['uLaunch.py'] + cmdLaunch + ["--logFile=" + self.runLogName]
       #
       # Call createLog here to print the final values for the command
@@ -344,6 +463,8 @@ class launcher:
       delgProc = subprocess.Popen(l_cmd, stdout=launchLogHand, stderr=launchLogHand, shell=False, preexec_fn=os.setsid, cwd=runDir)
       return delgProc
     #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+    launchCheckTest(oneTest,idx)
 
     # 1- Create run directory here in order to avoid name collision
     #
@@ -382,16 +503,16 @@ class launcher:
     if self.opt_verbose:
       print "\n[launcher::run()]\n"
 
-    # 1
+    # 1- Load test lists / config
     #
     self.loadTestConfig()
     self.checkTestConfig()
 
-    # 2
+    # 2- Get test list from test label
     #
     self.testList = self.getTestList()
 
-    # 3
+    # 3- Launch Tests
     #
     if self.opt_verbose:
       print "\n  Launching %d tests!" % len(self.testList)
@@ -410,10 +531,11 @@ class launcher:
     for testObj in self.testList:
       if self.opt_verbose:
         print "  + launch: %s | %s | %s" %(testObj.bin,testObj.testName,testObj.testFile)
+      # Expand each test into separate instances
       for idx in range(testObj.numRuns):
         g_proc.append( self.launchTest(testObj,idx) )
 
-    # 4
+    # 4- Wait for child processes
     # TODO: design a cleaner mechanism
     #   - remove finished processes from array
     #   - if the file result.launchTest.temp exists, read it, save the result and delete

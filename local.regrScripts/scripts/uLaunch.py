@@ -58,6 +58,7 @@ class launchDelegate:
     parser.add_argument('-P', '--preRun',     nargs=1,   dest='preRun',                           help='Comma-separated list of pre-run scripts')
     parser.add_argument('-p', '--postRun',    nargs=1,   dest='postRun',                          help='Comma-separated list of post-run scripts')
     parser.add_argument('-x', '--extraArgs',  nargs='+', dest='extraArgs',                        help='Arguments for the executable')
+    parser.add_argument('-t', '--testFile',   nargs=1,   dest='testFile',                         help='Test file')
     parser.add_argument('bin',                                                                    help='Executable program to launch')
     self.args = parser.parse_args()
 
@@ -155,9 +156,16 @@ class launchDelegate:
       self.launchList(self.args.preRun[0],logFH)
 
     # 2- run program
+    # NOTE:
+    # - self.args.testFile is, by default, the first argument
+    # - self.args.extraArgs should only be the first line of additional arguments
+    # - the rest must be loaded from a file just before calling launchAndWait(...) -- tODO
     #
     print "------------------------- run program"
-    self.launchAndWait(self.args.bin,logFH,self.args.extraArgs)
+    l_exArgs = self.args.testFile if self.args.testFile is not None else []
+    if self.args.extraArgs is not None:
+      l_exArgs = l_exArgs + self.args.extraArgs
+    self.launchAndWait(self.args.bin,logFH,l_exArgs)
 
     # 3- run post-run scripts
     #
