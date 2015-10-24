@@ -92,7 +92,7 @@ class launcher:
 
     self.opt_verbose     = True
     self.opt_bin         = None
-    self.opt_testFile    = None
+    self.opt_testFile    = None       # currently, only used in self.inferTestLabel()
     self.opt_numRuns     = 1
     self.opt_runDir      = '.'
     self.opt_forceSeed   = None
@@ -117,7 +117,9 @@ class launcher:
     """ Prints the help instructions and exits. """
     print("Usage: %s [OPTIONS] TEST_LABEL" % basename(self.progName))
     print("  -b <STR>, --bin=<STR>         Executable binary")
-    print("  -t <STR>, --testFile=<STR>    Test file; defaults to <TEST_NAME>.%s" % self.opt_testSuff)
+    print("  -t <STR>, --testFile=<STR>    Specify test file")
+    print("                                - only used when TEST_LABEL not defined")
+    print("                                - standalone test only")
     print("  -n <NUM>, --numRuns=<NUM>     Number of runs")
     print("  -d <STR>, --runDir=<STR>      Directory which will contain the run directories")
     print("  -F <NUM>, --forceSeed=<NUM>   Run test with given random seed")
@@ -199,7 +201,8 @@ class launcher:
     """
     self.testLabelInferred = True
     if self.opt_testFile is not None:
-      pass  # TODO!!!
+      fileStr = self.opt_testFile[:len(self.opt_testFile)-len(self.opt_testSuff)]
+      return fileStr
     bpwd = basename(os.environ.get('PWD'))
     if os.path.isfile(bpwd + self.opt_testSuff):
       self.opt_testFile = bpwd + self.opt_testSuff
@@ -324,28 +327,6 @@ class launcher:
         print "ERROR: No tests to run!\n"
         self.printHelp(7)
 
-    #tcArgDict = {
-    #    'testSuff' : self.opt_testSuff
-    #  }
-    #
-    #aTest = self.testClass(**tcArgDict)
-    #aTest.dummy(self.opt_bin,self.testLabel,"15000",self.opt_forceSeed)
-    #if self.opt_preRun  is not None: aTest.preRun  = self.opt_preRun
-    #if self.opt_postRun is not None: aTest.postRun = self.opt_postRun
-    #l_testList.append(aTest)
-    #
-    #bTest = self.testClass(**tcArgDict)
-    #bTest.dummy(self.opt_bin,self.testLabel,"22000",self.opt_forceSeed)
-    #if self.opt_preRun  is not None: bTest.preRun  = self.opt_preRun
-    #if self.opt_postRun is not None: bTest.postRun = self.opt_postRun
-    #l_testList.append(bTest)
-    #
-    #cTest = self.testClass(**tcArgDict)
-    #cTest.dummy(self.opt_bin,self.testLabel,"6000",self.opt_forceSeed)
-    #if self.opt_preRun  is not None: cTest.preRun  = self.opt_preRun
-    #if self.opt_postRun is not None: cTest.postRun = self.opt_postRun
-    #l_testList.append(cTest)
-
     return l_testList
 
   def getLocalTest(self):
@@ -370,34 +351,6 @@ class launcher:
       }
 
     aTest = self.testClass(**tcArgDict)
-
-    #aTest.dummy(self.opt_bin,self.testLabel,"15000",self.opt_forceSeed)
-    #if self.opt_preRun  is not None: aTest.preRun  = self.opt_preRun
-    #if self.opt_postRun is not None: aTest.postRun = self.opt_postRun
-
-    #  self.bin        = None
-    #  self.testName   = None
-    #  self.testFile   = None
-    #  self.numRuns    = None
-    #  self.runDir     = None
-    #  self.forceSeed  = None
-    #  self.randScript = None
-    #  self.preRun     = None
-    #  self.postRun    = None
-    #  self.testSuff   = None
-    #  self.exArgs     = None
-    #
-    #self.opt_bin         = None
-    #self.opt_testFile    = None
-    #self.opt_numRuns     = None
-    #self.opt_runDir      = None
-    #self.opt_forceSeed   = None
-    #self.opt_randScript  = None
-    #self.opt_preRun      = None
-    #self.opt_postRun     = None
-    #self.opt_testSuff    = ".aok"
-    #self.opt_exArgs      = None
-    #self.testLabel       = None
 
     l_testList.append(aTest)
 

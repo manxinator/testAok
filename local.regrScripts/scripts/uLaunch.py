@@ -159,7 +159,7 @@ class launchDelegate:
     # NOTE:
     # - self.args.testFile is, by default, the first argument
     # - self.args.extraArgs should only be the first line of additional arguments
-    # - the rest must be loaded from a file just before calling launchAndWait(...) -- tODO
+    # - the rest must be loaded from a file just before calling launchAndWait(...) -- TODO
     #
     print "------------------------- run program"
     l_exArgs = self.args.testFile if self.args.testFile is not None else []
