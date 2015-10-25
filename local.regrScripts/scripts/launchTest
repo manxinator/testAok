@@ -63,16 +63,6 @@ class launcher:
         if 'postRun'    in kwargs: self.postRun    = kwargs['postRun'   ]
         if 'exArgs'     in kwargs: self.exArgs     = kwargs['exArgs'    ]
 
-    #def dummy(self,a_bin,a_tn,xArg,forceSeed):
-    #  self.bin      = a_bin
-    #  self.testName = a_tn
-    #  self.testFile = a_tn + self.testSuff
-    #  self.numRuns  = 1
-    #  self.runDir   = '.'
-    #  self.exArgs   = xArg
-    #  if forceSeed is not None:
-    #    self.forceSeed = forceSeed
-
     def getCmdArray(self):
       whichBin = subprocess.Popen(['which',self.bin],shell=False,stdout=subprocess.PIPE,preexec_fn=os.setsid)
       binPath  = whichBin.stdout.read().strip()
@@ -103,11 +93,14 @@ class launcher:
     self.opt_exArgs      = None
     self.testLabel       = None
 
-    self.e_cwd = None
-    self.e_lwd = None
+    self.e_cwd = os.getcwd().rstrip('/')      # os.environ.get('PWD')
+    self.e_lwd = os.environ['LOCAL_WS_DIR'].rstrip('/')
 
     self.testLabelInferred = False
     self.runLogName        = "run.log"   # Perhaps make this programmable
+
+    self.cfg_testList = []
+    self.cfg_defList  = []
 
   def setProgName(self,a_progName):
     """ Sets program name for printing -- may be cleaned up: basename, etc. """
@@ -203,7 +196,7 @@ class launcher:
     if self.opt_testFile is not None:
       fileStr = self.opt_testFile[:len(self.opt_testFile)-len(self.opt_testSuff)]
       return fileStr
-    bpwd = basename(os.environ.get('PWD'))
+    bpwd = basename(self.e_cwd)
     if os.path.isfile(bpwd + self.opt_testSuff):
       self.opt_testFile = bpwd + self.opt_testSuff
       return bpwd
@@ -223,6 +216,11 @@ class launcher:
       print "WARNING: multiple labels not supported at this time!"
     if l_label == '.':
       l_label = self.inferTestLabel()
+    # For standalone labels
+    # - Perhaps rename self.testLabelInferred variable
+    if os.path.isfile(l_label + self.opt_testSuff):
+      self.testLabelInferred = True
+      self.opt_testFile      = l_label + self.opt_testSuff
     return l_label
 
   #-----------------------------------------------------------------------------
@@ -231,8 +229,6 @@ class launcher:
     """
     if self.opt_verbose:
       print("\n[launcher::loadTestConfig()]\n")
-    self.e_cwd = os.getcwd().rstrip('/')
-    self.e_lwd = os.environ['LOCAL_WS_DIR'].rstrip('/')
 
     # Check script's CWD
     l_lwdTest = self.e_lwd + '/test'
@@ -247,7 +243,7 @@ class launcher:
     load_testList = []
     def_testList  = []
 
-    # Load regular testLists
+    # Find regular testLists in the expected locations
     #
     rootDir = '.'
     for dirName, subdirList, fileList in os.walk(rootDir):
@@ -263,29 +259,36 @@ class launcher:
           if fBase != 'default' and fExt == '.testList':
             load_testList.append(dirName + '/' + fname)
 
-    # Load default testLists
+    # Find the default testLists -- only one
     #
-    startStr = None
-    srchStr  = self.e_cwd[len(l_lwdTest):]
-    slPos    = srchStr.find('/')
+    endStr  = None
+    srchStr = self.e_cwd[len(l_lwdTest):]
+    slPos   = srchStr.find('/')
+
     if slPos < 0:
-      startStr = self.e_cwd
+      endStr = self.e_cwd
     else:
-      startStr = self.e_cwd[:len(l_lwdTest)+slPos]
+      endStr = self.e_cwd[:len(l_lwdTest)+slPos]
     if self.opt_verbose:
-      print "  - For default.testLists, start at %s" % startStr
+      print "  - For default.testLists, end at %s" % endStr
 
-    for dirName, subdirList, fileList in os.walk(startStr):
-      # modify subdirList to skip unwanted subdirectories
-      # Note: os.walk flattens the structure
-      #
-      if 'CVS' in subdirList:
-        subdirList.remove('CVS') # TODO: add other names to be skipped programatically
+    checkDir  = self.e_cwd
+    fileFound = False
+    while True:
+      filePath  = checkDir + '/default.testList'
+      fileFound = os.path.isfile(filePath )
+      if fileFound:
+        def_testList.append(filePath )
+        print "  * Found: %s" % filePath
+        break
+      slPos = checkDir.rfind('/')
+      checkDir = checkDir[:slPos]
+      if checkDir == endStr:
+        break
+    assert (len(def_testList)) < 2  # Only 1 default testList supported for now
 
-      for fname in fileList:
-        if fname == 'default.testList':
-          def_testList.append(dirName + '/' + fname)
-
+    # Debug printing
+    #
     if self.opt_verbose:
       if len(load_testList) == 0:
         print "\n  No *.testLists found!"
@@ -300,7 +303,17 @@ class launcher:
         for fname in def_testList:
           print "  - %s" % fname
 
+    # Find regular testLists in the expected locations
+    #
+    print "\n"
+    for fname in load_testList:
+      print "  + Loading: %s" % fname
+
+    # Find default testLists in the expected locations
+    #
+
   def checkTestConfig(self):
+    """Perform configuration checking"""
     if self.opt_bin is None:
       self.opt_bin = 'runDelaySecs'  # TEMP for debugging -- TODO
 
@@ -324,7 +337,8 @@ class launcher:
       if self.testLabelInferred:
         return self.getLocalTest()
       else:
-        print "ERROR: No tests to run!\n"
+        print '\nERROR: No tests to run!'   # TODO: -- print meaningful errors
+        print '--------------------------------------------------'
         self.printHelp(7)
 
     return l_testList
