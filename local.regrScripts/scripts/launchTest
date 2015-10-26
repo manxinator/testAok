@@ -26,13 +26,14 @@
 # Language: Python 2.7.6
 #-------------------------------------------------------------------------------
 
-import os, sys, getopt
+import os, sys, argparse, getopt
 import signal, subprocess, time
 import atexit
 from datetime import datetime
 from os.path import basename
 
-g_proc = None
+g_proc   = None
+g_tcPars = None
 
 #-------------------------------------------------------------------------------
 class launcher:
@@ -74,6 +75,123 @@ class launcher:
       if self.testFile   is not None: retArray = retArray + ["--testFile="  + self.testFile]
       if self.exArgs     is not None: retArray = retArray + ["--extraArgs=" + self.exArgs]
       return retArray
+
+    def parseStr(self,args,prefix=None):
+      global g_tcPars
+      l_args = g_tcPars.parse_args(args)
+
+      self.numRuns    = l_args.numRuns
+      self.forceSeed  = l_args.forceSeed
+      if l_args.bin        is not None: self.bin        = l_args.bin[0]
+      if l_args.testName   is not None: self.testName   = l_args.testName[0]
+      if l_args.testFile   is not None: self.testFile   = l_args.testFile[0]
+      if l_args.runDir     is not None: self.runDir     = l_args.runDir[0]
+      if l_args.randScript is not None: self.randScript = l_args.randScript[0]
+      if l_args.preRun     is not None: self.preRun     = l_args.preRun[0]
+      if l_args.postRun    is not None: self.postRun    = l_args.postRun[0]
+      if l_args.extraArgs  is not None: self.exArgs     = l_args.extraArgs[0]
+
+      if prefix is not None:
+        if self.runDir is None:
+          self.runDir = prefix
+        else:
+          self.runDir = prefix + '/' + self.runDir
+      else:
+        if self.runDir is None: self.runDir = '.'
+
+      if self.numRuns  is None: self.numRuns  = 1
+      if self.testName is None:
+        if self.testFile is not None:
+          dotPos = self.testFile.find('.')
+          self.testName = self.testFile[:dotPos]
+
+      doPrint = True
+      if doPrint:
+        self.printMembers()
+
+    def printMembers(self):
+      methodList = [method for method in dir(self) if (not callable(getattr(self,method))) and (method[0] != '_')]
+      strLen     = len(max(methodList,key=len))
+      fmtStr     = '{:' + str(strLen) + '}'
+      print "********** [testClass::printMembers] arguments:"
+      for oneStr in methodList:
+        print "* ", fmtStr.format(oneStr), " = ", self.__dict__[oneStr]
+      print "******************************\n"
+
+  #= = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
+  class tlClass:
+    """Class that abstracts Test Lists"""
+    def __init__(self,**kwargs):
+      self.tlList = []
+
+      self.dirPath  = None
+      self.fileName = None
+      self.verbose  = None
+      self.parent   = None
+      if kwargs is not None:
+        if 'dirPath'  in kwargs: self.dirPath  = kwargs['dirPath']
+        if 'fileName' in kwargs: self.fileName = kwargs['fileName']
+        if 'verb'     in kwargs: self.verbose  = kwargs['verb']
+        if 'origin'   in kwargs: self.parent   = kwargs['origin']
+
+      if (self.dirPath is not None) and (self.fileName is not None):
+        self.loadFile()
+
+    def loadFile(self):
+      # Fix fileName and dirPath
+      self.fileName = self.fileName.lstrip('./')
+      self.dirPath  = self.dirPath.rstrip('/')
+      slPos         = self.fileName.rfind('/')
+      if slPos >= 0:
+        self.dirPath  = self.dirPath + '/' + self.fileName[:slPos]
+        self.fileName = self.fileName[slPos+1:]
+
+      pref = self.dirPath[len(self.parent.e_cwd)+1:]
+      print "  + Loading: %s in %s [%s]" % (self.fileName,self.dirPath,pref)
+      tlFN = self.dirPath + '/' + self.fileName
+      try:
+        tlFH = open(tlFN,'r')
+      except IOError:
+        sys.stderr.write("Failed to open %s for writing" %tlFN)
+        sys.exit(108)
+      else:
+        with tlFH:
+          for oneLine in tlFH:
+            # TODO: add support for `class and other advanced features
+            remPos  = oneLine.find('#')
+            oneLine = oneLine[:remPos].strip() if remPos >= 0 else oneLine.strip()
+            if len(oneLine) < 1:
+              continue
+            tmpSpl    = oneLine.split(' ')
+            parseArgs = [myArg for myArg in tmpSpl if myArg != '']
+
+            oneTest = self.parent.testClass()
+            oneTest.parseStr(parseArgs,prefix=pref)
+            self.tlList.append( oneTest )
+        #parent.e_cwd
+
+
+  #= = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
+  class tlDefault:
+    """Class that abstracts Default Test Lists"""
+    def __init__(self,**kwargs):
+      self.tlList = []
+
+      self.dirPath  = None
+      self.fileName = None
+      self.verbose  = None
+      if kwargs is not None:
+        if 'dirPath'  in kwargs: self.dirPath  = kwargs['dirPath']
+        if 'fileName' in kwargs: self.fileName = kwargs['fileName']
+        if 'verb'     in kwargs: self.verbose  = kwargs['verb']
+
+      if (self.dirPath is not None) and (self.fileName is not None):
+        self.loadFile()
+
+    def loadFile(self):
+      # Fix fileName and dirPath
+      print "  + Loading: %s" % self.fileName
+
   #= = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 
   def __init__(self):
@@ -283,7 +401,9 @@ class launcher:
         break
       slPos = checkDir.rfind('/')
       checkDir = checkDir[:slPos]
-      if checkDir == endStr:
+      # A lexicographic comparison would be better than length comparison
+      # If equal, there should be one more iteration
+      if len(checkDir) < len(endStr):
         break
     assert (len(def_testList)) < 2  # Only 1 default testList supported for now
 
@@ -302,12 +422,14 @@ class launcher:
         print "  default.testLists to be loaded:"
         for fname in def_testList:
           print "  - %s" % fname
+    print ''
 
     # Find regular testLists in the expected locations
     #
-    print "\n"
     for fname in load_testList:
-      print "  + Loading: %s" % fname
+      self.cfg_testList.append( self.tlClass(fileName=fname,dirPath=self.e_cwd,verb=self.opt_verbose,origin=self) )
+    for fname in def_testList:
+      self.cfg_defList.append( self.tlDefault(fileName=fname,dirPath=self.e_cwd,verb=self.opt_verbose) )
 
     # Find default testLists in the expected locations
     #
@@ -365,6 +487,7 @@ class launcher:
       }
 
     aTest = self.testClass(**tcArgDict)
+    aTest.printMembers()
 
     l_testList.append(aTest)
 
@@ -383,7 +506,7 @@ class launcher:
       """Checks the configuration before launching"""
       if testObj.bin is None:
         sys.stderr.write("ERROR: couldn't figure out binary file")
-        sys.exit(8)
+        sys.exit(103)
 
     def genRunDir(testObj,runIdx):
       """Creates the run directory"""
@@ -401,7 +524,7 @@ class launcher:
         logHand = open(logName,'w')
       except IOError:
         sys.stderr.write("Failed to open %s for writing" %logName)
-        sys.exit(5)
+        sys.exit(104)
       logHand.write('%s\n' % cmdLst)
       logHand.write('%s\n' % datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f'))
       logHand.write('--------------------------------------------------\n')
@@ -420,7 +543,7 @@ class launcher:
         launchLogHand = open(launchLogName,'w')
       except IOError:
         sys.stderr.write("Failed to open %s for writing" %launchLogName)
-        sys.exit(4)
+        sys.exit(105)
       l_cmd = ['uLaunch.py'] + cmdLaunch + ["--logFile=" + self.runLogName]
       #
       # Call createLog here to print the final values for the command
@@ -557,7 +680,24 @@ class launcher:
 
 #-------------------------------------------------------------------------------
 
+def initGlob():
+  global g_tcPars
+  g_tcPars = argparse.ArgumentParser()
+  g_tcPars.add_argument('-b', '--bin',        nargs=1,   dest='bin',                               help='Executable Program')
+  g_tcPars.add_argument('-N', '--testName',   nargs=1,   dest='testName',                          help='Test name')
+  g_tcPars.add_argument('-f', '--testFile',   nargs=1,   dest='testFile',                          help='Test file')
+  g_tcPars.add_argument('-n', '--numRuns',    nargs=1,   dest='numRuns',    type=int, default=1,   help='Number of runs')
+  g_tcPars.add_argument('-d', '--runDir',     nargs=1,   dest='runDir',               default='.', help='Directory which will contain the run directories')
+  g_tcPars.add_argument('-F', '--forceSeed',  nargs=1,   dest='forceSeed',  type=int,              help='Forcibly override random seed')
+  g_tcPars.add_argument('-r', '--randScript', nargs=1,   dest='randScript',                        help='Specify random seed generator script')
+  g_tcPars.add_argument('-P', '--preRun',     nargs=1,   dest='preRun',                            help='Comma-separated list of pre-run scripts')
+  g_tcPars.add_argument('-p', '--postRun',    nargs=1,   dest='postRun',                           help='Comma-separated list of post-run scripts')
+  g_tcPars.add_argument('-x', '--extraArgs',  nargs='+', dest='extraArgs',                         help='Arguments for the executable')
+
+#-------------------------------------------------------------------------------
+
 if __name__ == "__main__":
+  initGlob()
   launObj = launcher()
   launObj.setProgName( sys.argv[0]  )
   launObj.readArgs   ( sys.argv[1:] )
