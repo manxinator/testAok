@@ -32,8 +32,9 @@ import atexit
 from datetime import datetime
 from os.path import basename
 
-g_proc   = None
-g_tcPars = None
+g_proc      = None
+g_tcPars    = None
+g_launchScr = 'uLaunch.py'
 
 #-------------------------------------------------------------------------------
 class launcher:
@@ -122,7 +123,9 @@ class launcher:
   class tlClass:
     """Class that abstracts Test Lists"""
     def __init__(self,**kwargs):
-      self.tlList = []
+      self.tlName  = None      # instance name of TL file
+      self.tlList  = []
+      self.dirPref = None      # directory prefix
 
       self.dirPath  = None
       self.fileName = None
@@ -136,6 +139,12 @@ class launcher:
 
       if (self.dirPath is not None) and (self.fileName is not None):
         self.loadFile()
+      elif self.fileName is not None:
+        self.setTlName()
+
+    def setTlName(self):
+      dotPos = self.fileName.rfind('.')
+      self.tlName = self.fileName[:dotPos]
 
     def loadFile(self):
       # Fix fileName and dirPath
@@ -145,9 +154,10 @@ class launcher:
       if slPos >= 0:
         self.dirPath  = self.dirPath + '/' + self.fileName[:slPos]
         self.fileName = self.fileName[slPos+1:]
+      self.setTlName()
 
-      pref = self.dirPath[len(self.parent.e_cwd)+1:]
-      print "  + Loading: %s in %s [%s]" % (self.fileName,self.dirPath,pref)
+      self.dirPref = self.dirPath[len(self.parent.e_cwd)+1:]
+      print "  + Loading: %s in %s [%s]" % (self.fileName,self.dirPath,self.dirPref)
       tlFN = self.dirPath + '/' + self.fileName
       try:
         tlFH = open(tlFN,'r')
@@ -157,7 +167,7 @@ class launcher:
       else:
         with tlFH:
           for oneLine in tlFH:
-            # TODO: add support for `class and other advanced features
+            # TODO: add support for `group and other advanced features
             remPos  = oneLine.find('#')
             oneLine = oneLine[:remPos].strip() if remPos >= 0 else oneLine.strip()
             if len(oneLine) < 1:
@@ -166,7 +176,7 @@ class launcher:
             parseArgs = [myArg for myArg in tmpSpl if myArg != '']
 
             oneTest = self.parent.testClass()
-            oneTest.parseStr(parseArgs,prefix=pref)
+            oneTest.parseStr(parseArgs,prefix=self.dirPref)
             self.tlList.append( oneTest )
         #parent.e_cwd
 
@@ -217,8 +227,11 @@ class launcher:
     self.testLabelInferred = False
     self.runLogName        = "run.log"   # Perhaps make this programmable
 
-    self.cfg_testList = []
-    self.cfg_defList  = []
+    self.cfg_testList     = []    # List of *.tl files
+    self.cfg_defList      = []
+
+    self.collectId_name   = []    # Test ID collection for Test Names
+    self.collectId_group  = []    # Test ID collection for Groups
 
   def setProgName(self,a_progName):
     """ Sets program name for printing -- may be cleaned up: basename, etc. """
@@ -226,6 +239,8 @@ class launcher:
 
   def printHelp(self,exitCode):
     """ Prints the help instructions and exits. """
+    # TODO: categorize options to: standalone, multi, both
+    #
     print("Usage: %s [OPTIONS] TEST_LABEL" % basename(self.progName))
     print("  -b <STR>, --bin=<STR>         Executable binary")
     print("  -t <STR>, --testFile=<STR>    Specify test file")
@@ -431,13 +446,77 @@ class launcher:
     for fname in def_testList:
       self.cfg_defList.append( self.tlDefault(fileName=fname,dirPath=self.e_cwd,verb=self.opt_verbose) )
 
-    # Find default testLists in the expected locations
+  def analyzeTestConfig(self):
+    """Perform the following
+       - Propagate settings
+       - Load all ID's {testName, groups} and verify uniqueness; {testListFile} doesn't need to be unique (last to be searched -- if none found)
+         - Also, perform test case sanity checking
+       NOTE: Other checking is deferred to when retrieving test list
+    """
+
+    # 1- propagage default settings to each testList
     #
 
-  def checkTestConfig(self):
-    """Perform configuration checking"""
+    # 2- Load all ID's
+    #   - Include test case sanity check
+    #
+    for oneTl in self.cfg_testList:
+      for oneTest in oneTl.tlList:
+        # Basic checks -- TODO: convert these to proper error messages (use a function)
+        assert oneTest.bin      is not None
+        assert oneTest.testName is not None
+        assert oneTest.testFile is not None
+        assert oneTest.numRuns  is not None
+        assert oneTest.runDir   is not None
+        if oneTest.testName in self.collectId_name:
+          print "ERROR: Duplicate Test Name '%s' found in %s!" %(oneTest.testName,oneTl.fileName)
+          sys.exit(106)
+        self.collectId_name.append(oneTest.testName)
+
+      # TODO: iterate for Test Groups also -- self.collectId_group
+      # for oneTest in oneTl.tlList:
+
+
     if self.opt_bin is None:
       self.opt_bin = 'runDelaySecs'  # TEMP for debugging -- TODO
+
+  #-----------------------------------------------------------------------------
+  def searchTestList(self,labelId):
+    """Search for the given label
+       1- Test Names
+       2- Groups
+       3- TL Files
+       4- Pre-run sanity checking
+    """
+    retList = None
+
+    if labelId in self.collectId_name:
+      # Test Name
+      for oneTl in self.cfg_testList:
+        for oneTest in oneTl.tlList:
+          if labelId == oneTest.testName:
+            retList = [oneTest]
+            break
+
+    if retList is None:
+      if labelId in self.collectId_group:
+        # Group
+        pass
+
+    if retList is None:
+      for oneTl in self.cfg_testList:
+        if labelId == oneTl.tlName:
+          # TL File
+          pass
+
+    if retList is not None:
+      # Pre-run sanity checking
+      # - bin exists
+      # - remove tests with numRuns < 1
+      # - all scripts exists
+      pass
+
+    return retList
 
   #-----------------------------------------------------------------------------
   def getTestList(self):
@@ -450,8 +529,10 @@ class launcher:
     l_testList = None
 
     #
-    # TODO: get from testList config here
+    # get from testList config here -- perform a search
     #
+    if len(self.cfg_testList) > 0:
+      l_testList = self.searchTestList(self.testLabel)
 
     # No corresponding tests found, try local test
     #
@@ -544,7 +625,8 @@ class launcher:
       except IOError:
         sys.stderr.write("Failed to open %s for writing" %launchLogName)
         sys.exit(105)
-      l_cmd = ['uLaunch.py'] + cmdLaunch + ["--logFile=" + self.runLogName]
+      global g_launchScr
+      l_cmd = [g_launchScr] + cmdLaunch + ["--logFile=" + self.runLogName]
       #
       # Call createLog here to print the final values for the command
       #
@@ -596,7 +678,7 @@ class launcher:
     # 1- Load test lists / config
     #
     self.loadTestConfig()
-    self.checkTestConfig()
+    self.analyzeTestConfig()
 
     # 2- Get test list from test label
     #
