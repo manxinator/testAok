@@ -93,6 +93,10 @@ class launchDelegate:
     # TODO: Create a pythonic version of this function
     whichEx = subprocess.Popen(['which',execFile],shell=False,stdout=subprocess.PIPE,preexec_fn=os.setsid)
     exePath = whichEx.stdout.read().strip()
+    if len(exePath) == 0:
+      sys.stderr.write("ERROR: Executable %s not found!\n" %exePath)
+      sys.stderr.flush()
+      sys.exit(-2)
     return [exePath]
 
 
@@ -139,7 +143,8 @@ class launchDelegate:
     try:
       logFH = open(self.args.logFile[0],'a')
     except IOError:
-      sys.stderr.write("Failed to open %s for writing" %self.args.logFile[0])
+      sys.stderr.write("Failed to open %s for writing\n" %self.args.logFile[0])
+      sys.stderr.flush()
       sys.exit(-1)
 
     # 1- run random script and pre-run scripts
