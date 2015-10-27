@@ -110,14 +110,14 @@ class launcher:
       if doPrint:
         self.printMembers()
 
-    def printMembers(self):
+    def printMembers(self,outFh=sys.stdout):
       methodList = [method for method in dir(self) if (not callable(getattr(self,method))) and (method[0] != '_')]
       strLen     = len(max(methodList,key=len))
       fmtStr     = '{:' + str(strLen) + '}'
-      print "********** [testClass::printMembers] arguments:"
+      outFh.write( "********** [testClass::printMembers]\n" )
       for oneStr in methodList:
-        print "* ", fmtStr.format(oneStr), " = ", self.__dict__[oneStr]
-      print "******************************\n"
+        outFh.write( "* %s = %s\n" %(fmtStr.format(oneStr),str(self.__dict__[oneStr])) )
+      outFh.write( "******************************\n" )
 
   #= = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
   class tlClass:
@@ -599,7 +599,7 @@ class launcher:
           return newDir
         i += 1
 
-    def createLog(logName,cmdLst):
+    def createLog(logName,cmdLst,refTC):
       """Creates the executable's log file and writes preliminary info"""
       try:
         logHand = open(logName,'w')
@@ -609,9 +609,11 @@ class launcher:
       logHand.write('%s\n' % cmdLst)
       logHand.write('%s\n' % datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f'))
       logHand.write('--------------------------------------------------\n')
+      refTC.printMembers(logHand)
+      logHand.write('--------------------------------------------------\n\n')
       logHand.close()
 
-    def runLaunchDelegate(cmdLaunch,runDir):
+    def runLaunchDelegate(cmdLaunch,runDir,refTestClass):
       """Launches the actual process and returns the proc object
          NOTE:
            run.log    - executable's log file; set in self.runLogName
@@ -630,7 +632,7 @@ class launcher:
       #
       # Call createLog here to print the final values for the command
       #
-      createLog(runDir + "/" + self.runLogName,l_cmd)
+      createLog(runDir + "/" + self.runLogName,l_cmd,refTestClass)
       print "  +   %s" % l_cmd
       delgProc = subprocess.Popen(l_cmd, stdout=launchLogHand, stderr=launchLogHand, shell=False, preexec_fn=os.setsid, cwd=runDir)
       return delgProc
@@ -654,7 +656,7 @@ class launcher:
     # Long Term:
     #   Have the option to redirect STDERR to its own file
     #   Have the option to re-run the test
-    subProc = runLaunchDelegate(cmdArray,targetDir)
+    subProc = runLaunchDelegate(cmdArray,targetDir,oneTest)
     print "  +"
 
     return subProc
