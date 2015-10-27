@@ -109,6 +109,7 @@ class launcher:
       doPrint = True
       if doPrint:
         self.printMembers()
+        print ''
 
     def printMembers(self,outFh=sys.stdout):
       methodList = [method for method in dir(self) if (not callable(getattr(self,method))) and (method[0] != '_')]
@@ -246,8 +247,8 @@ class launcher:
     print("  -t <STR>, --testFile=<STR>    Specify test file")
     print("                                - only used when TEST_LABEL not defined")
     print("                                - standalone test only")
-    print("  -n <NUM>, --numRuns=<NUM>     Number of runs")
-    print("  -d <STR>, --runDir=<STR>      Directory which will contain the run directories")
+    print("  -n <NUM>, --numRuns=<NUM>     Number of runs             [STANDALONE]")
+    print("  -d <STR>, --runDir=<STR>      Directory of the test case [STANDALONE]")
     print("  -F <NUM>, --forceSeed=<NUM>   Run test with given random seed")
     print("  -r <STR>, --randScript=<STR>  Specify random seed generator script")
     print("  -P <STR>, --preRun=<STR>      Comma-separated list of pre-run scripts")
@@ -302,7 +303,7 @@ class launcher:
 
     # Determine the test label here
     remLen = len(remainder)
-    if remLen == 0: self.testLabel = self.inferTestLabel()
+    if remLen == 0: self.testLabel = self.inferTestLabel()  # TODO: fix this function to use opt_runDir
     else:           self.testLabel = self.preCheckLabel(remainder)
 
     if True:    # self.opt_verbose
@@ -409,7 +410,7 @@ class launcher:
     fileFound = False
     while True:
       filePath  = checkDir + '/default.testList'
-      fileFound = os.path.isfile(filePath )
+      fileFound = os.path.isfile(filePath)
       if fileFound:
         def_testList.append(filePath )
         print "  * Found: %s" % filePath
@@ -507,15 +508,19 @@ class launcher:
       for oneTl in self.cfg_testList:
         if labelId == oneTl.tlName:
           # TL File
-          pass
+          retList = oneTl.tlList
+          break
 
     if retList is not None:
       # Pre-run sanity checking
       # - bin exists
       # - remove tests with numRuns < 1
       # - all scripts exists
+      # - test file exists
       pass
 
+    if len(retList) == 0:
+      return None
     return retList
 
   #-----------------------------------------------------------------------------
@@ -596,8 +601,39 @@ class launcher:
       while True:
         newDir = "%s/RUN.%s.%s.%d" %(runDir,testObj.bin,testObj.testName,i)
         if not os.path.isdir(newDir):
-          return newDir
+          break
         i += 1
+      print "  +   Create dir: %s" %newDir
+      os.makedirs(newDir)
+
+      walkDir = self.e_cwd + '/' + runDir
+      walkOff = len(walkDir)
+      print "  +   walkDir: %s" %walkDir
+      for dirName, subdirList, fileList in os.walk(walkDir):
+        # modify subdirList to skip unwanted subdirectories
+        # Note: os.walk flattens the structure
+        #
+        if len(dirName) > walkOff:
+          continue
+        else:
+          l_dirName = ''
+
+        if 'CVS' in subdirList:
+          subdirList.remove('CVS') # TODO: add other names to be skipped programatically
+        l_RUNDir = []
+        for aDir in subdirList:
+          if aDir.find('RUN.') == 0:
+            l_RUNDir.append(aDir)
+        for aDir in l_RUNDir:
+          subdirList.remove(aDir)
+
+        # Create symbolic links
+        for fname in fileList:
+          os.symlink( '../' + fname, newDir + '/' + fname)      #os.symlink( walkDir + '/' + fname, newDir + '/' + fname)
+        for aDir in subdirList:
+          os.symlink( '../' + aDir, newDir + '/' + aDir)        #os.symlink( walkDir + '/' + aDir, newDir + '/' + aDir)
+
+      return newDir
 
     def createLog(logName,cmdLst,refTC):
       """Creates the executable's log file and writes preliminary info"""
@@ -643,8 +679,6 @@ class launcher:
     # 1- Create run directory here in order to avoid name collision
     #
     targetDir = genRunDir(oneTest,idx)
-    print "  +   Create dir: %s" %targetDir
-    os.makedirs(targetDir)
 
     # 2- Get command array from class
     #
