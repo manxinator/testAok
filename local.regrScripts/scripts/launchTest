@@ -377,7 +377,7 @@ class launcher:
     load_testList = []
     def_testList  = []
 
-    # Find regular testLists in the expected locations
+    # Find regular TL files in the expected locations
     #
     rootDir = '.'
     for dirName, subdirList, fileList in os.walk(rootDir):
@@ -390,10 +390,10 @@ class launcher:
       for fname in fileList:
         if '.' in fname:
           fBase, fExt = os.path.splitext(fname)
-          if fBase != 'default' and fExt == '.testList':
+          if fBase != 'default' and fExt == '.tl':
             load_testList.append(dirName + '/' + fname)
 
-    # Find the default testLists -- only one
+    # Find the default TL file -- only one
     #
     endStr  = None
     srchStr = self.e_cwd[len(l_lwdTest):]
@@ -404,12 +404,12 @@ class launcher:
     else:
       endStr = self.e_cwd[:len(l_lwdTest)+slPos]
     if self.opt_verbose:
-      print "  - For default.testLists, end at %s" % endStr
+      print "  - For default.tl, end at %s" % endStr
 
     checkDir  = self.e_cwd
     fileFound = False
     while True:
-      filePath  = checkDir + '/default.testList'
+      filePath  = checkDir + '/default.tl'
       fileFound = os.path.isfile(filePath)
       if fileFound:
         def_testList.append(filePath )
@@ -427,20 +427,20 @@ class launcher:
     #
     if self.opt_verbose:
       if len(load_testList) == 0:
-        print "\n  No *.testLists found!"
+        print "\n  No *.tl found!"
       else:
-        print "\n  *.testLists to be loaded:"
+        print "\n  *.tl to be loaded:"
         for fname in load_testList:
           print "  - %s" % fname
       if len(def_testList) == 0:
-        print "  No default.testLists found!"
+        print "  No default.tl found!"
       else:
-        print "  default.testLists to be loaded:"
+        print "  default.tl to be loaded:"
         for fname in def_testList:
           print "  - %s" % fname
     print ''
 
-    # Find regular testLists in the expected locations
+    # Find regular TL files in the expected locations
     #
     for fname in load_testList:
       self.cfg_testList.append( self.tlClass(fileName=fname,dirPath=self.e_cwd,verb=self.opt_verbose,origin=self) )
@@ -450,12 +450,12 @@ class launcher:
   def analyzeTestConfig(self):
     """Perform the following
        - Propagate settings
-       - Load all ID's {testName, groups} and verify uniqueness; {testListFile} doesn't need to be unique (last to be searched -- if none found)
+       - Load all ID's {testName, groups} and verify uniqueness; {*.tl name} doesn't need to be unique (last to be searched -- if none found)
          - Also, perform test case sanity checking
        NOTE: Other checking is deferred to when retrieving test list
     """
 
-    # 1- propagage default settings to each testList
+    # 1- propagage default settings to each Test List
     #
 
     # 2- Load all ID's
@@ -698,10 +698,10 @@ class launcher:
   #-----------------------------------------------------------------------------
   def run(self):
     """The main function of this class
-       1- Search for any *.testList within current directory tree
-          Search for default.testList until top-level test tree: ${LOCAL_WS_DIR}/test*
+       1- Search for any *.tl within current directory tree
+          Search for default.tl until top-level test tree: ${LOCAL_WS_DIR}/test*
        2- Figure out testLabel:
-         a) Standalone (not in *.testList)
+         a) Standalone (not in *.tl)
          b) Test Name
          c) Test Class
        3- Launch tests
