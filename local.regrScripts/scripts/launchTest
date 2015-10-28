@@ -29,6 +29,7 @@
 import os, sys, argparse, getopt
 import signal, subprocess, time
 import atexit
+import collections
 from datetime import datetime
 from os.path import basename
 
@@ -38,10 +39,11 @@ g_launchScr = 'uLaunch.py'
 
 #-------------------------------------------------------------------------------
 class launcher:
-  """Launcher class is a top level regressable script"""
+  """ Launcher class is a top level regressable script """
 
   #= = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
   class testClass:
+    """ Class that abstracts one test """
     def __init__(self,**kwargs):
       self.bin        = None
       self.testName   = None
@@ -64,8 +66,12 @@ class launcher:
         if 'preRun'     in kwargs: self.preRun     = kwargs['preRun'    ]
         if 'postRun'    in kwargs: self.postRun    = kwargs['postRun'   ]
         if 'exArgs'     in kwargs: self.exArgs     = kwargs['exArgs'    ]
+      self.groupList = []
 
     def getCmdArray(self):
+      """ Returns the command to invoke the test
+          TODO: consolidate the `which` calls in parent directory
+      """
       whichBin = subprocess.Popen(['which',self.bin],shell=False,stdout=subprocess.PIPE,preexec_fn=os.setsid)
       binPath  = whichBin.stdout.read().strip()
       retArray = [binPath]
@@ -77,7 +83,8 @@ class launcher:
       if self.exArgs     is not None: retArray = retArray + ["--extraArgs=" + self.exArgs]
       return retArray
 
-    def parseStr(self,args,prefix=None):
+    def parseArray(self,args,prefix=None):
+      """ Use argparse.ArgumentParser() on args array """
       global g_tcPars
       l_args = g_tcPars.parse_args(args)
 
@@ -111,7 +118,13 @@ class launcher:
         self.printMembers()
         print ''
 
+    def addGrpStr(self,grpStr):
+      """ Adds a comma-separated string """
+      if (grpStr is not None) and (len(grpStr) > 0):
+        self.groupList.extend(grpStr.split(','))
+
     def printMembers(self,outFh=sys.stdout):
+      """ Debug function to introspect class and print variables """
       methodList = [method for method in dir(self) if (not callable(getattr(self,method))) and (method[0] != '_')]
       strLen     = len(max(methodList,key=len))
       fmtStr     = '{:' + str(strLen) + '}'
@@ -122,11 +135,11 @@ class launcher:
 
   #= = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
   class tlClass:
-    """Class that abstracts Test Lists"""
+    """ Class that abstracts a single *.TL file """
     def __init__(self,**kwargs):
-      self.tlName  = None      # instance name of TL file
-      self.tlList  = []
-      self.dirPref = None      # directory prefix
+      self.tlName    = None       # Instance name of TL file
+      self.tstObjLst = []         # List of Test Objects
+      self.dirPref   = None       # Directory prefix
 
       self.dirPath  = None
       self.fileName = None
@@ -144,10 +157,12 @@ class launcher:
         self.setTlName()
 
     def setTlName(self):
+      """ Set the instance name from fileName """
       dotPos = self.fileName.rfind('.')
       self.tlName = self.fileName[:dotPos]
 
     def loadFile(self):
+      """ Load and parse the *.TL file """
       # Fix fileName and dirPath
       self.fileName = self.fileName.lstrip('./')
       self.dirPath  = self.dirPath.rstrip('/')
@@ -163,30 +178,54 @@ class launcher:
       try:
         tlFH = open(tlFN,'r')
       except IOError:
-        sys.stderr.write("Failed to open %s for writing" %tlFN)
+        sys.stderr.write("ERROR: Failed to open %s for writing" %tlFN)
         sys.exit(108)
       else:
+        lineNum = 0
         with tlFH:
           for oneLine in tlFH:
-            # TODO: add support for `group and other advanced features
+            lineNum    = lineNum +1
+            groupNames = None
+
+            # Remove comments from line
             remPos  = oneLine.find('#')
             oneLine = oneLine[:remPos].strip() if remPos >= 0 else oneLine.strip()
+
+            # Support for `group
+            grpPos  = oneLine.find('`group')
+            if grpPos >= 0:
+              grpStr = oneLine[grpPos:]
+              lBr    = grpStr.find('(')
+              rBr    = grpStr.find(')')
+              if (lBr<0) or (rBr<0):
+                slPos = tlFN.rfind('/')
+                prFn  = tlFN[slPos+1:] if slPos >= 0 else tlFN
+                sys.stderr.write("ERROR: Improperly formed `group statement in %s line %d" %(prFn,lineNum))
+                sys.exit(109)
+
+              oneLine    = oneLine[:grpPos] + grpStr[rBr+1:]
+              groupNames = grpStr[lBr+1:rBr].strip()
+
             if len(oneLine) < 1:
               continue
+
+            # Split into an array
             tmpSpl    = oneLine.split(' ')
             parseArgs = [myArg for myArg in tmpSpl if myArg != '']
 
             oneTest = self.parent.testClass()
-            oneTest.parseStr(parseArgs,prefix=self.dirPref)
-            self.tlList.append( oneTest )
+            oneTest.parseArray(parseArgs,prefix=self.dirPref)
+            oneTest.addGrpStr(groupNames)
+            self.tstObjLst.append( oneTest )
+
         #parent.e_cwd
 
 
   #= = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
   class tlDefault:
-    """Class that abstracts Default Test Lists"""
+    """ Class that abstracts Default Test Lists """
     def __init__(self,**kwargs):
-      self.tlList = []
+      #self.tstObjLst = []
 
       self.dirPath  = None
       self.fileName = None
@@ -200,13 +239,14 @@ class launcher:
         self.loadFile()
 
     def loadFile(self):
+      """ Load and parse the default.TL file """
       # Fix fileName and dirPath
       print "  + Loading: %s" % self.fileName
 
   #= = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 
   def __init__(self):
-    """Initialization for launcher class"""
+    """ Initialization for launcher class """
     self.progName = None
 
     self.opt_verbose     = True
@@ -231,8 +271,9 @@ class launcher:
     self.cfg_testList     = []    # List of *.tl files
     self.cfg_defList      = []
 
-    self.collectId_name   = []    # Test ID collection for Test Names
-    self.collectId_group  = []    # Test ID collection for Groups
+    self.collectId_name   = []                              # Test ID collection for Test Names
+    self.collectId_group  = collections.defaultdict(list)   # Test ID collection for Groups
+    self.duplicateTlFn    = dict()                          # TL filenames with duplicates
 
   def setProgName(self,a_progName):
     """ Sets program name for printing -- may be cleaned up: basename, etc. """
@@ -261,6 +302,7 @@ class launcher:
     sys.exit(exitCode)
 
   def readArgs(self,a_argv):
+    """ Perform the getopt parsing """
     longArgs = [
         "bin=",
         "testFile=",
@@ -320,11 +362,11 @@ class launcher:
       if self.testLabel      is not None: print("- testLabel     : %s" % self.testLabel     )
 
   def inferTestLabel(self):
-    """Try to figure out test label
-       1- if testFile specified, use it
-       2- find <CWD>.<TEST_SUFF> in local directory ---> TEST_LABEL = basename(pwd)
-       3- find <TEST_LABEL>.<TEST_SUFF> in local directory
-       NOTE: self.opt_testFile ends up being defined either way
+    """ Try to figure out test label
+        1- if testFile specified, use it
+        2- find <CWD>.<TEST_SUFF> in local directory ---> TEST_LABEL = basename(pwd)
+        3- find <TEST_LABEL>.<TEST_SUFF> in local directory
+        NOTE: self.opt_testFile ends up being defined either way
     """
     self.testLabelInferred = True
     if self.opt_testFile is not None:
@@ -344,7 +386,7 @@ class launcher:
     sys.exit(-6)
 
   def preCheckLabel(self,argLst):
-    """Preliminary checking of testLabel argument"""
+    """ Preliminary checking of testLabel argument """
     l_label = argLst[0]
     if len(argLst) > 1:
       print "WARNING: multiple labels not supported at this time!"
@@ -359,7 +401,8 @@ class launcher:
 
   #-----------------------------------------------------------------------------
   def loadTestConfig(self):
-    """Loads test list files
+    """ Loads *.TL files
+        Load default.TL file
     """
     if self.opt_verbose:
       print("\n[launcher::loadTestConfig()]\n")
@@ -448,21 +491,29 @@ class launcher:
       self.cfg_defList.append( self.tlDefault(fileName=fname,dirPath=self.e_cwd,verb=self.opt_verbose) )
 
   def analyzeTestConfig(self):
-    """Perform the following
-       - Propagate settings
-       - Load all ID's {testName, groups} and verify uniqueness; {*.tl name} doesn't need to be unique (last to be searched -- if none found)
-         - Also, perform test case sanity checking
-       NOTE: Other checking is deferred to when retrieving test list
+    """ Perform the following
+        - Propagate settings
+        - Load all ID's TestNames, Groups and *.tl names too
+          - Also, perform test case sanity checking
+          - All TestNames must be unique
+          - Group names must not collide with TestNames
+        NOTE:
+           a) Other checking is deferred to when retrieving test list
+           b) *.tl doesn't need to be unique
+             i)  TL files will be the last to be searched if neither ID is TestName nor Group
+             ii) Just run the first one found -- if multiple TL files have the same name, that's the user's problem
     """
 
     # 1- propagage default settings to each Test List
     #
 
+
     # 2- Load all ID's
     #   - Include test case sanity check
     #
+    l_tlFileNameList = []   # Local list of file names
     for oneTl in self.cfg_testList:
-      for oneTest in oneTl.tlList:
+      for oneTest in oneTl.tstObjLst:
         # Basic checks -- TODO: convert these to proper error messages (use a function)
         assert oneTest.bin      is not None
         assert oneTest.testName is not None
@@ -474,41 +525,53 @@ class launcher:
           sys.exit(106)
         self.collectId_name.append(oneTest.testName)
 
-      # TODO: iterate for Test Groups also -- self.collectId_group
-      # for oneTest in oneTl.tlList:
+        # Go thru groups of the given test
+        # - Check that group names don't collide with test names
+        for oneGrp in oneTest.groupList:
+          if oneGrp in self.collectId_name:
+            print "ERROR: group name '%s' found in '%s' already exists as a Test Name!!!" %(oneGrp,oneTl.fileName)
+            sys.exit(110)
+          self.collectId_group[oneGrp].append(oneTest)
 
+      if oneTl.tlName in l_tlFileNameList:
+        self.duplicateTlFn[oneTl.tlName] = 1
+      else:
+        l_tlFileNameList.append(oneTl.tlName)
 
     if self.opt_bin is None:
       self.opt_bin = 'runDelaySecs'  # TEMP for debugging -- TODO
 
   #-----------------------------------------------------------------------------
   def searchTestList(self,labelId):
-    """Search for the given label
-       1- Test Names
-       2- Groups
-       3- TL Files
-       4- Pre-run sanity checking
+    """ Search for the given label
+        1- Test Names
+        2- Groups
+        3- TL Files
+        4- Pre-run sanity checking
     """
     retList = None
 
     if labelId in self.collectId_name:
       # Test Name
       for oneTl in self.cfg_testList:
-        for oneTest in oneTl.tlList:
+        for oneTest in oneTl.tstObjLst:
           if labelId == oneTest.testName:
             retList = [oneTest]
             break
 
     if retList is None:
-      if labelId in self.collectId_group:
+      if labelId in self.collectId_group.keys():
         # Group
-        pass
+        retList = self.collectId_group[labelId]
 
     if retList is None:
+      if labelId in self.duplicateTlFn.keys():
+        print "ERROR: label '%s' -- but multiple %s.tl found!!!" %(labelId,labelId)
+        sys.exit(111)
       for oneTl in self.cfg_testList:
         if labelId == oneTl.tlName:
           # TL File
-          retList = oneTl.tlList
+          retList = oneTl.tstObjLst
           break
 
     if retList is not None:
@@ -519,16 +582,16 @@ class launcher:
       # - test file exists
       pass
 
-    if len(retList) == 0:
+    if (retList is None) or (len(retList) == 0):
       return None
     return retList
 
   #-----------------------------------------------------------------------------
   def getTestList(self):
-    """Returns a list of tests associated with the given label
-       1- Find testLabel in test classes
-       2- Find testLabel in test names
-       3- Find testLabel as test file in local directory
+    """ Returns a list of tests associated with the given label
+        1- Find testLabel in test classes
+        2- Find testLabel in test names
+        3- Find testLabel as test file in local directory
     """
 
     l_testList = None
@@ -552,6 +615,7 @@ class launcher:
     return l_testList
 
   def getLocalTest(self):
+    """ For local tests, formulate a list of one object using the options provided """
     l_testList = []
 
     # Both self.opt_testFile and testLabel should be defined
@@ -581,21 +645,21 @@ class launcher:
 
   #-----------------------------------------------------------------------------
   def launchTest(self,oneTest,idx):
-    """Prepares and launches the test
-       - Run directory created here in order to avoid name collision
-       - Get the argument array from testClass
-       - Creates the child process
-       NOTE: Operates on one instance of a test, index is provided
+    """ Prepares and launches the test
+        - Run directory created here in order to avoid name collision
+        - Get the argument array from testClass
+        - Creates the child process
+        NOTE: Operates on one instance of a test, index is provided
     """
 
     def launchCheckTest(testObj,runIdx):
-      """Checks the configuration before launching"""
+      """ Checks the configuration before launching """
       if testObj.bin is None:
         sys.stderr.write("ERROR: couldn't figure out binary file")
         sys.exit(103)
 
     def genRunDir(testObj,runIdx):
-      """Creates the run directory"""
+      """ Creates the run directory """
       runDir = testObj.runDir # TODO: expand to full path -- os.path.abspath()?
       i = 0
       while True:
@@ -636,7 +700,7 @@ class launcher:
       return newDir
 
     def createLog(logName,cmdLst,refTC):
-      """Creates the executable's log file and writes preliminary info"""
+      """ Creates the executable's log file and writes preliminary info """
       try:
         logHand = open(logName,'w')
       except IOError:
@@ -650,12 +714,12 @@ class launcher:
       logHand.close()
 
     def runLaunchDelegate(cmdLaunch,runDir,refTestClass):
-      """Launches the actual process and returns the proc object
-         NOTE:
-           run.log    - executable's log file; set in self.runLogName
-           launch.log - the launcher script's log file
-                      - hardcoded file name cannot be changed
-                      - contains metadata for pre/post scripts
+      """ Launches the actual process and returns the proc object
+          NOTE:
+            run.log    - executable's log file; set in self.runLogName
+            launch.log - the launcher script's log file
+                       - hardcoded file name cannot be changed
+                       - contains metadata for pre/post scripts
       """
       launchLogName = runDir + '/launch.log'
       try:
@@ -697,15 +761,15 @@ class launcher:
 
   #-----------------------------------------------------------------------------
   def run(self):
-    """The main function of this class
-       1- Search for any *.tl within current directory tree
-          Search for default.tl until top-level test tree: ${LOCAL_WS_DIR}/test*
-       2- Figure out testLabel:
-         a) Standalone (not in *.tl)
-         b) Test Name
-         c) Test Class
-       3- Launch tests
-       4- Wait for child processes to complete, print every 5 secs
+    """ The main function of this class
+        1- Search for any *.tl within current directory tree
+           Search for default.tl until top-level test tree: ${LOCAL_WS_DIR}/test*
+        2- Figure out testLabel:
+          a) Standalone (not in *.tl)
+          b) Test Name
+          c) Test Class
+        3- Launch tests
+        4- Wait for child processes to complete, print every 5 secs
     """
 
     if self.opt_verbose:
@@ -773,8 +837,8 @@ class launcher:
   #-----------------------------------------------------------------------------
   @atexit.register
   def launcherCleanup():
-    """Kill any remaining child processes here
-       - Invoked when program is terminating (via SIGKILL or finishing naturally)
+    """ Kill any remaining child processes here
+        - Invoked when program is terminating (via SIGKILL or finishing naturally)
     """
     global g_proc
     if g_proc is not None:
@@ -799,6 +863,7 @@ class launcher:
 #-------------------------------------------------------------------------------
 
 def initGlob():
+  """ Init Global variables """
   global g_tcPars
   g_tcPars = argparse.ArgumentParser()
   g_tcPars.add_argument('-b', '--bin',        nargs=1,   dest='bin',                               help='Executable Program')
