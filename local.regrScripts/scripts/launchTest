@@ -35,6 +35,7 @@ from os.path import basename
 
 g_proc      = None
 g_tcPars    = None
+g_defPars   = None
 g_launchScr = 'uLaunch.py'
 
 #-------------------------------------------------------------------------------
@@ -118,6 +119,15 @@ class launcher:
         self.printMembers()
         print ''
 
+    def pullIntrospect(self,defArgs,ovrWr=False):
+      """ Debug function to introspect class default values """
+      methodList = [method for method in dir(defArgs) if (not callable(getattr(defArgs,method))) and (method[0] != '_')]
+      for oneProp in methodList:
+        if defArgs.__dict__[oneProp] is not None:
+          if oneProp in self.__dict__.keys():
+            if (self.__dict__[oneProp] is None) or ovrWr:
+              self.__dict__[oneProp] = defArgs.__dict__[oneProp]
+
     def addGrpStr(self,grpStr):
       """ Adds a comma-separated string """
       if (grpStr is not None) and (len(grpStr) > 0):
@@ -178,7 +188,7 @@ class launcher:
       try:
         tlFH = open(tlFN,'r')
       except IOError:
-        sys.stderr.write("ERROR: Failed to open %s for writing" %tlFN)
+        sys.stderr.write("ERROR: Failed to open %s for reading" %tlFN)
         sys.exit(108)
       else:
         lineNum = 0
@@ -225,23 +235,86 @@ class launcher:
   class tlDefault:
     """ Class that abstracts Default Test Lists """
     def __init__(self,**kwargs):
-      #self.tstObjLst = []
-
       self.dirPath  = None
       self.fileName = None
       self.verbose  = None
+      self.parent   = None
       if kwargs is not None:
         if 'dirPath'  in kwargs: self.dirPath  = kwargs['dirPath']
         if 'fileName' in kwargs: self.fileName = kwargs['fileName']
         if 'verb'     in kwargs: self.verbose  = kwargs['verb']
+        if 'origin'   in kwargs: self.parent   = kwargs['origin']
+      self.defTestValues = self.parent.testClass()
+
+      # Force none on arguments with default values
+      #
+      self.defTestValues.numRuns = None
+      self.defTestValues.runDir  = None
 
       if (self.dirPath is not None) and (self.fileName is not None):
         self.loadFile()
 
     def loadFile(self):
       """ Load and parse the default.TL file """
-      # Fix fileName and dirPath
+      # Load the default.TL file
       print "  + Loading: %s" % self.fileName
+      try:
+        tlFH = open(self.fileName,'r')
+      except IOError:
+        sys.stderr.write("ERROR: Failed to open %s for reading" %self.fileName)
+        sys.exit(108)
+      else:
+        lineNum = 0
+        with tlFH:
+          for oneLine in tlFH:
+            lineNum = lineNum +1
+
+            # Remove comments from line
+            remPos  = oneLine.find('#')
+            oneLine = oneLine[:remPos].strip() if remPos >= 0 else oneLine.strip()
+
+            if len(oneLine) < 1:
+              continue
+
+            # Split into an array and parse
+            tmpSpl    = oneLine.split(' ')
+            parseArgs = [myArg for myArg in tmpSpl if myArg != '']
+
+            global g_defPars
+            l_args = g_defPars.parse_args(parseArgs)
+
+            #if l_args.testName != None: ---- Not in g_defPars
+            #  sys.stderr.write("WARNING: testName option should not be specified in in default.tl -- ignored!")
+            #  l_args.testName = None
+
+            # Add values to self.defTestValues
+            self.defTestValues.pullIntrospect(l_args,True)
+
+      doPrint = True
+      if doPrint:
+        #self.printMembers()
+        self.printDefaults()
+        print ''
+
+    def printDefaults(self,outFh=sys.stdout):
+      """ Debug function to introspect class default values """
+      methodList = [method for method in dir(self.defTestValues) if (not callable(getattr(self.defTestValues,method))) and (method[0] != '_')]
+      strLen     = len(max(methodList,key=len))
+      fmtStr     = '{:' + str(strLen) + '}'
+      outFh.write( "++++++++++ [default values!]\n" )
+      for oneStr in methodList:
+        outFh.write( "+ %s = %s\n" %(fmtStr.format(oneStr),str(self.defTestValues.__dict__[oneStr])) )
+      outFh.write( "++++++++++++++++++++++++++++++\n" )
+
+    def printMembers(self,outFh=sys.stdout):
+      """ Debug function to introspect class and print variables """
+      methodList = [method for method in dir(self) if (not callable(getattr(self,method))) and (method[0] != '_')]
+      strLen     = len(max(methodList,key=len))
+      fmtStr     = '{:' + str(strLen) + '}'
+      outFh.write( "++++++++++ [default.tl members]\n" )
+      for oneStr in methodList:
+        outFh.write( "+ %s = %s\n" %(fmtStr.format(oneStr),str(self.__dict__[oneStr])) )
+      outFh.write( "++++++++++++++++++++++++++++++\n" )
 
   #= = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 
@@ -285,7 +358,7 @@ class launcher:
     #
     print("Usage: %s [OPTIONS] TEST_LABEL" % basename(self.progName))
     print("  -b <STR>, --bin=<STR>         Executable binary")
-    print("  -t <STR>, --testFile=<STR>    Specify test file")
+    print("  -t <STR>, --testFile=<STR>    Specify test file          [STANDALONE]")
     print("                                - only used when TEST_LABEL not defined")
     print("                                - standalone test only")
     print("  -n <NUM>, --numRuns=<NUM>     Number of runs             [STANDALONE]")
@@ -336,12 +409,22 @@ class launcher:
       else:
         print("Unknown option %s" % opt)
 
-    if not self.opt_testSuff.strip():
+    # Option checking
+    #
+    if not self.opt_testSuff.strip():   # Suffix correction
       print "\nERROR: empty test suffix not supported!!!"
       sys.exit(-9)
     else:
       if self.opt_testSuff[0] != '.':
         self.opt_testSuff = '.' + self.opt_testSuff
+    if self.opt_testFile is not None:   # Verify Test File has suffix -- or add if no suffix
+      l_dotPos   = self.opt_testFile.rfind('.')
+      if l_dotPos < 0:
+        self.opt_testFile = self.opt_testFile + self.opt_testSuff
+      else:
+        if self.opt_testSuff != self.opt_testFile[l_dotPos:]:
+          print "\nERROR: test file '%s' has incorrect suffix!!! expected: '%s'" %(self.opt_testFile,self.opt_testSuff)
+          sys.exit(-2)
 
     # Determine the test label here
     remLen = len(remainder)
@@ -488,7 +571,17 @@ class launcher:
     for fname in load_testList:
       self.cfg_testList.append( self.tlClass(fileName=fname,dirPath=self.e_cwd,verb=self.opt_verbose,origin=self) )
     for fname in def_testList:
-      self.cfg_defList.append( self.tlDefault(fileName=fname,dirPath=self.e_cwd,verb=self.opt_verbose) )
+      self.cfg_defList.append( self.tlDefault(fileName=fname,dirPath=self.e_cwd,verb=self.opt_verbose,origin=self) )
+
+    if len(def_testList) > 0:   # Fix self.cfg_defList defaults
+      if self.cfg_defList[0].defTestValues.bin        is not None: self.cfg_defList[0].defTestValues.bin        = self.cfg_defList[0].defTestValues.bin[0]
+      if self.cfg_defList[0].defTestValues.testFile   is not None: self.cfg_defList[0].defTestValues.testFile   = self.cfg_defList[0].defTestValues.testFile[0]
+      if self.cfg_defList[0].defTestValues.numRuns    is not None: self.cfg_defList[0].defTestValues.numRuns    = self.cfg_defList[0].defTestValues.numRuns[0]
+      if self.cfg_defList[0].defTestValues.forceSeed  is not None: self.cfg_defList[0].defTestValues.forceSeed  = self.cfg_defList[0].defTestValues.forceSeed[0]
+      if self.cfg_defList[0].defTestValues.randScript is not None: self.cfg_defList[0].defTestValues.randScript = self.cfg_defList[0].defTestValues.randScript[0]
+      if self.cfg_defList[0].defTestValues.preRun     is not None: self.cfg_defList[0].defTestValues.preRun     = self.cfg_defList[0].defTestValues.preRun[0]
+      if self.cfg_defList[0].defTestValues.postRun    is not None: self.cfg_defList[0].defTestValues.postRun    = self.cfg_defList[0].defTestValues.postRun[0]
+      if self.cfg_defList[0].defTestValues.exArgs     is not None: self.cfg_defList[0].defTestValues.exArgs     = self.cfg_defList[0].defTestValues.exArgs[0]
 
   def analyzeTestConfig(self):
     """ Perform the following
@@ -506,6 +599,9 @@ class launcher:
 
     # 1- propagage default settings to each Test List
     #
+    for oneTl in self.cfg_testList:
+      for oneTest in oneTl.tstObjLst:
+        oneTest.pullIntrospect(self.cfg_defList[0].defTestValues)
 
 
     # 2- Load all ID's
@@ -637,6 +733,7 @@ class launcher:
       }
 
     aTest = self.testClass(**tcArgDict)
+    aTest.pullIntrospect(self.cfg_defList[0].defTestValues)   # introspect values from default.TL
     aTest.printMembers()
 
     l_testList.append(aTest)
@@ -876,6 +973,19 @@ def initGlob():
   g_tcPars.add_argument('-P', '--preRun',     nargs=1,   dest='preRun',                            help='Comma-separated list of pre-run scripts')
   g_tcPars.add_argument('-p', '--postRun',    nargs=1,   dest='postRun',                           help='Comma-separated list of post-run scripts')
   g_tcPars.add_argument('-x', '--extraArgs',  nargs='+', dest='extraArgs',                         help='Arguments for the executable')
+
+  global g_defPars  # same set of arguments, except no default values
+  g_defPars = argparse.ArgumentParser()
+  g_defPars.add_argument('-b', '--bin',        nargs=1,   dest='bin',                              help='Executable Program')
+  #g_defPars.add_argument('-N', '--testName',   nargs=1,   dest='testName',                         help='Test name')
+  g_defPars.add_argument('-f', '--testFile',   nargs=1,   dest='testFile',                         help='Test file')
+  g_defPars.add_argument('-n', '--numRuns',    nargs=1,   dest='numRuns',    type=int,             help='Number of runs')
+  #g_defPars.add_argument('-d', '--runDir',     nargs=1,   dest='runDir',                           help='Directory which will contain the run directories')
+  g_defPars.add_argument('-F', '--forceSeed',  nargs=1,   dest='forceSeed',  type=int,             help='Forcibly override random seed')
+  g_defPars.add_argument('-r', '--randScript', nargs=1,   dest='randScript',                       help='Specify random seed generator script')
+  g_defPars.add_argument('-P', '--preRun',     nargs=1,   dest='preRun',                           help='Comma-separated list of pre-run scripts')
+  g_defPars.add_argument('-p', '--postRun',    nargs=1,   dest='postRun',                          help='Comma-separated list of post-run scripts')
+  g_defPars.add_argument('-x', '--extraArgs',  nargs='+', dest='extraArgs',                        help='Arguments for the executable')
 
 #-------------------------------------------------------------------------------
 
