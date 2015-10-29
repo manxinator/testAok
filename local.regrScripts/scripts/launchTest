@@ -100,6 +100,8 @@ class launcher:
       if l_args.postRun    is not None: self.postRun    = l_args.postRun[0]
       if l_args.extraArgs  is not None: self.exArgs     = l_args.extraArgs[0]
 
+      # Some values may need to be corrected
+      #
       if prefix is not None:
         if self.runDir is None:
           self.runDir = prefix
@@ -120,7 +122,7 @@ class launcher:
         print ''
 
     def pullIntrospect(self,defArgs,ovrWr=False):
-      """ Debug function to introspect class default values """
+      """ Pull values from objects into self -- do not overwrite unless specified """
       methodList = [method for method in dir(defArgs) if (not callable(getattr(defArgs,method))) and (method[0] != '_')]
       for oneProp in methodList:
         if defArgs.__dict__[oneProp] is not None:
@@ -129,7 +131,7 @@ class launcher:
               self.__dict__[oneProp] = defArgs.__dict__[oneProp]
 
     def addGrpStr(self,grpStr):
-      """ Adds a comma-separated string """
+      """ Adds a comma-separated string to list of groups """
       if (grpStr is not None) and (len(grpStr) > 0):
         self.groupList.extend(grpStr.split(','))
 
@@ -228,8 +230,6 @@ class launcher:
             oneTest.addGrpStr(groupNames)
             self.tstObjLst.append( oneTest )
 
-        #parent.e_cwd
-
 
   #= = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
   class tlDefault:
@@ -244,6 +244,8 @@ class launcher:
         if 'fileName' in kwargs: self.fileName = kwargs['fileName']
         if 'verb'     in kwargs: self.verbose  = kwargs['verb']
         if 'origin'   in kwargs: self.parent   = kwargs['origin']
+
+      # Create default class
       self.defTestValues = self.parent.testClass()
 
       # Force none on arguments with default values
@@ -283,10 +285,6 @@ class launcher:
             global g_defPars
             l_args = g_defPars.parse_args(parseArgs)
 
-            #if l_args.testName != None: ---- Not in g_defPars
-            #  sys.stderr.write("WARNING: testName option should not be specified in in default.tl -- ignored!")
-            #  l_args.testName = None
-
             # Add values to self.defTestValues
             self.defTestValues.pullIntrospect(l_args,True)
 
@@ -297,7 +295,7 @@ class launcher:
         print ''
 
     def printDefaults(self,outFh=sys.stdout):
-      """ Debug function to introspect class default values """
+      """ Debug function to introspect self.defTestValues values """
       methodList = [method for method in dir(self.defTestValues) if (not callable(getattr(self.defTestValues,method))) and (method[0] != '_')]
       strLen     = len(max(methodList,key=len))
       fmtStr     = '{:' + str(strLen) + '}'
@@ -307,7 +305,7 @@ class launcher:
       outFh.write( "++++++++++++++++++++++++++++++\n" )
 
     def printMembers(self,outFh=sys.stdout):
-      """ Debug function to introspect class and print variables """
+      """ Debug function to introspect tlDefault (self) and print variables """
       methodList = [method for method in dir(self) if (not callable(getattr(self,method))) and (method[0] != '_')]
       strLen     = len(max(methodList,key=len))
       fmtStr     = '{:' + str(strLen) + '}'
@@ -974,13 +972,11 @@ def initGlob():
   g_tcPars.add_argument('-p', '--postRun',    nargs=1,   dest='postRun',                           help='Comma-separated list of post-run scripts')
   g_tcPars.add_argument('-x', '--extraArgs',  nargs='+', dest='extraArgs',                         help='Arguments for the executable')
 
-  global g_defPars  # same set of arguments, except no default values
+  global g_defPars  # mostly same arguments, no default values
   g_defPars = argparse.ArgumentParser()
   g_defPars.add_argument('-b', '--bin',        nargs=1,   dest='bin',                              help='Executable Program')
-  #g_defPars.add_argument('-N', '--testName',   nargs=1,   dest='testName',                         help='Test name')
   g_defPars.add_argument('-f', '--testFile',   nargs=1,   dest='testFile',                         help='Test file')
   g_defPars.add_argument('-n', '--numRuns',    nargs=1,   dest='numRuns',    type=int,             help='Number of runs')
-  #g_defPars.add_argument('-d', '--runDir',     nargs=1,   dest='runDir',                           help='Directory which will contain the run directories')
   g_defPars.add_argument('-F', '--forceSeed',  nargs=1,   dest='forceSeed',  type=int,             help='Forcibly override random seed')
   g_defPars.add_argument('-r', '--randScript', nargs=1,   dest='randScript',                       help='Specify random seed generator script')
   g_defPars.add_argument('-P', '--preRun',     nargs=1,   dest='preRun',                           help='Comma-separated list of pre-run scripts')
