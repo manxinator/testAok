@@ -675,7 +675,6 @@ class launcher:
         1- Test Names
         2- Groups
         3- TL Files
-        4- Pre-run sanity checking
     """
     retList = None
 
@@ -701,14 +700,6 @@ class launcher:
           # TL File
           retList = oneTl.tstObjLst
           break
-
-    if retList is not None:
-      # Pre-run sanity checking
-      # - bin exists
-      # - remove tests with numRuns < 1
-      # - all scripts exists
-      # - test file exists
-      pass
 
     if (retList is None) or (len(retList) == 0):
       return None
@@ -776,6 +767,10 @@ class launcher:
     """Check each test in the run list
        - Check the bin + create a map: bin name --> bin full path
        - Check test file
+
+      # Pre-run sanity checking
+      # - remove tests with numRuns < 1
+      # - all scripts exists
     """
     # Check binaries
     for oneTest in runObjList:
@@ -792,6 +787,12 @@ class launcher:
       fileCheck = os.path.isfile(filePath)
       if not fileCheck:     # TODO: this should actually be an error -- warning for now (or maybe optional)
         print "WARNING: Test File '%s' not found!!!\n----> %s" % (oneTest.testFile,filePath)
+
+    # Remove tests with numRuns < 1
+    #
+
+    # All scripts exists
+    #
 
     # Debug Printouts
     #
@@ -957,15 +958,30 @@ class launcher:
     #  os.system(self.runList[0].bin)
     #  return
 
-
     global g_proc
-    g_proc = []
+    g_proc     = []
+    l_run2proc = dict()
+    l_runState = dict()
+    l_runIdLst = []
+    maxIdStr   = 0
+
     for testObj in self.runList:
       if self.opt_verbose:
         print "  + launch: %s | %s | %s" %(testObj.bin,testObj.testName,testObj.testFile)
+      #
       # Expand each test into separate instances
+      #
       for idx in range(testObj.numRuns):
-        g_proc.append( self.launchTest(testObj,idx) )
+        launch_proc = self.launchTest(testObj,idx)
+        g_proc.append( launch_proc )
+
+        runIdStr = '%s_%d' % (testObj.testName,idx)
+        l_run2proc[runIdStr] = launch_proc
+        l_runState[runIdStr] = 0
+        l_runIdLst.append(runIdStr)
+
+        if len(runIdStr) > maxIdStr:
+          maxIdStr = len(runIdStr)
 
     # 4- Wait for child processes
     # TODO: design a cleaner mechanism
@@ -973,25 +989,59 @@ class launcher:
     #   - if the file result.launchTest.temp exists, read it, save the result and delete
     #   - create a maximum time limit
     #
-    l_doLoop = True
-    while l_doLoop:
-      numPend = 0
-      numRun  = 0
-      numDone = 0
-      for oneProc in g_proc:
-        if oneProc.poll() is None:
-          numRun = numRun + 1
-        else:
-          numDone = numDone + 1
-      if numPend == 0 and numRun == 0:
-        l_doLoop = False
+    l_oldLoop = False
+    if l_oldLoop:
+      l_doLoop = True
+      while l_doLoop:
+        numPend = 0
+        numRun  = 0
+        numDone = 0
+        for oneProc in g_proc:
+          if oneProc.poll() is None:
+            numRun = numRun + 1
+          else:
+            numDone = numDone + 1
+        if numPend == 0 and numRun == 0:
+          l_doLoop = False
 
-      print "\n\n\n"
-      print "--------------------"
-      print "- Polling Tests [%s]" %datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-      print "- Pending: %d, Running: %d, Done: %d" %(numPend,numRun,numDone)
-      print "--------------------"
-      time.sleep(4)
+        print "\n\n\n"
+        print "--------------------"
+        print "- Polling Tests [%s]" %datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        print "- Pending: %d, Running: %d, Done: %d" %(numPend,numRun,numDone)
+        print "--------------------"
+        time.sleep(4)
+    else:
+      l_doLoop = True
+      prnIdFmt = '{0: <' + str(maxIdStr) + '}'
+
+      numPend  = 0
+      numRun   = len(l_runIdLst)
+      numDone  = 0
+      while l_doLoop:
+        for run_id in l_runIdLst:
+          if l_runState[run_id] == 0:   # 0 - running, 1 = Done ; TODO: add PASS, FAIL detection
+            run_proc = l_run2proc[run_id]
+            if run_proc.poll() is not None:
+              numRun  = numRun  - 1
+              numDone = numDone + 1
+              l_runState[run_id] = 1    # Nice to have: add states: Pending, Running, Pass, Fail, Unknown
+
+              if numRun == 0:
+                l_doLoop = False
+
+        print "\n\n\n"
+        print "|---------------------------------------"
+        print "| Polling Tests [%s]" %datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        print "| Pending: %d, Running: %d, Done: %d" %(numPend,numRun,numDone)
+        print "| ++++++++++++++++++++++++++++++++++++++"
+        print "|"
+        for testId in l_runIdLst:
+          prnState = 'Running' if l_runState[testId] == 0 else 'Done'
+          tstIdPrn = prnIdFmt.format(testId)
+          print "| %s : %s" %(tstIdPrn,prnState)
+        print "|"
+        print "|---------------------------------------"
+        time.sleep(4)
 
 
   #-----------------------------------------------------------------------------
