@@ -169,7 +169,7 @@ class launchDelegate:
     print "------------------------- run program"
     l_exArgs = self.args.testFile if self.args.testFile is not None else []
     if self.args.extraArgs is not None:
-      l_exArgs = l_exArgs + self.args.extraArgs
+      l_exArgs = self.args.extraArgs + l_exArgs
     self.launchAndWait(self.args.bin,logFH,l_exArgs)
 
     # 3- run post-run scripts
