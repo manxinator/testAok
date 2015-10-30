@@ -240,7 +240,6 @@ class launcher:
             oneTest.addGrpStr(groupNames)
             self.tstObjLst.append( oneTest )
 
-
   #= = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
   class tlDefault:
     """ Class that abstracts Default Test Lists """
@@ -798,14 +797,16 @@ class launcher:
     for oneBin in self.binFullPaths.keys():
       whichBin = subprocess.Popen(['which',oneBin],shell=False,stdout=subprocess.PIPE,preexec_fn=os.setsid)
       binPath  = whichBin.stdout.read().strip()
-      assert binPath != ''  # TODO: convert to proper error message
+      if len(binPath) < 1:
+        sys.stderr.write("ERROR: executable '%s' not found in path" % oneBin)
+        sys.exit(112)
       self.binFullPaths[oneBin] = binPath
 
     # Check test file
     for oneTest in runObjList:
       filePath  = self.e_cwd + '/' + oneTest.runDir + '/' + oneTest.testFile
       fileCheck = os.path.isfile(filePath)
-      if not fileCheck:     # TODO: this should actually be an error -- warning for now (or maybe optional)
+      if not fileCheck:     # TODO: this should actually be an error -- warning for now (or as an option)
         print "WARNING: Test File '%s' not found!!!\n----> %s" % (oneTest.testFile,filePath)
 
     # Remove tests with numRuns < 1
@@ -948,7 +949,7 @@ class launcher:
           a) Standalone (not in *.tl)
           b) Test Name
           c) Test Class
-        3- Launch tests and wait for child processes to complete, print every 5 secs
+        3- Launch tests and wait for child processes to complete, print every <DELAY> secs
     """
 
     if self.opt_verbose:
@@ -964,180 +965,107 @@ class launcher:
     self.runList = self.getTestList()
     self.checkTestList(self.runList)
 
-    l_oldLoop = False
-    if l_oldLoop:
       #
-      # 3- Launch Tests
+      #  TODO: create standalone interactive mode -- default if there's only one test
       #
-      if self.opt_verbose:
-        print "\n  Launching %d tests!" % len(self.runList)
+      #if len(runList) == 1 and numRuns == 1
+      #  os.system(self.runList[0].bin)
+      #  return
 
-        #if len(self.runList) == 1 and numRuns == 1
-        #  #
-        #  # This is for standalone interactive mode
-        #  # TODO: interactive should be the default if there's only one test
-        #  #
-        #  os.system(self.runList[0].bin)
-        #  return
+    #
+    # 3- Combined Launch and Wait
+    #
+    if self.opt_verbose:
+      print "\n*\n* Run List size: %d\n*" % len(self.runList)
 
-      global g_proc
-      g_proc     = []
+    global g_maxThreads
+    global g_sleepDelay
+    global g_proc
 
-      l_run2proc = dict()
-      l_runState = dict()
-      l_runIdLst = []
-      maxIdStr   = 0
+    g_proc      = []
+    l_runTrkLst = []
+    l_maxIdStr  = 0
 
-      for testObj in self.runList:
-        if self.opt_verbose:
-          print "  + launch: %s | %s | %s" %(testObj.bin,testObj.testName,testObj.testFile)
-        #
-        # Expand each test into separate instances
-        #
-        for idx in range(testObj.numRuns):
-          launch_proc = self.launchTest(testObj,idx)
-          g_proc.append( launch_proc )
+    numPend  = 0
+    numRun   = 0
+    numDone  = 0
 
-          runIdStr = '%s_%d' % (testObj.testName,idx)
-          l_run2proc[runIdStr] = launch_proc
-          l_runState[runIdStr] = 0
-          l_runIdLst.append(runIdStr)
-
-          if len(runIdStr) > maxIdStr:
-            maxIdStr = len(runIdStr)
-
-      # 4- Wait for child processes
-      # TODO:
-      #   - if the file result.launchTest.temp exists, read it, save the result and delete
-      #   - create a maximum time limit
+    for testObj in self.runList:
       #
-      l_doLoop = True
-      prnIdFmt = '{0: <' + str(maxIdStr) + '}'
-
-      numPend  = 0
-      numRun   = len(l_runIdLst)
-      numDone  = 0
-      while l_doLoop:
-        for run_id in l_runIdLst:
-          if l_runState[run_id] == 0:   # 0 - running, 1 = Done ; TODO: add PASS, FAIL detection
-            run_proc = l_run2proc[run_id]
-            if run_proc.poll() is not None:
-              numRun  = numRun  - 1
-              numDone = numDone + 1
-              l_runState[run_id] = 1    # Nice to have: add states: Pending, Running, Pass, Fail, Unknown
-
-              if numRun == 0:
-                l_doLoop = False
-
-        print "\n\n\n"
-        print "|---------------------------------------"
-        print "| Polling Tests [%s]" %datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        print "| Pending: %d, Running: %d, Done: %d" %(numPend,numRun,numDone)
-        print "| ++++++++++++++++++++++++++++++++++++++"
-        print "|"
-        for testId in l_runIdLst:
-          prnState = 'Running' if l_runState[testId] == 0 else 'Done'
-          tstIdPrn = prnIdFmt.format(testId)
-          print "| %s : %s" %(tstIdPrn,prnState)
-        print "|"
-        print "|---------------------------------------"
-        time.sleep(4)
+      # Expand each test into separate instances
       #
+      for idx in range(testObj.numRuns):
+        runIdStr = '%s_%d' % (testObj.testName,idx)
+        l_runTrkLst.append( self.runTracker(testObj=testObj,runStr=runIdStr,idx=idx) )
+
+        if len(runIdStr) > l_maxIdStr:
+          l_maxIdStr = len(runIdStr)
+
+    prnIdFmt = '{0: <'   + str(l_maxIdStr) + '}'
+    prnStFmt = '{0: <'   + str(10) + '}'
+    prnRsFmt = ': {0: <' + str(16) + '}'
+    numTotal = len(l_runTrkLst)
+    numPend  = numTotal
+
+    if self.opt_verbose:
+      print "\n*\n* Total tests to be launched: %d\n*" % numTotal
+
+    # Combined launch and wait loop here
+    #
+    l_doLoop = True if numPend > 0 else False   # Don't enter the loop if no tests to run
+    while l_doLoop:
+      assert numTotal == (numPend + numRun + numDone)
+
+      # Poll tests
       #
-    else:
+      for pollObj in l_runTrkLst:
+        if pollObj.state == 'Running':
+          if pollObj.proc.poll() is not None:
+            pollObj.state  = 'Done'
+            pollObj.result = 'Unknown'    # TODO: get result
+            numRun  = numRun  - 1
+            numDone = numDone + 1
+
+      # Launch tests
       #
-      # 3- Combined Launch and Wait
+      while (numRun < g_maxThreads) and (numPend > 0):
+        launFiltLst = filter(lambda lObj : lObj.state == 'Pending', l_runTrkLst)
+        assert len(launFiltLst) > 0
+        launchTrObj = launFiltLst[0]
+
+        print '\n  ++++++++++++++++++++++ Launching %s\n  +' % launchTrObj.runStr
+        launch_proc = self.launchTest(launchTrObj.testObj,launchTrObj.idx)
+        g_proc.append( launch_proc )
+
+        launchTrObj.state = 'Running'
+        launchTrObj.proc  = launch_proc
+        numPend = numPend - 1
+        numRun  = numRun  + 1
+
+      # Print
       #
-      if self.opt_verbose:
-        print "\n*\n* Run List size: %d\n*" % len(self.runList)
+      print "\n\n\n"
+      print "|---------------------------------------"
+      print "| Polling Tests [%s]" %datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+      print "| Pending: %d, Running: %d, Done: %d" %(numPend,numRun,numDone)
+      print "| ++++++++++++++++++++++++++++++++++++++"
+      print "|"
+      for prnObj in l_runTrkLst:
+        prnIdent = prnIdFmt.format(prnObj.runStr)
+        prnState = prnStFmt.format(prnObj.state)
+        prnRslt  = prnRsFmt.format(prnObj.result) if prnObj.state == 'Done' else ''
+        print "| %s : %s %s" %(prnIdent,prnState,prnRslt)
+      print "|"
+      print "|---------------------------------------"
 
-      global g_maxThreads
-      global g_sleepDelay
-      global g_proc
-
-      g_proc      = []
-      l_runTrkLst = []
-      l_maxIdStr  = 0
-
-      numPend  = 0
-      numRun   = 0
-      numDone  = 0
-
-      for testObj in self.runList:
-        #
-        # Expand each test into separate instances
-        #
-        for idx in range(testObj.numRuns):
-          runIdStr = '%s_%d' % (testObj.testName,idx)
-          l_runTrkLst.append( self.runTracker(testObj=testObj,runStr=runIdStr,idx=idx) )
-
-          if len(runIdStr) > l_maxIdStr:
-            l_maxIdStr = len(runIdStr)
-
-      prnIdFmt = '{0: <'   + str(l_maxIdStr) + '}'
-      prnStFmt = '{0: <'   + str(10) + '}'
-      prnRsFmt = ': {0: <' + str(16) + '}'
-      numTotal = len(l_runTrkLst)
-      numPend  = numTotal
-
-      if self.opt_verbose:
-        print "\n*\n* Total tests to be launched: %d\n*" % numTotal
-
-      # Combined launch and wait loop here
+      # Loop exit check
       #
-      l_doLoop = True if numPend > 0 else False   # Don't enter the loop if no tests to run
-      while l_doLoop:
-        assert numTotal == (numPend + numRun + numDone)
+      if (numPend == 0) and (numRun == 0) and (numDone == numTotal):
+        break
 
-        # Poll tests
-        #
-        for pollObj in l_runTrkLst:
-          if pollObj.state == 'Running':
-            if pollObj.proc.poll() is not None:
-              pollObj.state  = 'Done'
-              pollObj.result = 'Unknown'    # TODO: get result
-              numRun  = numRun  - 1
-              numDone = numDone + 1
-
-        # Launch tests
-        #
-        while (numRun < g_maxThreads) and (numPend > 0):
-          #launchTrObjLst = [lObj for lObj in l_runTrkLst if lObj.state == 'Pending']
-          launchTrObj = filter(lambda lObj : lObj.state == 'Pending', l_runTrkLst)[0]
-
-          print '\n  ++++++++++++++++++++++ Launching %s\n  +' % launchTrObj.runStr
-          launch_proc = self.launchTest(launchTrObj.testObj,launchTrObj.idx)
-          g_proc.append( launch_proc )
-
-          launchTrObj.state = 'Running'
-          launchTrObj.proc  = launch_proc
-          numPend = numPend - 1
-          numRun  = numRun  + 1
-
-        # Print
-        #
-        print "\n\n\n"
-        print "|---------------------------------------"
-        print "| Polling Tests [%s]" %datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        print "| Pending: %d, Running: %d, Done: %d" %(numPend,numRun,numDone)
-        print "| ++++++++++++++++++++++++++++++++++++++"
-        print "|"
-        for prnObj in l_runTrkLst:
-          prnIdent = prnIdFmt.format(prnObj.runStr)
-          prnState = prnStFmt.format(prnObj.state)
-          prnRslt  = prnRsFmt.format(prnObj.result) if prnObj.state == 'Done' else ''
-          print "| %s : %s %s" %(prnIdent,prnState,prnRslt)
-        print "|"
-        print "|---------------------------------------"
-
-        # Loop exit check
-        #
-        if (numPend == 0) and (numRun == 0) and (numDone == numTotal):
-          break
-
-        # Sleep
-        #
-        time.sleep(g_sleepDelay)
+      # Sleep
+      #
+      time.sleep(g_sleepDelay)
 
 
   #-----------------------------------------------------------------------------
