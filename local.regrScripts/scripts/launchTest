@@ -69,12 +69,11 @@ class launcher:
         if 'exArgs'     in kwargs: self.exArgs     = kwargs['exArgs'    ]
       self.groupList = []
 
-    def getCmdArray(self):
+    def getCmdArray(self,originClass):
       """ Returns the command to invoke the test
-          TODO: consolidate the `which` calls in parent directory
+          - calls to `which` consolidated in parent class
       """
-      whichBin = subprocess.Popen(['which',self.bin],shell=False,stdout=subprocess.PIPE,preexec_fn=os.setsid)
-      binPath  = whichBin.stdout.read().strip()
+      binPath  = originClass.binFullPaths[self.bin]
       retArray = [binPath]
       if self.randScript is not None: retArray = retArray + ["--randScript=" + self.randScript]
       if self.forceSeed  is not None: retArray = retArray + ["--forceSeed=%d" % self.forceSeed]
@@ -116,7 +115,7 @@ class launcher:
           dotPos = self.testFile.find('.')
           self.testName = self.testFile[:dotPos]
 
-      doPrint = True
+      doPrint = False
       if doPrint:
         self.printMembers()
         print ''
@@ -185,8 +184,14 @@ class launcher:
       self.setTlName()
 
       self.dirPref = self.dirPath[len(self.parent.e_cwd)+1:]
-      print "  + Loading: %s in %s [%s]" % (self.fileName,self.dirPath,self.dirPref)
-      tlFN = self.dirPath + '/' + self.fileName
+      if len(self.dirPref) == 0:
+        self.dirPref = None
+        tlFN         = self.fileName
+        prnPref      = 'No Prefix'
+      else:
+        tlFN    = self.dirPath + '/' + self.fileName
+        prnPref = '%s' % self.dirPref
+      print "  + Loading: %s in %s [%s]" % (self.fileName,self.dirPath,prnPref)
       try:
         tlFH = open(tlFN,'r')
       except IOError:
@@ -288,7 +293,7 @@ class launcher:
             # Add values to self.defTestValues
             self.defTestValues.pullIntrospect(l_args,True)
 
-      doPrint = True
+      doPrint = False
       if doPrint:
         #self.printMembers()
         self.printDefaults()
@@ -320,7 +325,7 @@ class launcher:
     """ Initialization for launcher class """
     self.progName = None
 
-    self.opt_verbose     = True
+    self.opt_verbose     = True       # TODO: reconsider this
     self.opt_bin         = None
     self.opt_testFile    = None       # currently, only used in self.inferTestLabel()
     self.opt_numRuns     = 1
@@ -345,6 +350,7 @@ class launcher:
     self.collectId_name   = []                              # Test ID collection for Test Names
     self.collectId_group  = collections.defaultdict(list)   # Test ID collection for Groups
     self.duplicateTlFn    = dict()                          # TL filenames with duplicates
+    self.binFullPaths     = dict()                          # Binary to full paths
 
   def setProgName(self,a_progName):
     """ Sets program name for printing -- may be cleaned up: basename, etc. """
@@ -352,21 +358,25 @@ class launcher:
 
   def printHelp(self,exitCode):
     """ Prints the help instructions and exits. """
-    # TODO: categorize options to: standalone, multi, both
+    # Usage options split into two categories
     #
     print("Usage: %s [OPTIONS] TEST_LABEL" % basename(self.progName))
+    print("--------------------------------------------------")
+    print(" Options for both Standalone and Regression:")
     print("  -b <STR>, --bin=<STR>         Executable binary")
-    print("  -t <STR>, --testFile=<STR>    Specify test file          [STANDALONE]")
-    print("                                - only used when TEST_LABEL not defined")
-    print("                                - standalone test only")
-    print("  -n <NUM>, --numRuns=<NUM>     Number of runs             [STANDALONE]")
-    print("  -d <STR>, --runDir=<STR>      Directory of the test case [STANDALONE]")
     print("  -F <NUM>, --forceSeed=<NUM>   Run test with given random seed")
     print("  -r <STR>, --randScript=<STR>  Specify random seed generator script")
     print("  -P <STR>, --preRun=<STR>      Comma-separated list of pre-run scripts")
     print("  -p <STR>, --postRun=<STR>     Comma-separated list of post-run scripts")
     print("  -z <STR>, --testSuffix=<STR>  Specify test suffix; defaults to '.aok'")
     print("  -x <STR>, --extraArgs=<STR>   Additional arguments")
+    print("--------------------------------------------------")
+    print(" Standalone Options:")
+    print("  -t <STR>, --testFile=<STR>    Specify test file")
+    print("                                - only used when TEST_LABEL not defined")
+    print("                                - standalone test only")
+    print("  -n <NUM>, --numRuns=<NUM>     Number of runs")
+    print("  -d <STR>, --runDir=<STR>      Directory of the test case")
     print("--------------------------------------------------")
     print("  -h, --help                    Help")
     print("  -v, --verbose                 Verbose")
@@ -583,7 +593,8 @@ class launcher:
 
   def analyzeTestConfig(self):
     """ Perform the following
-        - Propagate settings
+        - Propagate some command line settings to default settings
+        - Propagate default settings to each list
         - Load all ID's TestNames, Groups and *.tl names too
           - Also, perform test case sanity checking
           - All TestNames must be unique
@@ -595,14 +606,37 @@ class launcher:
              ii) Just run the first one found -- if multiple TL files have the same name, that's the user's problem
     """
 
-    # 1- propagage default settings to each Test List
+    # 1- propagate command line settings to default values
+    #    values passed in by command line has priority
     #
-    for oneTl in self.cfg_testList:
-      for oneTest in oneTl.tstObjLst:
-        oneTest.pullIntrospect(self.cfg_defList[0].defTestValues)
+    if len(self.cfg_defList) == 0:
+      addDef = False
+      if self.opt_bin        is not None: addDef = True
+      if self.opt_forceSeed  is not None: addDef = True
+      if self.opt_randScript is not None: addDef = True
+      if self.opt_preRun     is not None: addDef = True
+      if self.opt_postRun    is not None: addDef = True
+      if self.opt_exArgs     is not None: addDef = True
+      if addDef:
+        self.cfg_defList.append( self.tlDefault(fileName=None,dirPath=None,verb=self.opt_verbose,origin=self) )
+
+    if len(self.cfg_defList) > 0:
+      if self.opt_bin        is not None: self.cfg_defList[0].defTestValues.bin        = self.opt_bin
+      if self.opt_forceSeed  is not None: self.cfg_defList[0].defTestValues.forceSeed  = self.opt_forceSeed
+      if self.opt_randScript is not None: self.cfg_defList[0].defTestValues.randScript = self.opt_randScript
+      if self.opt_preRun     is not None: self.cfg_defList[0].defTestValues.preRun     = self.opt_preRun
+      if self.opt_postRun    is not None: self.cfg_defList[0].defTestValues.postRun    = self.opt_postRun
+      if self.opt_exArgs     is not None: self.cfg_defList[0].defTestValues.exArgs     = self.opt_exArgs
+
+    # 2- propagate default settings to each Test List
+    #
+    if len(self.cfg_defList) > 0:
+      for oneTl in self.cfg_testList:
+        for oneTest in oneTl.tstObjLst:
+          oneTest.pullIntrospect(self.cfg_defList[0].defTestValues)
 
 
-    # 2- Load all ID's
+    # 3- Load all ID's
     #   - Include test case sanity check
     #
     l_tlFileNameList = []   # Local list of file names
@@ -690,8 +724,7 @@ class launcher:
 
     l_testList = None
 
-    #
-    # get from testList config here -- perform a search
+    # Get Test List from TL files -- perform a search
     #
     if len(self.cfg_testList) > 0:
       l_testList = self.searchTestList(self.testLabel)
@@ -700,9 +733,9 @@ class launcher:
     #
     if l_testList == None:
       if self.testLabelInferred:
-        return self.getLocalTest()
+        l_testList = self.getLocalTest()
       else:
-        print '\nERROR: No tests to run!'   # TODO: -- print meaningful errors
+        print '\nERROR: No tests to run!'
         print '--------------------------------------------------'
         self.printHelp(7)
 
@@ -731,12 +764,43 @@ class launcher:
       }
 
     aTest = self.testClass(**tcArgDict)
-    aTest.pullIntrospect(self.cfg_defList[0].defTestValues)   # introspect values from default.TL
+    if len(self.cfg_defList) > 0:
+      aTest.pullIntrospect(self.cfg_defList[0].defTestValues)   # introspect values from default.TL
     aTest.printMembers()
 
     l_testList.append(aTest)
 
     return l_testList
+
+  def checkTestList(self,runObjList):
+    """Check each test in the run list
+       - Check the bin + create a map: bin name --> bin full path
+       - Check test file
+    """
+    # Check binaries
+    for oneTest in runObjList:
+      self.binFullPaths[oneTest.bin] = 'UNDEFINED'
+    for oneBin in self.binFullPaths.keys():
+      whichBin = subprocess.Popen(['which',oneBin],shell=False,stdout=subprocess.PIPE,preexec_fn=os.setsid)
+      binPath  = whichBin.stdout.read().strip()
+      assert binPath != ''  # TODO: convert to proper error message
+      self.binFullPaths[oneBin] = binPath
+
+    # Check test file
+    for oneTest in runObjList:
+      filePath  = self.e_cwd + '/' + oneTest.runDir + '/' + oneTest.testFile
+      fileCheck = os.path.isfile(filePath)
+      if not fileCheck:     # TODO: this should actually be an error -- warning for now (or maybe optional)
+        print "WARNING: Test File '%s' not found!!!\n----> %s" % (oneTest.testFile,filePath)
+
+    # Debug Printouts
+    #
+    doPrint = True
+    if doPrint:
+      print '\n  + ----------------------------- Finalized Values Print'
+      for oneTest in runObjList:
+        oneTest.printMembers()
+      print '  + ----------------------------- Done Finalized Values'
 
   #-----------------------------------------------------------------------------
   def launchTest(self,oneTest,idx):
@@ -841,7 +905,7 @@ class launcher:
 
     # 2- Get command array from class
     #
-    cmdArray = oneTest.getCmdArray()
+    cmdArray = oneTest.getCmdArray(self)
 
     # 3- Launch process; redirect both STDOUT and STDERR to log file
     # Note:
@@ -877,25 +941,26 @@ class launcher:
 
     # 2- Get test list from test label
     #
-    self.testList = self.getTestList()
+    self.runList = self.getTestList()
+    self.checkTestList(self.runList)
 
     # 3- Launch Tests
     #
     if self.opt_verbose:
-      print "\n  Launching %d tests!" % len(self.testList)
+      print "\n  Launching %d tests!" % len(self.runList)
 
-    #if len(self.testList) == 1 and numRuns == 1
+    #if len(self.runList) == 1 and numRuns == 1
     #  #
     #  # This is for standalone interactive mode
     #  # TODO: interactive should be the default if there's only one test
     #  #
-    #  os.system(self.testList[0].bin)
+    #  os.system(self.runList[0].bin)
     #  return
 
 
     global g_proc
     g_proc = []
-    for testObj in self.testList:
+    for testObj in self.runList:
       if self.opt_verbose:
         print "  + launch: %s | %s | %s" %(testObj.bin,testObj.testName,testObj.testFile)
       # Expand each test into separate instances
