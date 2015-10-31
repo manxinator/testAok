@@ -63,7 +63,7 @@ class launchDelegate:
     self.args = parser.parse_args()
 
     #= = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
-    runResultFile = 'result.launchTest.temp'
+    runResultFile = 'result.launchtest.temp'
     if os.path.isfile(runResultFile):
       os.remove(runResultFile)
 

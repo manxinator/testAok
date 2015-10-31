@@ -70,7 +70,8 @@ class launcher:
         if 'preRun'     in kwargs: self.preRun     = kwargs['preRun'    ]
         if 'postRun'    in kwargs: self.postRun    = kwargs['postRun'   ]
         if 'exArgs'     in kwargs: self.exArgs     = kwargs['exArgs'    ]
-      self.groupList = []
+      self.groupList    = []
+      self.actualRunDir = None
 
     def getCmdArray(self,originClass):
       """ Returns the command to invoke the test
@@ -370,6 +371,8 @@ class launcher:
     self.collectId_group  = collections.defaultdict(list)   # Test ID collection for Groups
     self.duplicateTlFn    = dict()                          # TL filenames with duplicates
     self.binFullPaths     = dict()                          # Binary to full paths
+
+    self.runResultFile    = 'result.launchtest.temp'        # Hardcoded in several places
 
   def setProgName(self,a_progName):
     """ Sets program name for printing -- may be cleaned up: basename, etc. """
@@ -850,6 +853,7 @@ class launcher:
         i += 1
       print "  +   Create dir: %s" %newDir
       os.makedirs(newDir)
+      oneTest.actualRunDir = newDir
 
       walkDir = self.e_cwd + '/' + runDir
       walkOff = len(walkDir)
@@ -1022,9 +1026,21 @@ class launcher:
         if pollObj.state == 'Running':
           if pollObj.proc.poll() is not None:
             pollObj.state  = 'Done'
-            pollObj.result = 'Unknown'    # TODO: get result
+            pollObj.result = 'Unknown'
             numRun  = numRun  - 1
             numDone = numDone + 1
+
+            # Get the result -- if file exists, read and delete
+            #
+            runResFN =  pollObj.testObj.actualRunDir  + '/' + self.runResultFile
+            if self.opt_verbose:
+              print "\n  ~\n  ~ Test '%s' finished!\n  ~ Checking on file %s\n  ~" %(pollObj.runStr,runResFN)
+              if os.path.isfile(runResFN):
+                with open(runResFN,'r') as runResFH:
+                  read_resStr = runResFH.read().strip().lower()
+                  if 'pass' in read_resStr: pollObj.result = 'Passed'
+                  if 'fail' in read_resStr: pollObj.result = 'Failed'
+                os.remove(runResFN)
 
       # Launch tests
       #
