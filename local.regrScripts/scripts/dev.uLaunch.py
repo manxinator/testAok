@@ -94,8 +94,18 @@ class launchDelegate:
     whichEx = subprocess.Popen(['which',execFile],shell=False,stdout=subprocess.PIPE,preexec_fn=os.setsid)
     exePath = whichEx.stdout.read().strip()
     if len(exePath) == 0:
-      sys.stderr.write("ERROR: Executable %s not found!\n" %exePath)
+      localScr = os.getcwd().rstrip('/')
+      tmpPath  = localScr + '/' + execFile
+      print "[%s] Checking on: %s" %(self.prog,tmpPath)
+      if os.path.isfile(tmpPath):
+        exePath = tmpPath
+    if len(exePath) == 0:
+      sys.stdout.flush()
+      sys.stderr.write("ERROR: Executable %s not found!\n" %execFile)
       sys.stderr.flush()
+      sys.stdout.write("PWD: %s\n" % localScr)
+      sys.stdout.write("Search path:\n  %s\n" % os.environ['PATH'].replace(':','\n  '))
+      sys.stdout.flush()
       sys.exit(-2)
     return [exePath]
 
