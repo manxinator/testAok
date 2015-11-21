@@ -689,7 +689,7 @@ class launcher:
         l_tlFileNameList.append(oneTl.tlName)
 
     if self.opt_bin is None:
-      self.opt_bin = 'runDelaySecs'  # TEMP for debugging -- TODO
+      self.opt_bin = 'runDelaySecs'  # TEMP for debugging -- NOTE: this will override bin setting in default.tl
 
   #-----------------------------------------------------------------------------
   def searchTestList(self,labelId):
