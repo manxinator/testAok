@@ -83,8 +83,12 @@ public:
   std::string     strId;
   arithDataType_e dataType;
   int             dat_int;    // dat_uint, dat_float, etc... values evaluated during reduce
+
+  int             isUnary;
+  int             betIdx;
+
 public:
-           arithElem_c() { opIdx = 0; opPreced = 0; dataType = ADT_INT; }
+           arithElem_c() { opIdx = 0; opPreced = 0; dataType = ADT_INT; isUnary = 0; betIdx = -1; }
   virtual ~arithElem_c() {
     printf("'''~arithElem_c''' destroy %s",strId.c_str());
     if (entList.size() > 0) {
@@ -145,18 +149,18 @@ std::shared_ptr<arithParser_c::arithEqn_c> arithParser_c::parseEqn(const std::st
 
   //
   // 1- Tokenize string and push into token list
-  //   - Determine data type: int, uint32_t, uint64_t, float -- but default to int for now
-  //     RULE: assume int, unless some scalar specifies otherwise (such as * 1.0 or 1ull)
-  //     * 1.0  - float
-  //     * 1u   - uint32_t
-  //     * 1ull - uint64_t (or with 0ull)
+  //  - Determine data type: int, uint32_t, uint64_t, float -- but default to int for now
+  //    RULE: assume int, unless some scalar specifies otherwise (such as * 1.0 or 1ull)
+  //    * 1.0  - float
+  //    * 1u   - uint32_t
+  //    * 1ull - uint64_t (or with 0ull)
   // 2- Build tree from list
   //
 
   parsTokAux_c                               l_tokenizer(eqStr);
   std::vector<std::shared_ptr<arithElem_c> > tokList;
 
-  // 1a
+  // 1a - Tokenize
   //
   while (1) {
     std::shared_ptr<arithElem_c> oneTokEl = l_tokenizer.getTok();
@@ -168,14 +172,21 @@ std::shared_ptr<arithParser_c::arithEqn_c> arithParser_c::parseEqn(const std::st
   //
   arithElem_c::ConfigDataType(tokList);
 
-  int iii=0;
-  printf("  + Print tokens!\n");
-  for (auto it = tokList.begin(); it != tokList.end(); it++)    // DEBUG print
-    printf("    + tokLst[%2d] opIdx: %2d, preced: %2d, '%s'\n",iii++,(*it)->opIdx,(*it)->opPreced,(*it)->strId.c_str());
-  //eqObj->topNode = tokList[0]; // DEBUG!
+  int iii = 0;
+  for (auto it = tokList.begin(); it != tokList.end(); it++)
+    (*it)->betIdx = iii++;
 
+  {
+    // DEBUG print
+    int jjj = 0;
+    printf("  + Print tokens!\n");
+    for (auto it = tokList.begin(); it != tokList.end(); it++)
+      printf("    + tokLst[%2d] opIdx: %2d, preced: %2d, '%s'\n",jjj++,(*it)->opIdx,(*it)->opPreced,(*it)->strId.c_str());
+  }
+
+  // 2 - build the tree
+  //
   eqObj->topNode = BuildEqnTree(tokList);
-
   return eqObj;
 }
 
@@ -416,6 +427,7 @@ std::shared_ptr<arithElem_c> parsTokAux_c::getTok(void)
 #define OP_CMP_GTEQ             34
 #define OP_CMP_EQ               35
 #define OP_CMP_NEQ              36
+#define OP_COMMA                37
 
 #define PRECED_MAX              15
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -452,14 +464,7 @@ void arithParser_c::BuildSubEqn(
   {
     curElOp = elemListRef[betIdx]->opIdx;
 
-    //int l_prevElOp = prevElOp;
-    //int l_prev2  = -1;
-    //// Unary operator lookback
-    //// Ops: ++, --, -, ~, !
-    //if (betIdx > (startIdx + 1)) {
-    //  l_prev2 = elemListRef[betIdx-2]->opIdx;
-    //}
-    int l_prevIsUnary = 0;
+    /* Unary Ops: ++, --, -, ~, ! */
 
     // What to do with scope operator???
     //
@@ -472,6 +477,18 @@ void arithParser_c::BuildSubEqn(
       if (curElOp == 0)
       {
         // Variable or Number
+        // Verify that the last element OP is not a variable if any
+        for (int elIdx = curNode->entList.size()-1; elIdx >= 0; elIdx--) {
+          if (curNode->entList[elIdx]->isUnary) continue;
+          if (curNode->entList[elIdx]->opPreced == 0) {
+            std::stringstream ssErr;
+            ssErr << "Variable '" << elemListRef[betIdx]->strId << "' preceded with another variable '" << curNode->entList[elIdx]->strId << "'!!";
+            exitCall(ssErr.str());
+            betAbrt = 1;
+            return;
+          }
+          break;
+        }
         curNode->entList.push_back(elemListRef[betIdx]);
       }
       else
@@ -504,15 +521,45 @@ void arithParser_c::BuildSubEqn(
           curNode->entList.push_back(elemListRef[betIdx++]);
 
           subNode = std::make_shared<arithElem_c>();
-          BuildSubEqn(subNode,level+1,elemListRef);
+          BuildSubEqn(subNode,0,elemListRef);         //BuildSubEqn(subNode,level+1,elemListRef);
           if (betAbrt)
             return;
           curNode->entList.push_back(subNode);
 
-          curElOp = 0;  // Subtree assumed to evaluate to a single number
+          curElOp = 0;  // Subtree must to evaluate to a single number
           break;
         //----------------------------------------
-        case OP_MINUS:        // can be unary
+        case OP_MINUS:
+          // Check if unary: first in the list, or preceeded by another OP
+          {
+            int l_isUnary = 0;
+            int elIdx     = -1;
+            if (curNode->entList.size() == 0)
+              l_isUnary = 1;
+            else {
+              for (elIdx = curNode->entList.size()-1; elIdx >= 0; elIdx--) {
+                if (curNode->entList[elIdx]->isUnary)      continue;
+                if (curNode->entList[elIdx]->opPreced > 0) l_isUnary = 1;
+                break;
+              }
+            }
+            if (l_isUnary) {
+              elemListRef[betIdx]->isUnary = 1;
+              curNode->entList.push_back( elemListRef[betIdx] );
+
+              if (curNode->entList.size() == 0)
+                curElOp = -1;
+              else {
+                if (betIdx < 0) {
+                  exitCall("This state suppoed to be unreachable: Unary OP_MINUS 1!!!");
+                  betAbrt = 1;
+                  return;
+                }
+                curElOp = elemListRef[elIdx]->opIdx;
+              }
+              break;
+            }
+          }
         case OP_LOG_AND:
         case OP_LOG_OR:
         case OP_LSHIFT:
@@ -539,14 +586,19 @@ void arithParser_c::BuildSubEqn(
               betAbrt = 1;
               return;
             }
-              // Get preceding operator index -- TODO: write a better version that accounts for lists and unary ops
-              // IDEA: traverse curNode, since that's all parsed already
+              // Get preceding operator index
+              // - traverse curNode, since that's all parsed already
             int lastOpIdx = -1;
-            if (l_prevIsUnary)
-              ;
-            else
-              if (betIdx >= (startIdx+2))
-                lastOpIdx = betIdx-2;
+            {
+              for (int elIdx = curNode->entList.size()-1; elIdx >= 0; elIdx--) {
+                if (curNode->entList[elIdx]->isUnary)       continue;
+                if (curNode->entList[elIdx]->opPreced > 0) {
+                  lastOpIdx = curNode->entList[elIdx]->betIdx;
+                  curElOp = elemListRef[betIdx]->opIdx;
+                  break;
+                }
+              }
+            }
               // Check operator precedence
             if (lastOpIdx >= 0)
             {
@@ -582,13 +634,17 @@ void arithParser_c::BuildSubEqn(
                 }
               }
             }
-            curNode->entList.push_back(elemListRef[betIdx]);
+            curNode->entList.push_back( elemListRef[betIdx] );
           }
           break;
         //----------------------------------------
         // Unary
         case OP_LOG_NOT:
         case OP_BIT_INV:
+        case OP_PLUSPLUS:
+        case OP_MINUSMINUS:
+          elemListRef[betIdx]->isUnary = 1;
+          curNode->entList.push_back(elemListRef[betIdx]);
           break;
         //----------------------------------------
         default:
@@ -662,6 +718,7 @@ const std::vector<opType_t> opList = {
   {"+"  , OP_PLUS         , 6},
   {"-"  , OP_MINUS        , 6},
   {"="  , OP_ASGN_EQ      , 15},
+  {","  , OP_COMMA        , 16},
 };
 
 

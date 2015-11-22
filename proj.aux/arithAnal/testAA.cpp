@@ -82,7 +82,14 @@ void test1(void)
   setIntVar("opposite",4);
   {
     printf("  ----\n");
-    shared_ptr<arithParser_c::arithEqn_c> eqObj = g_arithParser->parseEqn("  hypotenuse = adjacent   + opposite   ");
+    shared_ptr<arithParser_c::arithEqn_c> eqObj = g_arithParser->parseEqn("  hypotenuse = midwhere = adjacent   + opposite   ");
+    printf("  [initAA] adjacent   --> %d\n",eqObj->get_int("adjacent"));
+    printf("  [initAA] opposite   --> %d\n",eqObj->get_int("opposite"));
+    printf("  [initAA] hypotenuse --> %d\n",eqObj->get_int("hypotenuse"));
+  }
+  {
+    printf("  ----\n");
+    shared_ptr<arithParser_c::arithEqn_c> eqObj = g_arithParser->parseEqn("  hypotenuse = midwhere = adjacent*ABC   + -opposite   ");
     printf("  [initAA] adjacent   --> %d\n",eqObj->get_int("adjacent"));
     printf("  [initAA] opposite   --> %d\n",eqObj->get_int("opposite"));
     printf("  [initAA] hypotenuse --> %d\n",eqObj->get_int("hypotenuse"));
