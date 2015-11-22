@@ -431,6 +431,13 @@ std::shared_ptr<arithElem_c> parsTokAux_c::getTok(void)
 
 #define PRECED_MAX              15
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+#define SS_ERR_BET_ABORT(__SS_CMD__) {  \
+    std::stringstream ssErr;            \
+    __SS_CMD__;                         \
+    exitCall(ssErr.str());              \
+    betAbrt = 1;                        \
+}
+
 std::shared_ptr<arithElem_c> arithParser_c::BuildEqnTree( std::vector<std::shared_ptr<arithElem_c> > &elemListRef )
 {
 #if 0
@@ -464,12 +471,14 @@ void arithParser_c::BuildSubEqn(
   {
     curElOp = elemListRef[betIdx]->opIdx;
 
-    /* Unary Ops: ++, --, -, ~, ! */
+    /*
+      Unary Ops: ++, --, -, ~, !
+   */
 
     // What to do with scope operator???
     //
 
-    if (prevElOp < 0)
+    if ((prevElOp < 0) && (curElOp != OP_LEFTPAR))
       // First op, so just insert into list
       curNode->entList.push_back(elemListRef[betIdx]);
     else
@@ -477,14 +486,11 @@ void arithParser_c::BuildSubEqn(
       if (curElOp == 0)
       {
         // Variable or Number
-        // Verify that the last element OP is not a variable if any
+        // Verify that the preceding element OP is not a variable if any
         for (int elIdx = curNode->entList.size()-1; elIdx >= 0; elIdx--) {
           if (curNode->entList[elIdx]->isUnary) continue;
           if (curNode->entList[elIdx]->opPreced == 0) {
-            std::stringstream ssErr;
-            ssErr << "Variable '" << elemListRef[betIdx]->strId << "' preceded with another variable '" << curNode->entList[elIdx]->strId << "'!!";
-            exitCall(ssErr.str());
-            betAbrt = 1;
+            SS_ERR_BET_ABORT(ssErr << "Variable '" << elemListRef[betIdx]->strId << "' preceded with another variable '" << curNode->entList[elIdx]->strId << "'!!");
             return;
           }
           break;
@@ -493,6 +499,7 @@ void arithParser_c::BuildSubEqn(
       }
       else
       {
+        int l_leftParDet = 0;
         std::shared_ptr<arithElem_c> subNode;
 
         // Operator
@@ -510,24 +517,33 @@ void arithParser_c::BuildSubEqn(
         case OP_ASGN_DIVIDE:
         case OP_ASGN_MODULUS:
           if (prevElOp != 0) {
-            std::stringstream ssErr;
-            ssErr << "Assignment operator '" << elemListRef[betIdx]->strId << "' not preceded with a variable!";
-            exitCall(ssErr.str());
-            betAbrt = 1;
+            SS_ERR_BET_ABORT(ssErr << "Assignment operator '" << elemListRef[betIdx]->strId << "' not preceded with a variable!");
             return;
           }
         case OP_LEFTPAR:
-          // OP is included in
-          curNode->entList.push_back(elemListRef[betIdx++]);
+          if (curElOp == OP_LEFTPAR) {
+            l_leftParDet = 1;
+            betIdx++;
+          } else
+            // OP is included in
+            curNode->entList.push_back(elemListRef[betIdx++]);
 
           subNode = std::make_shared<arithElem_c>();
           BuildSubEqn(subNode,0,elemListRef);         //BuildSubEqn(subNode,level+1,elemListRef);
           if (betAbrt)
             return;
           curNode->entList.push_back(subNode);
-
           curElOp = 0;  // Subtree must to evaluate to a single number
+
+          if (l_leftParDet) {
+            if ((betIdx >= elemListRef.size()) || (elemListRef[betIdx]->opIdx != OP_RIGHTPAR)) {
+              SS_ERR_BET_ABORT(ssErr << "Parsing '(' statement, but matching right parentheses ')' not found!!");
+              return;
+            }
+          }
           break;
+        case OP_RIGHTPAR:
+          return;
         //----------------------------------------
         case OP_MINUS:
           // Check if unary: first in the list, or preceeded by another OP
@@ -580,10 +596,7 @@ void arithParser_c::BuildSubEqn(
           {
               // Quick check on previous operator type
             if (prevElOp != 0) {
-              std::stringstream ssErr;
-              ssErr << "Operator " << elemListRef[betIdx]->strId << " after " << elemListRef[betIdx]->strId << " not understood!";
-              exitCall(ssErr.str());
-              betAbrt = 1;
+              SS_ERR_BET_ABORT(ssErr << "Operator " << elemListRef[betIdx]->strId << " after " << elemListRef[betIdx]->strId << " not understood!");
               return;
             }
               // Get preceding operator index
@@ -648,12 +661,7 @@ void arithParser_c::BuildSubEqn(
           break;
         //----------------------------------------
         default:
-          {
-            std::stringstream ssErr;
-            ssErr << "Unknown operator " << elemListRef[betIdx]->strId;
-            exitCall(ssErr.str());
-            betAbrt = 1;
-          }
+          SS_ERR_BET_ABORT(ssErr << "Unknown operator " << elemListRef[betIdx]->strId);
           return;
         }
       }
@@ -682,8 +690,8 @@ void arithElem_c::ConfigDataType( std::vector<std::shared_ptr<arithElem_c> > &el
 // Sorted in lexicographic search order
 // Precedence: http://en.cppreference.com/w/cpp/language/operator_precedence
 const std::vector<opType_t> opList = {
-  {"("  , OP_LEFTPAR      , 0},
-  {")"  , OP_RIGHTPAR     , 0},
+  {"("  , OP_LEFTPAR      , 1},
+  {")"  , OP_RIGHTPAR     , 1},
   {"::" , OP_SCOPE        , 1},
   {"++" , OP_PLUSPLUS     , 2},
   {"--" , OP_MINUSMINUS   , 2},

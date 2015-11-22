@@ -21,7 +21,7 @@ map<string,string> varMap;
   {
     if (eStr.length() > 0)
       fprintf(stderr,"%s\n",eStr.c_str());
-    //exit(EXIT_FAILURE);
+    exit(EXIT_FAILURE);
   }
 
   int getIntVar(const std::string& varName)
@@ -82,7 +82,7 @@ void test1(void)
   setIntVar("opposite",4);
   {
     printf("  ----\n");
-    shared_ptr<arithParser_c::arithEqn_c> eqObj = g_arithParser->parseEqn("  hypotenuse = midwhere = adjacent   + opposite   ");
+    shared_ptr<arithParser_c::arithEqn_c> eqObj = g_arithParser->parseEqn("  hypotenuse = midwhere = (adjacent)   + opposite   ");
     printf("  [initAA] adjacent   --> %d\n",eqObj->get_int("adjacent"));
     printf("  [initAA] opposite   --> %d\n",eqObj->get_int("opposite"));
     printf("  [initAA] hypotenuse --> %d\n",eqObj->get_int("hypotenuse"));
