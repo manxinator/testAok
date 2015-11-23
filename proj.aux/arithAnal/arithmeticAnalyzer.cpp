@@ -69,7 +69,7 @@ extern const std::vector<opType_t> opList;
 
 class arithElem_c {
 private:
-  int auxTraverseInt(std::shared_ptr<arithParser_c> pp_parent);
+  int auxTraverseInt(std::shared_ptr<arithParser_c> pp_parent, int &travAbrt);
 
   int performOpInt(int opId, int A, int B);
 
@@ -305,10 +305,14 @@ std::shared_ptr<arithElem_c> arithParser_c::arithEqn_c::compute(void)
 
   auto retElem = std::make_shared<arithElem_c>();
   retElem->dataType = topNode->dataType;
+
+  int travErr = 0;
   switch (retElem->dataType)
   {
   case arithElem_c::ADT_INT:
-    retElem->dat_int = topNode->auxTraverseInt(o_parent);
+    retElem->dat_int = topNode->auxTraverseInt(o_parent,travErr);
+    if (travErr)
+      doErr( "[arithElem_c::compute] topNode->auxTraverseInt() had an error!" );    // not doExit, since that should've been called in auxTraverseInt()
     break;
   case arithElem_c::ADT_UINT32:
   case arithElem_c::ADT_UINT64:
@@ -726,12 +730,12 @@ std::string arithParser_c::genNodeName(void)
 void arithElem_c::ConfigDataType( std::vector<std::shared_ptr<arithElem_c> > &elemListRef )
 {
   arithDataType_e finalDataType = ADT_INT;
-  // TODO: infer finalDataType
+  // TODO: infer finalDataType -- for now, assume INT
   for (auto it = elemListRef.begin(); it != elemListRef.end(); it++)
     (*it)->dataType = finalDataType;
 }
 
-int arithElem_c::auxTraverseInt(std::shared_ptr<arithParser_c> pp_parent)
+int arithElem_c::auxTraverseInt(std::shared_ptr<arithParser_c> pp_parent, int &travAbrt)
 {
   //
   // 1- Get first non-op element -- check for left unary OP, check for right unary OP
@@ -743,67 +747,58 @@ int arithElem_c::auxTraverseInt(std::shared_ptr<arithParser_c> pp_parent)
 
   int dat_accum = 0;    // Accumulator
 
-#if 0
-  // 1
-  //
-  int elIdx = 0;
-  int lfUnaryIdx = -1;
-  int rtUnaryIdx = -1;
-  if (entList[elIdx]->isUnary)                                    // left unary op
-    lfUnaryIdx = elIdx++;
-  if (entList[elIdx]->entList.size() > 0) {
-    dat_accum = entList[elIdx++]->auxTraverseInt(pp_parent);      // traverse sub-equation
-
-    // if right unary op, error
-  }
-  else if (entList[elIdx]->opPreced > 0)                          // OP not expected at this time
-    ; // error
-  else {                                                          // variable
-    // check for right unary op
-    if ((elIdx + 1 < (int)entList.size()) && (entList[elIdx+1]->isUnary))
-      rtUnaryIdx = elIdx+1;
-
-    // if both unary -- error if precedence are equal; otherwise right has precedence
-
-    dat_accum = pp_parent->getVarInt(entList[elIdx++]->strId);
-  }
-
-  // 2
-  //
-  while (elIdx < (int)entList.size()) {
-
-    elIdx++;
-  }
-
-  dat_accum |= lfUnaryIdx ^ lfUnaryIdx; // Dummy for now
-  dat_accum |= rtUnaryIdx ^ rtUnaryIdx; // Dummy for now
-#else
-  int elIdx    = 0;
-  int lastOpId = 0;
+  int elIdx     = 0;
+  int lastOpId  = 0;
   while (elIdx < (int)entList.size())
   {
     int dat_nuevo  = 0;
+
     int lfUnaryIdx = -1;
     int rtUnaryIdx = -1;
-    if (entList[elIdx]->isUnary)                                    // left unary op
+    if (entList[elIdx]->isUnary)                                            // left unary op
       lfUnaryIdx = elIdx++;
+    if ((elIdx + 1 < (int)entList.size()) && (entList[elIdx+1]->isUnary))   // right unary op
+      rtUnaryIdx = elIdx+1;
+
     if (entList[elIdx]->entList.size() > 0) {
-      dat_nuevo = entList[elIdx++]->auxTraverseInt(pp_parent);      // traverse sub-equation
-
-      // if right unary op, error
+      dat_nuevo = entList[elIdx++]->auxTraverseInt(pp_parent,travAbrt);     // traverse sub-equation
+      if (travAbrt)
+        return -1;
+      if (rtUnaryIdx)
+        ; // error
     }
-    else if (entList[elIdx]->opPreced > 0)                          // OP not expected at this time
+    else if (entList[elIdx]->opPreced > 0)                                  // OP not expected at this time
       ; // error
-    else {                                                          // variable
-      // check for right unary op
-      if ((elIdx + 1 < (int)entList.size()) && (entList[elIdx+1]->isUnary))
-        rtUnaryIdx = elIdx+1;
+    else                                                                    // variable
+    {
+      if ((lfUnaryIdx >= 0) && (rtUnaryIdx > 0)) {
+        // if both unary -- error if precedence are equal; otherwise right has precedence
+        // get value / resolve unary
+        if (entList[lfUnaryIdx]->opPreced == entList[rtUnaryIdx]->opPreced)
+          ; // error
+      }
 
-      // if both unary -- error if precedence are equal; otherwise right has precedence
-      // get value / resolve unary
-      dat_nuevo = lfUnaryIdx ^ lfUnaryIdx;
-      dat_nuevo = rtUnaryIdx ^ rtUnaryIdx;
-      dat_nuevo = pp_parent->getVarInt(entList[elIdx++]->strId);
+      dat_nuevo = pp_parent->getVarInt( entList[elIdx++]->strId );
+
+      // Perform unary ops -- right has precedence
+      if (rtUnaryIdx > 0) {
+        switch (entList[rtUnaryIdx]->opIdx)
+        {
+        case OP_PLUSPLUS:   pp_parent->setVarInt( entList[elIdx-1]->strId, dat_nuevo+1 ); break;
+        case OP_MINUSMINUS: pp_parent->setVarInt( entList[elIdx-1]->strId, dat_nuevo-1 ); break;
+        default: ; // unreachable error
+        }
+      }
+      if (lfUnaryIdx >= 0) {
+        switch (entList[rtUnaryIdx]->opIdx)
+        {
+        case OP_PLUSPLUS:   pp_parent->setVarInt( entList[elIdx-1]->strId, dat_nuevo+1 ); dat_nuevo++; break;
+        case OP_MINUSMINUS: pp_parent->setVarInt( entList[elIdx-1]->strId, dat_nuevo-1 ); dat_nuevo--; break;
+        case OP_BIT_INV:    dat_nuevo = ~dat_nuevo;
+        case OP_LOG_NOT:    dat_nuevo = !dat_nuevo ? 1 : 0;
+        default: ; // unreachable error
+        }
+      }
 
       if (rtUnaryIdx > 0)
         elIdx++;
@@ -827,7 +822,6 @@ int arithElem_c::auxTraverseInt(std::shared_ptr<arithParser_c> pp_parent)
 
     elIdx++;
   }
-#endif
 
   return dat_accum;
 }
