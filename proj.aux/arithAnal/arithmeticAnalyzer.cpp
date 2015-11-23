@@ -68,6 +68,11 @@ typedef struct _opType_t_ {
 extern const std::vector<opType_t> opList;
 
 class arithElem_c {
+private:
+  int auxTraverseInt(std::shared_ptr<arithParser_c> pp_parent);
+
+  friend class arithParser_c::arithEqn_c;
+
 public:
   typedef enum _arithDataType_e_ {
     ADT_INT    = 0,
@@ -90,7 +95,7 @@ public:
 public:
            arithElem_c() { opIdx = 0; opPreced = 0; dataType = ADT_INT; isUnary = 0; betIdx = -1; }
   virtual ~arithElem_c() {
-    printf("'''~arithElem_c''' destroy %s",strId.c_str());
+    printf("    ''' ~arithElem_c ''' destroy %s",strId.c_str());
     if (entList.size() > 0) {
       printf(" -->");
       for (auto it = entList.begin(); it != entList.end(); it++)
@@ -292,6 +297,42 @@ void arithParser_c::arithEqn_c::doExit(const std::string &eStr)
 #endif
 }
 
+std::shared_ptr<arithElem_c> arithParser_c::arithEqn_c::compute(void)
+{
+  auto o_parent = p_parent.lock();
+
+  auto retElem = std::make_shared<arithElem_c>();
+  retElem->dataType = topNode->dataType;
+  switch (retElem->dataType)
+  {
+  case arithElem_c::ADT_INT:
+    retElem->dat_int = topNode->auxTraverseInt(o_parent);
+    break;
+  case arithElem_c::ADT_UINT32:
+  case arithElem_c::ADT_UINT64:
+  case arithElem_c::ADT_FLOAT:
+    doExit( "[arithElem_c::compute] ADT_UINT32 not implemented!" );
+    break;
+  }
+  // When returning, the only valid members of arithElem_c are:
+  // - dataType
+  //   - ADT_INT --> dat_int
+  //
+  return retElem;
+}
+
+int arithParser_c::arithEqn_c::computeInt(void)
+{
+  switch (topNode->dataType)
+  {
+  case arithElem_c::ADT_INT:  return compute()->dat_int;
+  default:
+    break;
+  }
+  doExit("[arithElem_c::computeInt] This state suppoed to be unreachable!!!");
+  return -1;
+}
+
 std::string arithParser_c::arithEqn_c::getStr(void)
 {
   std::string l_str = "UNDEFINED";
@@ -462,12 +503,13 @@ void arithParser_c::BuildSubEqn(
     std::vector<std::shared_ptr<arithElem_c> >  &elemListRef
   )
 {
-  curNode->strId = genNodeName();
+  curNode->strId    = genNodeName();
+  curNode->dataType = elemListRef[betIdx]->dataType;
 
-  int startIdx = betIdx;
+//int startIdx = betIdx;
   int curElOp  = -1;
   int prevElOp = -1;
-  while (betIdx < elemListRef.size())
+  while (betIdx < (int)elemListRef.size())
   {
     curElOp = elemListRef[betIdx]->opIdx;
 
@@ -536,7 +578,7 @@ void arithParser_c::BuildSubEqn(
           curElOp = 0;  // Subtree must to evaluate to a single number
 
           if (l_leftParDet) {
-            if ((betIdx >= elemListRef.size()) || (elemListRef[betIdx]->opIdx != OP_RIGHTPAR)) {
+            if ((betIdx >= (int)elemListRef.size()) || (elemListRef[betIdx]->opIdx != OP_RIGHTPAR)) {
               SS_ERR_BET_ABORT(ssErr << "Parsing '(' statement, but matching right parentheses ')' not found!!");
               return;
             }
@@ -685,6 +727,44 @@ void arithElem_c::ConfigDataType( std::vector<std::shared_ptr<arithElem_c> > &el
   // TODO: infer finalDataType
   for (auto it = elemListRef.begin(); it != elemListRef.end(); it++)
     (*it)->dataType = finalDataType;
+}
+
+int arithElem_c::auxTraverseInt(std::shared_ptr<arithParser_c> pp_parent)
+{
+  //
+  // 1- Get first non-op element -- check for left unary OP, check for right unary OP
+  // 2- Loop:
+  //    - Next should be OP
+  //    - Get next non-op -- check for left unary OP, check for right unary OP
+  //    - Perform OP
+  //
+
+  int dat_accum = 0;    // Accumulator
+
+  // 1
+  //
+  int elIdx = 0;
+  if (entList[elIdx]->isUnary)                                    // left unary op
+    ;
+  if (entList[elIdx]->entList.size() > 0) {
+    dat_accum = entList[elIdx++]->auxTraverseInt(pp_parent);      // assign to dat_accum
+    // if right unary op, error
+  }
+  else if (entList[elIdx]->opPreced > 0)
+    ; // error
+  else {
+    dat_accum = pp_parent->getVarInt(entList[elIdx++]->strId);    // variable
+    // check for right unary op
+  }
+
+  // 2
+  //
+  while (elIdx < (int)entList.size()) {
+
+    elIdx++;
+  }
+
+  return dat_accum;
 }
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 // Sorted in lexicographic search order

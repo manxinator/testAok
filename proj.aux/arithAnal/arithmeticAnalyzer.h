@@ -66,6 +66,11 @@ public:
     void doErr  (const std::string &);
     void doExit (const std::string &);
 
+    // Compute calls
+    std::shared_ptr<arithElem_c> compute(void);
+
+    int computeInt(void);
+
     std::string getStr(void); // DEBUG
   };
   //++++++++++++++++++++++++++++++++++++

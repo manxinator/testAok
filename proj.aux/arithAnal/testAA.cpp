@@ -106,6 +106,35 @@ void test1(void)
   //shared_ptr<arithParser_c::arithEqn_c> eqObj = g_arithParser->parseEqn("  hypotenuse = adjacent ++  + opposite   ");
 }
 
+
+void test2(void)
+{
+  shared_ptr<arithParser_c> g_arithParser = make_shared<arithParser_c>();
+  if (!g_arithParser) {
+    printf("ERROR: arithParser_c::CreateInstance() failed!\n");
+    exit(EXIT_FAILURE);
+  }
+  printf("  [initAA] ID: '%s'\n",g_arithParser->getIdent().c_str());
+
+  // Insert my functions, and then perform sanity test
+  printf("  ****\n");
+  g_arithParser->f_errFunc   = std::bind(&test_static_err, std::placeholders::_1);
+  g_arithParser->f_exitFunc  = std::bind(&test_static_exit,std::placeholders::_1);
+  g_arithParser->f_getIntVar = std::bind(&getIntVar,       std::placeholders::_1);
+  g_arithParser->f_setIntVar = std::bind(&setIntVar,       std::placeholders::_1,std::placeholders::_2);
+  printf("  [initAA] ID: '%s'\n",g_arithParser->getIdent().c_str());
+
+  // Parse bare equation and perform another sanity test
+  varMap.clear();
+  setIntVar("adjacent",3);
+  setIntVar("opposite",4);
+  {
+    printf("  ----\n");
+    shared_ptr<arithParser_c::arithEqn_c> eqObj = g_arithParser->parseEqn("  adjacent  ");
+    printf("  [initAA] eqObj->computeInt() --> %d\n",eqObj->computeInt());
+  }
+}
+
 //--------------------------------------------------------------------
 
 //dumpVars
@@ -118,8 +147,10 @@ void test1(void)
 int main(int ac, char *av[])
 {
   printf("---------------- testAA start!!\n\n");
-  test1();
+  //test1();
+  test2();
 
+  //
   // evalExprAndCheck() - Test expression
   // checkVarValue()    - Verify value of any variables modified by unary ops
   //
