@@ -130,7 +130,7 @@ void test2(void)
   setIntVar("opposite",4);
   {
     printf("  ----\n");
-    shared_ptr<arithParser_c::arithEqn_c> eqObj = g_arithParser->parseEqn("  adjacent  ");
+    shared_ptr<arithParser_c::arithEqn_c> eqObj = g_arithParser->parseEqn("  adjacent*opposite  ");
     printf("  [initAA] eqObj->computeInt() --> %d\n",eqObj->computeInt());
   }
 }

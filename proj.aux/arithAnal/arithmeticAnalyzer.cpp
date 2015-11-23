@@ -71,6 +71,8 @@ class arithElem_c {
 private:
   int auxTraverseInt(std::shared_ptr<arithParser_c> pp_parent);
 
+  int performOpInt(int opId, int A, int B);
+
   friend class arithParser_c::arithEqn_c;
 
 public:
@@ -741,20 +743,29 @@ int arithElem_c::auxTraverseInt(std::shared_ptr<arithParser_c> pp_parent)
 
   int dat_accum = 0;    // Accumulator
 
+#if 0
   // 1
   //
   int elIdx = 0;
+  int lfUnaryIdx = -1;
+  int rtUnaryIdx = -1;
   if (entList[elIdx]->isUnary)                                    // left unary op
-    ;
+    lfUnaryIdx = elIdx++;
   if (entList[elIdx]->entList.size() > 0) {
-    dat_accum = entList[elIdx++]->auxTraverseInt(pp_parent);      // assign to dat_accum
+    dat_accum = entList[elIdx++]->auxTraverseInt(pp_parent);      // traverse sub-equation
+
     // if right unary op, error
   }
-  else if (entList[elIdx]->opPreced > 0)
+  else if (entList[elIdx]->opPreced > 0)                          // OP not expected at this time
     ; // error
-  else {
-    dat_accum = pp_parent->getVarInt(entList[elIdx++]->strId);    // variable
+  else {                                                          // variable
     // check for right unary op
+    if ((elIdx + 1 < (int)entList.size()) && (entList[elIdx+1]->isUnary))
+      rtUnaryIdx = elIdx+1;
+
+    // if both unary -- error if precedence are equal; otherwise right has precedence
+
+    dat_accum = pp_parent->getVarInt(entList[elIdx++]->strId);
   }
 
   // 2
@@ -764,7 +775,89 @@ int arithElem_c::auxTraverseInt(std::shared_ptr<arithParser_c> pp_parent)
     elIdx++;
   }
 
+  dat_accum |= lfUnaryIdx ^ lfUnaryIdx; // Dummy for now
+  dat_accum |= rtUnaryIdx ^ rtUnaryIdx; // Dummy for now
+#else
+  int elIdx    = 0;
+  int lastOpId = 0;
+  while (elIdx < (int)entList.size())
+  {
+    int dat_nuevo  = 0;
+    int lfUnaryIdx = -1;
+    int rtUnaryIdx = -1;
+    if (entList[elIdx]->isUnary)                                    // left unary op
+      lfUnaryIdx = elIdx++;
+    if (entList[elIdx]->entList.size() > 0) {
+      dat_nuevo = entList[elIdx++]->auxTraverseInt(pp_parent);      // traverse sub-equation
+
+      // if right unary op, error
+    }
+    else if (entList[elIdx]->opPreced > 0)                          // OP not expected at this time
+      ; // error
+    else {                                                          // variable
+      // check for right unary op
+      if ((elIdx + 1 < (int)entList.size()) && (entList[elIdx+1]->isUnary))
+        rtUnaryIdx = elIdx+1;
+
+      // if both unary -- error if precedence are equal; otherwise right has precedence
+      // get value / resolve unary
+      dat_nuevo = lfUnaryIdx ^ lfUnaryIdx;
+      dat_nuevo = rtUnaryIdx ^ rtUnaryIdx;
+      dat_nuevo = pp_parent->getVarInt(entList[elIdx++]->strId);
+
+      if (rtUnaryIdx > 0)
+        elIdx++;
+    }
+    // NOTE: elIdx should be pointing to the next element after this
+
+    // Perform OP
+    if (lastOpId > 0)
+      dat_accum = performOpInt(lastOpId,dat_accum,dat_nuevo);
+    else
+      dat_accum = dat_nuevo;
+
+    // Get next OP
+    if (elIdx < (int)entList.size()) {
+      if (entList[elIdx]->isUnary)
+        ; // error
+      lastOpId = entList[elIdx]->opIdx;
+      if (lastOpId <= 0)
+        ; // error
+    }
+
+    elIdx++;
+  }
+#endif
+
   return dat_accum;
+}
+
+int arithElem_c::performOpInt(int opId, int A, int B)
+{
+  switch (opId)
+  {
+  case OP_MINUS:    return A  - B;
+  case OP_LOG_AND:  return A && B ? 1 : 0;
+  case OP_LOG_OR:   return A || B ? 1 : 0;
+  case OP_LSHIFT:   return A << B;
+  case OP_RSHIFT:   return A >> B;
+  case OP_CMP_LTEQ: return A <= B ? 1 : 0;
+  case OP_CMP_GTEQ: return A >= B ? 1 : 0;
+  case OP_CMP_EQ:   return A == B ? 1 : 0;
+  case OP_CMP_NEQ:  return A != B ? 1 : 0;
+  case OP_MULTIPLY: return A  * B;
+  case OP_DIVIDE:   return A  / B;
+  case OP_MODULUS:  return A  % B;
+  case OP_CMP_LT:   return A  < B ? 1 : 0;
+  case OP_CMP_GT:   return A  > B ? 1 : 0;
+  case OP_BIT_AND:  return A  & B;
+  case OP_BIT_XOR:  return A  ^ B;
+  case OP_BIT_OR:   return A  | B;
+  case OP_PLUS:     return A  + B;
+  default:
+    ; // error
+  }
+  return 0;
 }
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 // Sorted in lexicographic search order
