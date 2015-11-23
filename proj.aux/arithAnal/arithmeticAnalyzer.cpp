@@ -481,15 +481,14 @@ std::shared_ptr<arithElem_c> parsTokAux_c::getTok(void)
 #define SS_ERR_BET_ABORT(__SS_CMD__) {  \
     std::stringstream ssErr;            \
     __SS_CMD__;                         \
+    ssErr << "\n    File: " << __FILE__ \
+          << "\n    Line: " << __LINE__;\
     exitCall(ssErr.str());              \
     betAbrt = 1;                        \
 }
 
 std::shared_ptr<arithElem_c> arithParser_c::BuildEqnTree( std::vector<std::shared_ptr<arithElem_c> > &elemListRef )
 {
-#if 0
-  return elemListRef[0];
-#else
   betIdx   = 0;
   betAbrt  = 0;
   betLstId = 0;
@@ -501,7 +500,6 @@ std::shared_ptr<arithElem_c> arithParser_c::BuildEqnTree( std::vector<std::share
     headNode->strId = "0";
   }
   return headNode;
-#endif
 }
 
 void arithParser_c::BuildSubEqn(
@@ -512,7 +510,6 @@ void arithParser_c::BuildSubEqn(
   curNode->strId    = genNodeName();
   curNode->dataType = elemListRef[betIdx]->dataType;
 
-//int startIdx = betIdx;
   int curElOp  = -1;
   int prevElOp = -1;
   while (betIdx < (int)elemListRef.size())
@@ -521,7 +518,7 @@ void arithParser_c::BuildSubEqn(
 
     /*
       Unary Ops: ++, --, -, ~, !
-   */
+    */
 
     // What to do with scope operator???
     //
@@ -577,7 +574,7 @@ void arithParser_c::BuildSubEqn(
             curNode->entList.push_back(elemListRef[betIdx++]);
 
           subNode = std::make_shared<arithElem_c>();
-          BuildSubEqn(subNode,0,elemListRef);         //BuildSubEqn(subNode,level+1,elemListRef);
+          BuildSubEqn(subNode,0,elemListRef);
           if (betAbrt)
             return;
           curNode->entList.push_back(subNode);
@@ -642,20 +639,27 @@ void arithParser_c::BuildSubEqn(
         case OP_BIT_OR:
         case OP_PLUS:
           {
-              // Quick check on previous operator type
-            if (prevElOp != 0) {
-              SS_ERR_BET_ABORT(ssErr << "Operator " << elemListRef[betIdx]->strId << " after " << elemListRef[betIdx]->strId << " not understood!");
-              return;
-            }
-              // Get preceding operator index
-              // - traverse curNode, since that's all parsed already
             int lastOpIdx = -1;
             {
+              // Traverse curNode, since that's all parsed already
+              // We're in an OP, so look for the last variable
+              int lstVarIdx = curNode->entList.size()-1;
+              for ( ; lstVarIdx >= 0; lstVarIdx--) {
+                if (curNode->entList[lstVarIdx]->isUnary)    continue;
+                if (curNode->entList[lstVarIdx]->opIdx == 0) break;
+                lstVarIdx = 0;
+              }
+              if (lstVarIdx < 0) {
+                SS_ERR_BET_ABORT(ssErr << "Op sequence " << elemListRef[betIdx]->strId << " not understood!");
+                return;
+              }
+
+              // Get preceding operator index
               for (int elIdx = curNode->entList.size()-1; elIdx >= 0; elIdx--) {
-                if (curNode->entList[elIdx]->isUnary)       continue;
-                if (curNode->entList[elIdx]->opPreced > 0) {
+                if (curNode->entList[elIdx]->isUnary) continue;
+                if (curNode->entList[elIdx]->opIdx > 0) {
                   lastOpIdx = curNode->entList[elIdx]->betIdx;
-                  curElOp = elemListRef[betIdx]->opIdx;
+                  curElOp   = elemListRef[betIdx]->opIdx;
                   break;
                 }
               }
@@ -735,6 +739,15 @@ void arithElem_c::ConfigDataType( std::vector<std::shared_ptr<arithElem_c> > &el
     (*it)->dataType = finalDataType;
 }
 
+#define SS_ERR_ATI_ABORT(__SS_CMD__) {  \
+    std::stringstream ssErr;            \
+    __SS_CMD__;                         \
+    ssErr << "\n    File: " << __FILE__ \
+          << "\n    Line: " << __LINE__;\
+    pp_parent->exitCall(ssErr.str());   \
+    travAbrt = 1;                       \
+}
+
 int arithElem_c::auxTraverseInt(std::shared_ptr<arithParser_c> pp_parent, int &travAbrt)
 {
   //
@@ -767,8 +780,10 @@ int arithElem_c::auxTraverseInt(std::shared_ptr<arithParser_c> pp_parent, int &t
       if (rtUnaryIdx)
         ; // error
     }
-    else if (entList[elIdx]->opPreced > 0)                                  // OP not expected at this time
-      ; // error
+    else if (entList[elIdx]->opPreced > 0) {                                // OP not expected at this time
+      SS_ERR_ATI_ABORT(ssErr << "OP '" << entList[elIdx]->strId << "' not expected!");
+      return -1;
+    }
     else                                                                    // variable
     {
       if ((lfUnaryIdx >= 0) && (rtUnaryIdx > 0)) {
@@ -790,7 +805,7 @@ int arithElem_c::auxTraverseInt(std::shared_ptr<arithParser_c> pp_parent, int &t
         }
       }
       if (lfUnaryIdx >= 0) {
-        switch (entList[rtUnaryIdx]->opIdx)
+        switch (entList[lfUnaryIdx]->opIdx)
         {
         case OP_PLUSPLUS:   pp_parent->setVarInt( entList[elIdx-1]->strId, dat_nuevo+1 ); dat_nuevo++; break;
         case OP_MINUSMINUS: pp_parent->setVarInt( entList[elIdx-1]->strId, dat_nuevo-1 ); dat_nuevo--; break;

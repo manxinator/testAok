@@ -138,7 +138,7 @@ void test2(void)
 
     int adj = 3;
     int opp = 4;
-    printf("  [initAA] expected ====> %d",adj*opp++);
+    printf("  [initAA] expected ====> %d",adj++*--opp);
     printf(", adj: %d, opp: %d\n",adj,opp);
   }
 }
