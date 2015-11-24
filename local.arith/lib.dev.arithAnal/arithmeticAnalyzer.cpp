@@ -67,11 +67,14 @@ typedef struct _opType_t_ {
 
 extern const std::vector<opType_t> opList;
 
+static std::string aa_util_entListDbg(const std::vector<std::shared_ptr<arithElem_c> > &elemListRef, int pos);
+
+        //----------------------------------------------------------------------
+
 class arithElem_c {
 private:
   int auxTraverseInt(std::shared_ptr<arithParser_c> pp_parent, int &travAbrt);
-
-  int performOpInt(int opId, int A, int B);
+  int performOpInt  (int opId, int A, int B);
 
   friend class arithParser_c::arithEqn_c;
 
@@ -777,11 +780,13 @@ int arithElem_c::auxTraverseInt(std::shared_ptr<arithParser_c> pp_parent, int &t
       dat_nuevo = entList[elIdx++]->auxTraverseInt(pp_parent,travAbrt);     // traverse sub-equation
       if (travAbrt)
         return -1;
-      if (rtUnaryIdx)
-        ; // error
+      if (rtUnaryIdx) {
+        SS_ERR_ATI_ABORT(ssErr << "Right-side unary OP '" << entList[elIdx]->strId << "' not expected!" << aa_util_entListDbg(entList,rtUnaryIdx));
+        return -1;
+      }
     }
     else if (entList[elIdx]->opPreced > 0) {                                // OP not expected at this time
-      SS_ERR_ATI_ABORT(ssErr << "OP '" << entList[elIdx]->strId << "' not expected!");
+      SS_ERR_ATI_ABORT(ssErr << "OP '" << entList[elIdx]->strId << "' not expected!" << aa_util_entListDbg(entList,elIdx));
       return -1;
     }
     else                                                                    // variable
@@ -789,8 +794,10 @@ int arithElem_c::auxTraverseInt(std::shared_ptr<arithParser_c> pp_parent, int &t
       if ((lfUnaryIdx >= 0) && (rtUnaryIdx > 0)) {
         // if both unary -- error if precedence are equal; otherwise right has precedence
         // get value / resolve unary
-        if (entList[lfUnaryIdx]->opPreced == entList[rtUnaryIdx]->opPreced)
-          ; // error
+        if (entList[lfUnaryIdx]->opPreced == entList[rtUnaryIdx]->opPreced) {
+          SS_ERR_ATI_ABORT(ssErr << "Unary operators on both side of '" << entList[elIdx]->strId << "' -- unsupported!" << aa_util_entListDbg(entList,rtUnaryIdx));
+          return -1;
+        }
       }
 
       dat_nuevo = pp_parent->getVarInt( entList[elIdx++]->strId );
@@ -867,6 +874,36 @@ int arithElem_c::performOpInt(int opId, int A, int B)
     ; // error
   }
   return 0;
+}
+//------------------------------------------------------------------------------
+std::string aa_util_entListDbg(const std::vector<std::shared_ptr<arithElem_c> > &elemListRef, int pos)
+{
+  std::stringstream ssMsg;
+  std::vector<int>  spList;
+
+  ssMsg << "\n    Equation: [";
+  for (auto it1 = elemListRef.cbegin(); it1 != elemListRef.cend(); it1++) {
+    if ((*it1)->entList.size() > 0) {
+      ssMsg << " ()";
+      spList.push_back(2);
+    } else {
+      ssMsg << " " << (*it1)->strId;
+      spList.push_back((*it1)->strId.length());
+    }
+  }
+
+  ssMsg << " ]\n    Position: [";
+  for (auto it2 = spList.cbegin(); it2 != spList.cend(); it2++, pos--) {
+    if (pos == 0) {
+      ssMsg << " ^";
+      if (*it2 > 1)
+        ssMsg << std::string((*it2) - 1,' ');
+    } else
+      ssMsg << " " << std::string(*it2,' ');
+  }
+  ssMsg << " ]";
+
+  return ssMsg.str();
 }
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 // Sorted in lexicographic search order
