@@ -38,7 +38,7 @@ LOCAL_CFLAGS+=-DPLATFORM_${PLATFORM_NAME}=1 -DPLATFORM_NAME='"${PLATFORM_NAME}"'
 #LOCAL_CFLAGS+=-pg
 #LIBLINKS+=-lc_p    # since LDFLAGS is not used -- also, use only with 'ld' linker
 
-EXE?=runArithTest
+EXE?=runTestArith1
 
 ifdef REV_ID
   OBJ_DIR?=${LOCAL_WS_DIR}/bin/${REL_ID}/${UNAME}/obj-${EXE}
@@ -50,7 +50,7 @@ endif
 
 #---------------------------------------------------------------------
 
-CXX_FILES+=testAA.cpp
+CXX_FILES+=testArith1.cpp
 INCPATH+=  ${LOCAL_WS_DIR}/app.testArith/
 vpath %c   ${LOCAL_WS_DIR}/app.testArith/
 vpath %cpp ${LOCAL_WS_DIR}/app.testArith/
