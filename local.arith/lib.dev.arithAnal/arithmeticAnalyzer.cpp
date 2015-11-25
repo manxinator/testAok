@@ -26,7 +26,7 @@
 
 #define __CPP_ARITHMETIC_ANALYZER__
 
-#define ARITH_DEBUG_DEF       1
+//#define ARITH_DEBUG_DEF       1
 //#define AA_NO_DEFAULT_ERR     1
 
 #ifdef ARITH_DEBUG_DEF
