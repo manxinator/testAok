@@ -105,13 +105,13 @@ public:
 public:
            arithElem_c() { opIdx = 0; opPreced = 0; dataType = ADT_INT; isUnary = 0; betIdx = -1; }
   virtual ~arithElem_c() {
-    printf("    ''' ~arithElem_c ''' destroy %s",strId.c_str());
+    AA_DEBUG("    ''' ~arithElem_c ''' destroy %s",strId.c_str());
     if (entList.size() > 0) {
-      printf(" -->");
+      AA_DEBUG(" -->");
       for (auto it = entList.begin(); it != entList.end(); it++)
-        printf(" %s",(*it)->strId.c_str());
+        AA_DEBUG(" %s",(*it)->strId.c_str());
     }
-    printf("\n");
+    AA_DEBUG("\n");
   }
 
   void checkOp(void) { isUnary = isLhsUnaryOp(opIdx); }
@@ -193,13 +193,15 @@ std::shared_ptr<arithParser_c::arithEqn_c> arithParser_c::parseEqn(const std::st
   for (auto it = tokList.begin(); it != tokList.end(); it++)
     (*it)->betIdx = iii++;
 
+ #ifdef ARITH_DEBUG_DEF
   {
     // DEBUG print
     int jjj = 0;
-    printf("  + Print tokens!\n");
+    AA_DEBUG("  + Print tokens!\n");
     for (auto it = tokList.begin(); it != tokList.end(); it++)
-      printf("    + tokLst[%2d] opIdx: %2d, preced: %2d, '%s'\n",jjj++,(*it)->opIdx,(*it)->opPreced,(*it)->strId.c_str());
+      AA_DEBUG("    + tokLst[%2d] opIdx: %2d, preced: %2d, '%s'\n",jjj++,(*it)->opIdx,(*it)->opPreced,(*it)->strId.c_str());
   }
+ #endif
 
   // 2 - build the tree
   //
@@ -497,7 +499,7 @@ std::shared_ptr<arithElem_c> arithParser_c::BuildEqnTree( std::vector<std::share
   BuildSubEqn(headNode,0,elemListRef);
 #if 0
   if (betAbrt) { // For easy debugging
-    printf("  [betAbrt] headNode: %s\n",headNode->strId.c_str());
+    AA_DEBUG("  [betAbrt] headNode: %s\n",headNode->strId.c_str());
     auto dummyNode = std::make_shared<arithElem_c>();
     dummyNode->entList.clear();
     dummyNode->opIdx = 0;
@@ -688,7 +690,7 @@ void arithParser_c::BuildSubEqn(
             {
               // if cur preced < lastOpIdx ; then current has higher prio
               if (elemListRef[betIdx]->opPreced < elemListRef[lastOpIdx]->opPreced) {
-                printf("    &&&&&&&&&&& Here! Current op has higher prio! level=%2d | %s < %s\n",level,elemListRef[lastOpIdx]->strId.c_str(),elemListRef[betIdx]->strId.c_str());
+                AA_DEBUG("    &&&&&&&&&&& Here! Current op has higher prio! level=%2d | %s < %s\n",level,elemListRef[lastOpIdx]->strId.c_str(),elemListRef[betIdx]->strId.c_str());
 
                 betIdx--;
                 curNode->entList.pop_back();
@@ -704,7 +706,7 @@ void arithParser_c::BuildSubEqn(
               }
               // if cur preced > lastOpIdx ; then current has lower prio
               if (elemListRef[betIdx]->opPreced > elemListRef[lastOpIdx]->opPreced) {
-                printf("    @@@@@@@@@@@ Here! Current op has lower  prio! level=%2d | %s > %s\n",level,elemListRef[lastOpIdx]->strId.c_str(),elemListRef[betIdx]->strId.c_str());
+                AA_DEBUG("    @@@@@@@@@@@ Here! Current op has lower  prio! level=%2d | %s > %s\n",level,elemListRef[lastOpIdx]->strId.c_str(),elemListRef[betIdx]->strId.c_str());
                 // if   level==0, replace top level
                 // else back to prev level
                 if (level == 0) {
@@ -823,7 +825,7 @@ int arithElem_c::auxTraverseInt(std::shared_ptr<arithParser_c> pp_parent, int &t
 
       dat_n_idx = elIdx;
       dat_n_var = getIntFromStr(entList[elIdx]->strId,dat_nuevo) ? 0 : 1;
-      printf("  ~  ~  ~  ~  ~ '%s' {isVar: %d} {%d} {%d}\n",entList[elIdx]->strId.c_str(),dat_n_var,dat_a_idx,dat_a_var);
+      AA_DEBUG("  ~  ~  ~  ~  ~ '%s' {isVar: %d} {%d} {%d}\n",entList[elIdx]->strId.c_str(),dat_n_var,dat_a_idx,dat_a_var);
       elIdx++;
 
       // if right unary or left unary, resolve if dat_a_var==1
@@ -878,7 +880,7 @@ int arithElem_c::auxTraverseInt(std::shared_ptr<arithParser_c> pp_parent, int &t
           dat_n_var = 0;
         }
         // Perform assignment, and write back
-        printf("  ### '%s' <-- %d\n",entList[dat_a_idx]->strId.c_str(),dat_nuevo);
+        AA_DEBUG("  ### '%s' <-- %d\n",entList[dat_a_idx]->strId.c_str(),dat_nuevo);
         dat_accum = performAsInt(pp_parent,entList[dat_a_idx]->strId,lastOpId,dat_nuevo);
         dat_a_var = 0;
         pp_parent->setVarInt(entList[dat_a_idx]->strId,dat_accum);
@@ -893,11 +895,13 @@ int arithElem_c::auxTraverseInt(std::shared_ptr<arithParser_c> pp_parent, int &t
           dat_n_var = 0;
         }
         // Perform OP
+       #ifdef ARITH_DEBUG_DEF
         int printAcc = dat_accum;
+       #endif
         dat_accum = performOpInt(lastOpId,dat_accum,dat_nuevo,errState);
         dat_a_idx = -1;
         dat_a_var =  0;
-        printf("  ### %d <-- %d op=%d %d\n",dat_accum,printAcc,lastOpId,dat_nuevo);
+        AA_DEBUG("  ### %d <-- %d op=%d %d\n",dat_accum,printAcc,lastOpId,dat_nuevo);
         if (errState) {
           SS_ERR_ATI_ABORT(ssErr << "Unknown Op ID '" << lastOpId << "'!");   // Supposedly unreachable state
           return -1;
@@ -927,7 +931,7 @@ int arithElem_c::auxTraverseInt(std::shared_ptr<arithParser_c> pp_parent, int &t
 
   if (dat_a_var)
     dat_accum = pp_parent->getVarInt( entList[dat_a_idx]->strId );
-  printf("  ~ returning %d ~~~~~~~~~~~~~\n",dat_accum);
+  AA_DEBUG("  ~ returning %d ~~~~~~~~~~~~~\n",dat_accum);
   return dat_accum;
 }
 
