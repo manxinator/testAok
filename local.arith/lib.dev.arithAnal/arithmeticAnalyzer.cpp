@@ -74,7 +74,12 @@ static std::string aa_util_entListDbg(const std::vector<std::shared_ptr<arithEle
 class arithElem_c {
 private:
   int auxTraverseInt(std::shared_ptr<arithParser_c> pp_parent, int &travAbrt);
-  int performOpInt  (int opId, int A, int B);
+  int performAsInt  (std::shared_ptr<arithParser_c> pp_parent, const std::string &varId, int opId, int rhsVal);
+  int performOpInt  (int opId, int A, int B, int &errFlag);
+  int isAssignOp    (int opId);
+  int isLhsUnaryOp  (int opId);
+
+  int getIntFromStr (const std::string &strId, int &intVal);
 
   friend class arithParser_c::arithEqn_c;
 
@@ -108,6 +113,8 @@ public:
     }
     printf("\n");
   }
+
+  void checkOp(void) { isUnary = isLhsUnaryOp(opIdx); }
 
   static void ConfigDataType( std::vector<std::shared_ptr<arithElem_c> > &elemListRef );
 };
@@ -373,9 +380,8 @@ std::shared_ptr<arithElem_c> parsTokAux_c::getTok(void)
   char c = eqnStr[idx];
   if ((c == '_') || isalpha(c))
   {
-    // Name
-//    printf("*** parse word -- w!\n");
-
+    // Variable
+    //
     c = eqnStr[++idx];
     for ( ; (c == '_') || isalpha(c) || isdigit(c); idx++)
       c = eqnStr[idx];
@@ -385,37 +391,30 @@ std::shared_ptr<arithElem_c> parsTokAux_c::getTok(void)
   else if (isdigit(c))
   {
     // Digit -- follow C numeric rules
+    //
     if (c == '0')
     {
       c = eqnStr[++idx];
-      if ((c == 'x') || (c == 'X'))
+      if ((c == 'x') || (c == 'X'))     // Hex
       {
-        // Hex
-//        printf("*** parse digit -- hex\n");
         ++idx;
         while (isxdigit(eqnStr[idx]))
           idx++;
         tokElem->strId = eqnStr.substr(tokStart,idx-tokStart);
       }
-      else if (isdigit(c))
+      else if (isdigit(c))              // Octal
       {
-        // Octal
-//        printf("*** parse digit -- octal\n");
         while (isdigit(c))
           c = eqnStr[++idx];
         tokElem->strId = eqnStr.substr(tokStart,idx-tokStart);
       }
-      else
+      else                              // Zero
       {
-        // Zero
-//        printf("*** parse digit -- zero\n");
         tokElem->strId.assign("0");
       }
     }
-    else
+    else                                // Decimal
     {
-      // Decimal
-//      printf("*** parse digit -- decimal\n");
       while (isdigit(c))
         c = eqnStr[++idx];
       tokElem->strId = eqnStr.substr(tokStart,idx-tokStart);
@@ -424,8 +423,8 @@ std::shared_ptr<arithElem_c> parsTokAux_c::getTok(void)
   else
   {
     // OP
+    //
     std::string remStr = eqnStr.substr(idx);
-//    printf("*** parse OP '%s'\n",remStr.c_str());
     for (auto it = opList.cbegin(); it != opList.cend(); it++) {
       if (remStr.find(it->opStr) == 0) {
         idx += it->opStr.length();
@@ -436,7 +435,6 @@ std::shared_ptr<arithElem_c> parsTokAux_c::getTok(void)
       }
     }
   }
-//  printf("*** parse done!\n");
   return tokElem;
 }
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -497,6 +495,16 @@ std::shared_ptr<arithElem_c> arithParser_c::BuildEqnTree( std::vector<std::share
   betLstId = 0;
   std::shared_ptr<arithElem_c> headNode = std::make_shared<arithElem_c>();
   BuildSubEqn(headNode,0,elemListRef);
+#if 0
+  if (betAbrt) { // For easy debugging
+    printf("  [betAbrt] headNode: %s\n",headNode->strId.c_str());
+    auto dummyNode = std::make_shared<arithElem_c>();
+    dummyNode->entList.clear();
+    dummyNode->opIdx = 0;
+    dummyNode->strId = "0";
+    return dummyNode;
+  }
+#endif
   if (betAbrt) {
     headNode->entList.clear();
     headNode->opIdx = 0;
@@ -527,8 +535,11 @@ void arithParser_c::BuildSubEqn(
     //
 
     if ((prevElOp < 0) && (curElOp != OP_LEFTPAR))
+    {
       // First op, so just insert into list
       curNode->entList.push_back(elemListRef[betIdx]);
+      curNode->entList[curNode->entList.size()-1]->checkOp();
+    }
     else
     {
       if (curElOp == 0)
@@ -584,10 +595,15 @@ void arithParser_c::BuildSubEqn(
           curElOp = 0;  // Subtree must to evaluate to a single number
 
           if (l_leftParDet) {
+            // Expect matching right parenthesis
             if ((betIdx >= (int)elemListRef.size()) || (elemListRef[betIdx]->opIdx != OP_RIGHTPAR)) {
-              SS_ERR_BET_ABORT(ssErr << "Parsing '(' statement, but matching right parentheses ')' not found!!");
+              SS_ERR_BET_ABORT(ssErr << "Parsing '(' statement, but matching right parenthesis ')' not found!!");
               return;
             }
+          } else {
+            // Found right parenthesis, but it is not ours -- exit set
+            if ((betIdx < (int)elemListRef.size()) && (elemListRef[betIdx]->opIdx == OP_RIGHTPAR))
+              return;
           }
           break;
         case OP_RIGHTPAR:
@@ -753,21 +769,25 @@ void arithElem_c::ConfigDataType( std::vector<std::shared_ptr<arithElem_c> > &el
 
 int arithElem_c::auxTraverseInt(std::shared_ptr<arithParser_c> pp_parent, int &travAbrt)
 {
-  //
-  // 1- Get first non-op element -- check for left unary OP, check for right unary OP
-  // 2- Loop:
-  //    - Next should be OP
-  //    - Get next non-op -- check for left unary OP, check for right unary OP
-  //    - Perform OP
-  //
+  /*
+    1- Get first non-op element -- check for left unary OP, check for right unary OP
+    2- Loop:
+       - Next should be OP
+       - Get next non-op -- check for left unary OP, check for right unary OP
+       - Perform OP
+  */
 
-  int dat_accum = 0;    // Accumulator
+  int dat_accum =  0;       // Accumulator
+  int dat_a_idx = -1;       // Accumulator Index
+  int dat_a_var =  0;       // Accumulator is Variable
 
   int elIdx     = 0;
   int lastOpId  = 0;
   while (elIdx < (int)entList.size())
   {
-    int dat_nuevo  = 0;
+    int dat_nuevo =  0;
+    int dat_n_idx = -1;
+    int dat_n_var =  0;
 
     int lfUnaryIdx = -1;
     int rtUnaryIdx = -1;
@@ -777,15 +797,16 @@ int arithElem_c::auxTraverseInt(std::shared_ptr<arithParser_c> pp_parent, int &t
       rtUnaryIdx = elIdx+1;
 
     if (entList[elIdx]->entList.size() > 0) {
+      dat_n_idx = elIdx;
       dat_nuevo = entList[elIdx++]->auxTraverseInt(pp_parent,travAbrt);     // traverse sub-equation
       if (travAbrt)
         return -1;
-      if (rtUnaryIdx) {
+      if (rtUnaryIdx > 0) {
         SS_ERR_ATI_ABORT(ssErr << "Right-side unary OP '" << entList[elIdx]->strId << "' not expected!" << aa_util_entListDbg(entList,rtUnaryIdx));
         return -1;
       }
     }
-    else if (entList[elIdx]->opPreced > 0) {                                // OP not expected at this time
+    else if ((entList[elIdx]->opPreced > 0) && (lfUnaryIdx < 0)) {          // OP not expected at this time
       SS_ERR_ATI_ABORT(ssErr << "OP '" << entList[elIdx]->strId << "' not expected!" << aa_util_entListDbg(entList,elIdx));
       return -1;
     }
@@ -800,7 +821,17 @@ int arithElem_c::auxTraverseInt(std::shared_ptr<arithParser_c> pp_parent, int &t
         }
       }
 
-      dat_nuevo = pp_parent->getVarInt( entList[elIdx++]->strId );
+      dat_n_idx = elIdx;
+      dat_n_var = getIntFromStr(entList[elIdx]->strId,dat_nuevo) ? 0 : 1;
+      printf("  ~  ~  ~  ~  ~ '%s' {isVar: %d} {%d} {%d}\n",entList[elIdx]->strId.c_str(),dat_n_var,dat_a_idx,dat_a_var);
+      elIdx++;
+
+      // if right unary or left unary, resolve if dat_a_var==1
+      if ((rtUnaryIdx > 0) || (lfUnaryIdx >= 0)) {
+        dat_nuevo = pp_parent->getVarInt( entList[dat_n_idx]->strId );
+        dat_n_idx = -1;
+        dat_n_var =  0;
+      }
 
       // Perform unary ops -- right has precedence
       if (rtUnaryIdx > 0) {
@@ -808,7 +839,9 @@ int arithElem_c::auxTraverseInt(std::shared_ptr<arithParser_c> pp_parent, int &t
         {
         case OP_PLUSPLUS:   pp_parent->setVarInt( entList[elIdx-1]->strId, dat_nuevo+1 ); break;
         case OP_MINUSMINUS: pp_parent->setVarInt( entList[elIdx-1]->strId, dat_nuevo-1 ); break;
-        default: ; // unreachable error
+        default:
+          SS_ERR_ATI_ABORT(ssErr << "This state supposedly unreachable!" << aa_util_entListDbg(entList,rtUnaryIdx));
+          return -1;
         }
       }
       if (lfUnaryIdx >= 0) {
@@ -818,7 +851,9 @@ int arithElem_c::auxTraverseInt(std::shared_ptr<arithParser_c> pp_parent, int &t
         case OP_MINUSMINUS: pp_parent->setVarInt( entList[elIdx-1]->strId, dat_nuevo-1 ); dat_nuevo--; break;
         case OP_BIT_INV:    dat_nuevo = ~dat_nuevo;
         case OP_LOG_NOT:    dat_nuevo = !dat_nuevo ? 1 : 0;
-        default: ; // unreachable error
+        default:
+          SS_ERR_ATI_ABORT(ssErr << "This state supposedly unreachable!" << aa_util_entListDbg(entList,rtUnaryIdx));
+          return -1;
         }
       }
 
@@ -828,28 +863,111 @@ int arithElem_c::auxTraverseInt(std::shared_ptr<arithParser_c> pp_parent, int &t
     // NOTE: elIdx should be pointing to the next element after this
 
     // Perform OP
-    if (lastOpId > 0)
-      dat_accum = performOpInt(lastOpId,dat_accum,dat_nuevo);
-    else
+    if (lastOpId > 0) {
+      int errState = 0;
+      int isAssign = isAssignOp(lastOpId);
+      if (isAssign) {
+        // Perform assignment OP
+        if (dat_a_var != 1) {
+          SS_ERR_ATI_ABORT(ssErr << "Op ID '" << lastOpId << "' but LHS is not a variable!" << aa_util_entListDbg(entList,dat_a_idx));
+          return -1;
+        }
+        // If nuevo is a variable, resolve
+        if (dat_n_var) {
+          dat_nuevo = pp_parent->getVarInt( entList[dat_n_idx]->strId );
+          dat_n_var = 0;
+        }
+        // Perform assignment, and write back
+        printf("  ### '%s' <-- %d\n",entList[dat_a_idx]->strId.c_str(),dat_nuevo);
+        dat_accum = performAsInt(pp_parent,entList[dat_a_idx]->strId,lastOpId,dat_nuevo);
+        dat_a_var = 0;
+        pp_parent->setVarInt(entList[dat_a_idx]->strId,dat_accum);
+      } else {
+        // if dat_a_var==1 or dat_n_var==1, resolve
+        if (dat_n_var) {
+          dat_accum = pp_parent->getVarInt( entList[dat_a_idx]->strId );
+          dat_a_var = 0;
+        }
+        if (dat_n_var) {
+          dat_nuevo = pp_parent->getVarInt( entList[dat_n_idx]->strId );
+          dat_n_var = 0;
+        }
+        // Perform OP
+        int printAcc = dat_accum;
+        dat_accum = performOpInt(lastOpId,dat_accum,dat_nuevo,errState);
+        dat_a_idx = -1;
+        dat_a_var =  0;
+        printf("  ### %d <-- %d op=%d %d\n",dat_accum,printAcc,lastOpId,dat_nuevo);
+        if (errState) {
+          SS_ERR_ATI_ABORT(ssErr << "Unknown Op ID '" << lastOpId << "'!");   // Supposedly unreachable state
+          return -1;
+        }
+      }
+    } else {
       dat_accum = dat_nuevo;
+      dat_a_idx = dat_n_idx;
+      dat_a_var = dat_n_var;
+    }
 
     // Get next OP
     if (elIdx < (int)entList.size()) {
-      if (entList[elIdx]->isUnary)
-        ; // error
+      if (entList[elIdx]->isUnary) {
+        SS_ERR_ATI_ABORT(ssErr << "Unexpected unary operator!" << aa_util_entListDbg(entList,elIdx));
+        return -1;
+      }
       lastOpId = entList[elIdx]->opIdx;
-      if (lastOpId <= 0)
-        ; // error
+      if (lastOpId <= 0) {
+        SS_ERR_ATI_ABORT(ssErr << "This state supposedly unreachable!" << aa_util_entListDbg(entList,elIdx));
+        return -1;
+      }
     }
 
     elIdx++;
   }
 
+  if (dat_a_var)
+    dat_accum = pp_parent->getVarInt( entList[dat_a_idx]->strId );
+  printf("  ~ returning %d ~~~~~~~~~~~~~\n",dat_accum);
   return dat_accum;
 }
 
-int arithElem_c::performOpInt(int opId, int A, int B)
+int arithElem_c::getIntFromStr(const std::string &strId, int &intVal)
 {
+  char c = strId[0];
+  if (isdigit(c)) {
+    intVal = std::stoi(strId,nullptr,0);
+    return 1;
+  }
+  return 0;
+}
+
+int arithElem_c::performAsInt(std::shared_ptr<arithParser_c> pp_parent, const std::string &varId, int opId, int rhsVal)
+{
+  int lhsVal = 0;
+  if (opId != OP_ASGN_EQ)
+    lhsVal = pp_parent->getVarInt( varId );
+  switch (opId)
+  {
+  case OP_ASGN_EQ:       lhsVal   = rhsVal; break;
+  case OP_ASGN_PLUS:     lhsVal  += rhsVal; break;
+  case OP_ASGN_MINUS:    lhsVal  -= rhsVal; break;
+  case OP_ASGN_MULTIPLY: lhsVal  *= rhsVal; break;
+  case OP_ASGN_DIVIDE:   lhsVal  /= rhsVal; break;
+  case OP_ASGN_MODULUS:  lhsVal  %= rhsVal; break;
+  case OP_ASGN_LSHIFT:   lhsVal <<= rhsVal; break;
+  case OP_ASGN_RSHIFT:   lhsVal >>= rhsVal; break;
+  case OP_ASGN_AND:      lhsVal  &= rhsVal; break;
+  case OP_ASGN_XOR:      lhsVal  ^= rhsVal; break;
+  case OP_ASGN_OR:       lhsVal  |= rhsVal; break;
+  default: pp_parent->exitCall("[arithElem_c::performAsInt] this state supposdely unreachable!"); break;
+  }
+  pp_parent->setVarInt( varId, lhsVal );
+  return lhsVal;
+}
+
+int arithElem_c::performOpInt(int opId, int A, int B, int &errFlag)
+{
+  errFlag = 0;
   switch (opId)
   {
   case OP_MINUS:    return A  - B;
@@ -871,7 +989,39 @@ int arithElem_c::performOpInt(int opId, int A, int B)
   case OP_BIT_OR:   return A  | B;
   case OP_PLUS:     return A  + B;
   default:
-    ; // error
+    errFlag = 1;
+  }
+  return 0;
+}
+
+int arithElem_c::isAssignOp(int opId)
+{
+  switch (opId)
+  {
+  case OP_ASGN_EQ      : return 1;
+  case OP_ASGN_PLUS    : return 1;
+  case OP_ASGN_MINUS   : return 1;
+  case OP_ASGN_MULTIPLY: return 1;
+  case OP_ASGN_DIVIDE  : return 1;
+  case OP_ASGN_MODULUS : return 1;
+  case OP_ASGN_LSHIFT  : return 1;
+  case OP_ASGN_RSHIFT  : return 1;
+  case OP_ASGN_AND     : return 1;
+  case OP_ASGN_XOR     : return 1;
+  case OP_ASGN_OR      : return 1;
+  }
+  return 0;
+}
+
+int arithElem_c::isLhsUnaryOp(int opId)
+{
+  switch (opId)
+  {
+  case OP_PLUSPLUS  : return 1;
+  case OP_MINUSMINUS: return 1;
+  case OP_BIT_INV   : return 1;
+  case OP_LOG_NOT   : return 1;
+  case OP_MINUS     : return 1;
   }
   return 0;
 }
