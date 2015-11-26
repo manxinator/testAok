@@ -40,37 +40,37 @@ int g_verbose = 1;
 
 //--------------------------------------------------------------------
 
-  static void test_static_err (const std::string& eStr)
+  static void test_static_err (const string& eStr)
   {
     fprintf(stderr,"%s\n",eStr.c_str());
   }
 
-  static void test_static_exit(const std::string& eStr)
+  static void test_static_exit(const string& eStr)
   {
     if (eStr.length() > 0)
       fprintf(stderr,"%s\n",eStr.c_str());
     //exit(EXIT_FAILURE);
   }
 
-  int getIntVar(const std::string& varName)
+  int getIntVar(const string& varName)
   {
     int retVal = 0;
     auto it = varMap.find(varName);
     if (it == varMap.end())
       varMap[varName] = "0";
     else
-      retVal = atoi(it->second.c_str());
+      retVal = stoi(it->second,nullptr,0);
     return retVal;
   }
 
-  void setIntVar(const std::string& varName, int newVal)
+  void setIntVar(const string& varName, int newVal)
   {
     stringstream ssVal;
     ssVal << newVal;
     varMap[varName] = ssVal.str();
   }
 
-  void checkIntValue(const std::string& varName, int expVal)
+  void checkIntValue(const string& varName, int expVal)
   {
     auto it = varMap.find(varName);
     if (it == varMap.end()) {
@@ -87,6 +87,11 @@ int g_verbose = 1;
 
   void dumpVars(void)
   {
+    printf("  [dumpVars] dumping values!\n");
+    for (auto it = varMap.cbegin(); it != varMap.cend(); it++) {
+      int varVal = stoi(it->second,nullptr,0);
+      printf("  * %16s = %d {0x%x}\n",it->first.c_str(),varVal,varVal);
+    }
   }
 
 //--------------------------------------------------------------------
@@ -99,12 +104,12 @@ void testInit(void)
     exit(EXIT_FAILURE);
   }
 
-  // Insert my functions, and then perform sanity test
+  // Insert my functions
   printf("               - testInit() installing functions to Arithmetic Parser!!\n");
-  g_arithParser->f_errFunc   = std::bind(&test_static_err, std::placeholders::_1);
-  g_arithParser->f_exitFunc  = std::bind(&test_static_exit,std::placeholders::_1);
-  g_arithParser->f_getIntVar = std::bind(&getIntVar,       std::placeholders::_1);
-  g_arithParser->f_setIntVar = std::bind(&setIntVar,       std::placeholders::_1,std::placeholders::_2);
+  g_arithParser->f_errFunc   = bind(&test_static_err, placeholders::_1);
+  g_arithParser->f_exitFunc  = bind(&test_static_exit,placeholders::_1);
+  g_arithParser->f_getIntVar = bind(&getIntVar,       placeholders::_1);
+  g_arithParser->f_setIntVar = bind(&setIntVar,       placeholders::_1,placeholders::_2);
   printf("               - testInit() done!!\n");
 }
 
@@ -114,7 +119,7 @@ int testEqnInt1(const string &eqnStr, int expVal)
   printf("  [testEqnInt] parsing '%s'\n",eqnStr.c_str());
   auto eqObj  = g_arithParser->parseEqn(eqnStr);
   int  resVal = eqObj->computeInt();
-  printf("  [testEqnInt] Computed Value: %d, Expected: %d\n",resVal,expVal);
+  printf("  [testEqnInt] Computed Value: %d, Expected: %d {0x%x, 0x%x}\n",resVal,expVal,resVal,expVal);
   return resVal != expVal;
 }
 
@@ -142,7 +147,7 @@ void testEqnInt2(const map<string,int> &initVals, const string &eqnStr, int expV
   }
   if (errFlag) {
     printf("*\n");
-    printf("*ERROR: test failed! Equation: '%s'\n",eqnStr.c_str());
+    printf("* ERROR: test failed! Equation: '%s'\n",eqnStr.c_str());
     printf("*\n");
     exit(0);
   }
@@ -155,7 +160,7 @@ void testEqnInt2(const map<string,int> &initVals, const string &eqnStr, int expV
   );                                                                 \
   if (resErr) {                                                      \
     printf("*\n");                                                   \
-    printf("*ERROR: test failed! Equation: " #EQN_PHRASE);           \
+    printf("* ERROR: test failed! Equation: '" #EQN_PHRASE "'\n");   \
     printf("*\n");                                                   \
     dumpVars();                                                      \
     exit(0);                                                         \
@@ -180,6 +185,14 @@ void testCase1(void)
   TEST_EQN_INT2(init_map,hypotenuse = adjacent++*--opposite,chck_map);
 
   TEST_EQN_INT1(034 *  ( 0x9Fa - 3));
+
+  dumpVars();
+
+  TEST_EQN_INT1(!adjacent+(hypotenuse+~1));
+  TEST_EQN_INT1(hypotenuse+=-adjacent);
+  TEST_EQN_INT1(hypotenuse += adjacent+-opposite);
+
+  dumpVars();
 }
 
 //--------------------------------------------------------------------

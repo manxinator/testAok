@@ -825,14 +825,16 @@ int arithElem_c::auxTraverseInt(std::shared_ptr<arithParser_c> pp_parent, int &t
 
       dat_n_idx = elIdx;
       dat_n_var = getIntFromStr(entList[elIdx]->strId,dat_nuevo) ? 0 : 1;
-      AA_DEBUG("  ~  ~  ~  ~  ~ '%s' {isVar: %d} {%d} {%d}\n",entList[elIdx]->strId.c_str(),dat_n_var,dat_a_idx,dat_a_var);
+      AA_DEBUG("  ~  ~  ~  ~  ~ '%s' {current isVar: %d} {prevIdx=%d} {prevIsVar=%d}\n",entList[elIdx]->strId.c_str(),dat_n_var,dat_a_idx,dat_a_var);
       elIdx++;
 
-      // if right unary or left unary, resolve if dat_a_var==1
+      // if right unary or left unary, resolve if dat_n_var==1
       if ((rtUnaryIdx > 0) || (lfUnaryIdx >= 0)) {
-        dat_nuevo = pp_parent->getVarInt( entList[dat_n_idx]->strId );
-        dat_n_idx = -1;
-        dat_n_var =  0;
+        if (dat_n_var > 0) {
+          dat_nuevo = pp_parent->getVarInt( entList[dat_n_idx]->strId );
+          dat_n_idx = -1;
+          dat_n_var =  0;
+        }
       }
 
       // Perform unary ops -- right has precedence
@@ -851,8 +853,9 @@ int arithElem_c::auxTraverseInt(std::shared_ptr<arithParser_c> pp_parent, int &t
         {
         case OP_PLUSPLUS:   pp_parent->setVarInt( entList[elIdx-1]->strId, dat_nuevo+1 ); dat_nuevo++; break;
         case OP_MINUSMINUS: pp_parent->setVarInt( entList[elIdx-1]->strId, dat_nuevo-1 ); dat_nuevo--; break;
-        case OP_BIT_INV:    dat_nuevo = ~dat_nuevo;
-        case OP_LOG_NOT:    dat_nuevo = !dat_nuevo ? 1 : 0;
+        case OP_BIT_INV:    dat_nuevo = ~dat_nuevo;                                                    break;
+        case OP_LOG_NOT:    dat_nuevo = !dat_nuevo ? 1 : 0;                                            break;
+        case OP_MINUS:      dat_nuevo = -dat_nuevo;                                                    break;
         default:
           SS_ERR_ATI_ABORT(ssErr << "This state supposedly unreachable!" << aa_util_entListDbg(entList,rtUnaryIdx));
           return -1;
@@ -886,7 +889,7 @@ int arithElem_c::auxTraverseInt(std::shared_ptr<arithParser_c> pp_parent, int &t
         pp_parent->setVarInt(entList[dat_a_idx]->strId,dat_accum);
       } else {
         // if dat_a_var==1 or dat_n_var==1, resolve
-        if (dat_n_var) {
+        if (dat_a_var) {
           dat_accum = pp_parent->getVarInt( entList[dat_a_idx]->strId );
           dat_a_var = 0;
         }
