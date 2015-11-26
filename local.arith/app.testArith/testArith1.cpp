@@ -229,6 +229,21 @@ void testCase1(void)
   TEST_EQN_INT1(0x7fffffff);
   TEST_EQN_INT1(0x80000000);
 
+  // Corner case
+  //int a = 0;
+  //TEST_EQN_INT1(!++a);
+
+  // Corner case
+  //int a=0, b=0, c=0;
+  //TEST_EQN_INT1(a+ ++b*c); // <-- this has a problem: EQN_LIST_0 --> a + ++ EQN_LIST_1   ;   EQN_LIST_1 = b * c
+
+  // Corner case
+  //int a=0,b=0;
+  //TEST_EQN_INT1(~(a+b));   // <-- seems to have a problem with ~0
+
+  // Corner case ; then, add unary ops
+  // A op1 B op2 C op3 D with op1 > op3 >op2
+
   dumpVars();
 }
 

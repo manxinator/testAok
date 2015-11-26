@@ -386,9 +386,8 @@ std::shared_ptr<arithElem_c> parsTokAux_c::getTok(void)
     // Variable
     //
     c = eqnStr[++idx];
-    for ( ; (c == '_') || isalpha(c) || isdigit(c); idx++)
-      c = eqnStr[idx];
-    idx -= 1;
+    for ( ; (c == '_') || isalpha(c) || isdigit(c); )
+      c = eqnStr[++idx];
     tokElem->strId = eqnStr.substr(tokStart,idx-tokStart);
   }
   else if (isdigit(c))
@@ -797,6 +796,10 @@ int arithElem_c::auxTraverseInt(std::shared_ptr<arithParser_c> pp_parent, int &t
     int rtUnaryIdx = -1;
     if (entList[elIdx]->isUnary)                                            // left unary op
       lfUnaryIdx = elIdx++;
+    if (entList[elIdx]->isUnary) {
+      SS_ERR_ATI_ABORT(ssErr << "Multiple left-side unary operators not supported!" << aa_util_entListDbg(entList,elIdx)); // TODO: handle in arithParser_c::BuildEqnTree()
+      return -1;
+    }
     if ((elIdx + 1 < (int)entList.size()) && (entList[elIdx+1]->isUnary))   // right unary op
       rtUnaryIdx = elIdx+1;
 
