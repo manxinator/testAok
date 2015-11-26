@@ -47,6 +47,8 @@ int g_verbose = 1;
     try {
       retVal = stoi(intStr,nullptr,0);
     } catch (const out_of_range& oor) {
+      // No need to check string length since this exception requires a long string
+      // basically, just perform typecasting -- upcast, and then downcast again
       if ((intStr[0] == '0') && ((intStr[1] == 'x') || (intStr[1] == 'X'))) {
         auto ullInt = stoull(intStr,nullptr,0);
         retVal = (int) ullInt;
@@ -58,6 +60,8 @@ int g_verbose = 1;
     return retVal;
   }
 
+  // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
   static void test_static_err (const string& eStr)
   {
     fprintf(stderr,"%s\n",eStr.c_str());
@@ -65,6 +69,9 @@ int g_verbose = 1;
 
   static void test_static_exit(const string& eStr)
   {
+    /* Exit is commented out for clarity, but this function does not exit
+       in order to demonstrate Arithmetic Analyzer's abort mechanism.
+       Afterwards, the functions below will print more debug information. */
     if (eStr.length() > 0)
       fprintf(stderr,"%s\n",eStr.c_str());
     //exit(EXIT_FAILURE);
@@ -88,6 +95,7 @@ int g_verbose = 1;
     varMap[varName] = ssVal.str();
   }
 
+  /*
   void checkIntValue(const string& varName, int expVal)
   {
     auto it = varMap.find(varName);
@@ -102,6 +110,7 @@ int g_verbose = 1;
     }
     printf("[checkIntValue] OK: variable '%s' is %d\n",varName.c_str(),expVal);
   }
+  */
 
   void dumpVars(void)
   {
@@ -122,7 +131,7 @@ void testInit(void)
     exit(EXIT_FAILURE);
   }
 
-  // Insert my functions
+  // Attach my functions to the parser
   printf("               - testInit() installing functions to Arithmetic Parser!!\n");
   g_arithParser->f_errFunc   = bind(&test_static_err, placeholders::_1);
   g_arithParser->f_exitFunc  = bind(&test_static_exit,placeholders::_1);
@@ -133,6 +142,8 @@ void testInit(void)
 
 int testEqnInt1(const string &eqnStr, int expVal)
 {
+  // Just parse the equation and run the computation
+  // - Returns 1 on error -- result does not match expected value
   printf("\n  ************\n");
   printf("  [testEqnInt] parsing '%s'\n",eqnStr.c_str());
   auto eqObj  = g_arithParser->parseEqn(eqnStr);
@@ -143,16 +154,20 @@ int testEqnInt1(const string &eqnStr, int expVal)
 
 void testEqnInt2(const map<string,int> &initVals, const string &eqnStr, int expVal, const map<string,int> &checkVals, int verbose=0)
 {
+  // Clear and initialize the map
   varMap.clear();
   for (auto m_it = initVals.cbegin(); m_it != initVals.cend(); m_it++)
     setIntVar(m_it->first,m_it->second);
 
+  // Call testEqnInt1
   int errFlag = testEqnInt1(eqnStr,expVal);
   if (verbose) {
     printf("  [testEqnInt] print state of variables:\n");
     for (auto m_it = initVals.cbegin(); m_it != initVals.cend(); m_it++)
       printf("  - %16s = %3d\n",m_it->first.c_str(),getIntVar(m_it->first));
   }
+
+  // Verify that values listed in checkVals matches the data stored in the global variable map
   printf("  [testEqnInt] go thru variable check list:\n");
   for (auto m_it = checkVals.cbegin(); m_it != checkVals.cend(); m_it++) {
     string detailStr;
@@ -197,10 +212,6 @@ void testEqnInt2(const map<string,int> &initVals, const string &eqnStr, int expV
 
 void testCase1(void)
 {
-  int val;
-  val = str2int("0x81234567");  printf("val: 0x%08x\n",val);
-  val = str2int("0x871234567"); printf("val: 0x%08x\n",val);
-
   int adjacent = 3, opposite = 4, hypotenuse = 0;
   map<string,int> init_map = { {"adjacent",3}, {"opposite",4}, {"hypotenuse",4} };
   map<string,int> chck_map = { {"adjacent",4}, {"opposite",3}, {"hypotenuse",9} };
@@ -230,150 +241,10 @@ int main(int ac, char *av[])
   testInit();
   testCase1();
 
-  //test1();
-  //test2();
-
-  //
-  // evalExprAndCheck() - Test expression
-  // checkVarValue()    - Verify value of any variables modified by unary ops
-  //
-
   printf("\n---------------- testArith1 done!!\n");
   return EXIT_SUCCESS;
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 //--------------------------------------------------------------------
 
-void test1(void)
-{
-  shared_ptr<arithParser_c> g_arithParser = make_shared<arithParser_c>();
-  if (!g_arithParser) {
-    printf("ERROR: arithParser_c::CreateInstance() failed!\n");
-    exit(EXIT_FAILURE);
-  }
-  printf("  [test1] ID: '%s'\n",g_arithParser->getIdent().c_str());
-
-  // Insert my functions, and then perform sanity test
-  printf("  ****\n");
-  g_arithParser->f_errFunc   = std::bind(&test_static_err, std::placeholders::_1);
-  g_arithParser->f_exitFunc  = std::bind(&test_static_exit,std::placeholders::_1);
-  g_arithParser->f_getIntVar = std::bind(&getIntVar,       std::placeholders::_1);
-  g_arithParser->f_setIntVar = std::bind(&setIntVar,       std::placeholders::_1,std::placeholders::_2);
-  printf("  [test1] ID: '%s'\n",g_arithParser->getIdent().c_str());
-
-  // Parse bare equation and perform another sanity test
-  varMap.clear();
-  setIntVar("adjacent",3u);
-  setIntVar("opposite",4);
-  {
-    printf("  ----\n");
-    shared_ptr<arithParser_c::arithEqn_c> eqObj = g_arithParser->parseEqn("  hypotenuse = midwhere = (adjacent)   + opposite   ");
-    printf("  [test1] adjacent   --> %d\n",eqObj->get_int("adjacent"));
-    printf("  [test1] opposite   --> %d\n",eqObj->get_int("opposite"));
-    printf("  [test1] hypotenuse --> %d\n",eqObj->get_int("hypotenuse"));
-  }
-  {
-    printf("  ----\n");
-    shared_ptr<arithParser_c::arithEqn_c> eqObj = g_arithParser->parseEqn("  hypotenuse = midwhere = adjacent*ABC   + -opposite   ");
-    printf("  [test1] adjacent   --> %d\n",eqObj->get_int("adjacent"));
-    printf("  [test1] opposite   --> %d\n",eqObj->get_int("opposite"));
-    printf("  [test1] hypotenuse --> %d\n",eqObj->get_int("hypotenuse"));
-  }
-  {
-    printf("  ----\n");
-    //shared_ptr<arithParser_c::arithEqn_c> eqObj = g_arithParser->parseEqn("  -adjacent * opposite\t+opposite*hypotenuse   ");
-    shared_ptr<arithParser_c::arithEqn_c> eqObj = g_arithParser->parseEqn("  adjacent *\nopposite\t+opposite*hypotenuse + aa*cc   ");
-    printf("  [test1] adjacent   --> %d\n",eqObj->get_int("adjacent"));
-    printf("  [test1] opposite   --> %d\n",eqObj->get_int("opposite"));
-    printf("  [test1] hypotenuse --> %d\n",eqObj->get_int("hypotenuse"));
-  }
-
-  //shared_ptr<arithParser_c::arithEqn_c> eqObj = g_arithParser->parseEqn("  hypotenuse = adjacent ++  + opposite   ");
-}
-
-
-void test2(void)
-{
-  shared_ptr<arithParser_c> g_arithParser = make_shared<arithParser_c>();
-  if (!g_arithParser) {
-    printf("ERROR: arithParser_c::CreateInstance() failed!\n");
-    exit(EXIT_FAILURE);
-  }
-  printf("  [test2] ID: '%s'\n",g_arithParser->getIdent().c_str());
-
-  // Insert my functions, and then perform sanity test
-  printf("  ****\n");
-  g_arithParser->f_errFunc   = std::bind(&test_static_err, std::placeholders::_1);
-  g_arithParser->f_exitFunc  = std::bind(&test_static_exit,std::placeholders::_1);
-  g_arithParser->f_getIntVar = std::bind(&getIntVar,       std::placeholders::_1);
-  g_arithParser->f_setIntVar = std::bind(&setIntVar,       std::placeholders::_1,std::placeholders::_2);
-  printf("  [test2] ID: '%s'\n",g_arithParser->getIdent().c_str());
-
-  // Parse bare equation and perform another sanity test
-  varMap.clear();
-  setIntVar("adjacent",3);
-  setIntVar("opposite",4);
-  {
-    printf("  ----\n");
-//    shared_ptr<arithParser_c::arithEqn_c> eqObj = g_arithParser->parseEqn("   55 = 010");
-//    shared_ptr<arithParser_c::arithEqn_c> eqObj = g_arithParser->parseEqn("   hypotenuse = 010");
-    shared_ptr<arithParser_c::arithEqn_c> eqObj = g_arithParser->parseEqn("   opposite += ++adjacent");
-//    shared_ptr<arithParser_c::arithEqn_c> eqObj = g_arithParser->parseEqn("   opposite += adjacent");
-//    shared_ptr<arithParser_c::arithEqn_c> eqObj = g_arithParser->parseEqn("   hypotenuse = adjacent*opposite  ");
-//    shared_ptr<arithParser_c::arithEqn_c> eqObj  = g_arithParser->parseEqn("   hypotenuse = adjacent++*--opposite  ");
-    printf("  [test2] eqObj->computeInt()  --> %d\n",eqObj->computeInt());
-    printf("  [test2] adjacent   --> %d\n",eqObj->get_int("adjacent"));
-    printf("  [test2] opposite   --> %d\n",eqObj->get_int("opposite"));
-    printf("  [test2] hypotenuse --> %d\n",eqObj->get_int("hypotenuse"));
-
-    int adj = 3;
-    int opp = 4;
-    printf("  [test2] expected ====> %d",adj++*--opp);
-    printf(", adj: %d, opp: %d\n",adj,opp);
-  }
-
-
-  varMap.clear();
-  setIntVar("adjacent",3);
-  setIntVar("opposite",4);
-  setIntVar("zeusnumb",9);
-  {
-    printf("  ----\n");
-//    shared_ptr<arithParser_c::arithEqn_c> eqObj = g_arithParser->parseEqn("   zeusnumb   += ++adjacent*opposite--  ");
-//    shared_ptr<arithParser_c::arithEqn_c> eqObj = g_arithParser->parseEqn("   hypotenuse=(zeusnumb+=++adjacent*opposite--)  ");
-    shared_ptr<arithParser_c::arithEqn_c> eqObj = g_arithParser->parseEqn("   hypotenuse=(zeusnumb+=++adjacent)*opposite--  ");
-    printf("  [test2] eqObj->computeInt()  --> %d\n",eqObj->computeInt());
-    printf("  [test2] adjacent   --> %d\n",eqObj->get_int("adjacent"));
-    printf("  [test2] opposite   --> %d\n",eqObj->get_int("opposite"));
-    printf("  [test2] hypotenuse --> %d\n",eqObj->get_int("hypotenuse"));
-    printf("  [test2] zeusnumb   --> %d\n",eqObj->get_int("zeusnumb"));
-
-    int adj = 3;
-    int opp = 4;
-    int znu = 9;
-    znu += ++adj*opp--;
-    printf("  [test2] expected ====> %d",znu);
-    printf(", adj: %d, opp: %d\n",adj,opp);
-  }
-}
 
