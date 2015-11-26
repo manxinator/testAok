@@ -40,6 +40,7 @@
 #include "arithmeticAnalyzer.h"
 #include <sstream>
 #include <cstddef>
+#include <stdexcept>
 
 //------------------------------------------------------------------------------
 
@@ -421,6 +422,7 @@ std::shared_ptr<arithElem_c> parsTokAux_c::getTok(void)
         c = eqnStr[++idx];
       tokElem->strId = eqnStr.substr(tokStart,idx-tokStart);
     }
+    // TODO - handle suffix: u, ul
   }
   else
   {
@@ -942,7 +944,21 @@ int arithElem_c::getIntFromStr(const std::string &strId, int &intVal)
 {
   char c = strId[0];
   if (isdigit(c)) {
+#if 0
     intVal = std::stoi(strId,nullptr,0);
+#else
+    try {
+      intVal = std::stoi(strId,nullptr,0);
+    } catch (const std::out_of_range& oor) {
+      if ((strId[0] == '0') && ((strId[1] == 'x') || (strId[1] == 'X'))) {
+        auto ullInt = std::stoull(strId,nullptr,0);
+        intVal = (int) ullInt;
+      } else {
+        auto ulInt = std::stoul(strId,nullptr,0);
+        intVal = (int) ulInt;
+      }
+    }
+#endif
     return 1;
   }
   return 0;

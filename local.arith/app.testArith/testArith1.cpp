@@ -30,6 +30,7 @@
 #include <stdlib.h>
 #include <map>
 #include <sstream>
+#include <stdexcept>
 
 using namespace std;
 
@@ -39,6 +40,23 @@ shared_ptr<arithParser_c> g_arithParser;
 int g_verbose = 1;
 
 //--------------------------------------------------------------------
+
+  int str2int(const string &intStr)
+  {
+    int retVal;
+    try {
+      retVal = stoi(intStr,nullptr,0);
+    } catch (const out_of_range& oor) {
+      if ((intStr[0] == '0') && ((intStr[1] == 'x') || (intStr[1] == 'X'))) {
+        auto ullInt = stoull(intStr,nullptr,0);
+        retVal = (int) ullInt;
+      } else {
+        auto ulInt = stoul(intStr,nullptr,0);
+        retVal = (int) ulInt;
+      }
+    }
+    return retVal;
+  }
 
   static void test_static_err (const string& eStr)
   {
@@ -59,7 +77,7 @@ int g_verbose = 1;
     if (it == varMap.end())
       varMap[varName] = "0";
     else
-      retVal = stoi(it->second,nullptr,0);
+      retVal = str2int(it->second);
     return retVal;
   }
 
@@ -89,7 +107,7 @@ int g_verbose = 1;
   {
     printf("  [dumpVars] dumping values!\n");
     for (auto it = varMap.cbegin(); it != varMap.cend(); it++) {
-      int varVal = stoi(it->second,nullptr,0);
+      int varVal = str2int(it->second);
       printf("  * %16s = %d {0x%x}\n",it->first.c_str(),varVal,varVal);
     }
   }
@@ -179,6 +197,10 @@ void testEqnInt2(const map<string,int> &initVals, const string &eqnStr, int expV
 
 void testCase1(void)
 {
+  int val;
+  val = str2int("0x81234567");  printf("val: 0x%08x\n",val);
+  val = str2int("0x871234567"); printf("val: 0x%08x\n",val);
+
   int adjacent = 3, opposite = 4, hypotenuse = 0;
   map<string,int> init_map = { {"adjacent",3}, {"opposite",4}, {"hypotenuse",4} };
   map<string,int> chck_map = { {"adjacent",4}, {"opposite",3}, {"hypotenuse",9} };
@@ -191,6 +213,10 @@ void testCase1(void)
   TEST_EQN_INT1(!adjacent+(hypotenuse+~1));
   TEST_EQN_INT1(hypotenuse+=-adjacent);
   TEST_EQN_INT1(hypotenuse += adjacent+-opposite);
+  TEST_EQN_INT1(1<<2|1<<4);
+  TEST_EQN_INT1(0x70ffee23&0x4cc01ade);
+  TEST_EQN_INT1(0x7fffffff);
+  TEST_EQN_INT1(0x80000000);
 
   dumpVars();
 }
