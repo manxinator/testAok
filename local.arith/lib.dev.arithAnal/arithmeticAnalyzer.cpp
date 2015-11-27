@@ -613,10 +613,11 @@ void arithParser_c::BuildSubEqn(
           return;
         //----------------------------------------
         case OP_MINUS:
-          // Check if unary: first in the list, or preceeded by another OP
+          // Check if unary: first in the list, or preceeded by another OP, or everything in entList is unary
           {
-            int l_isUnary = 0;
-            int elIdx     = -1;
+            int l_isUnary  = 0;
+            int l_allUnary = 0;
+            int elIdx      = -1;
             if (curNode->entList.size() == 0)
               l_isUnary = 1;
             else {
@@ -625,12 +626,25 @@ void arithParser_c::BuildSubEqn(
                 if (curNode->entList[elIdx]->opPreced > 0) l_isUnary = 1;
                 break;
               }
+              if (!l_isUnary) {
+                // This loop is for multiple left-hand unary operators at the beginning of entList
+                int nonUnary = 0;
+                for (auto entIt = curNode->entList.cbegin(); entIt != curNode->entList.cend(); entIt++)
+                  if ((*entIt)->isUnary < 1) {
+                    nonUnary = 1;
+                    break;
+                  }
+                if (nonUnary == 0) {
+                  l_isUnary  = 1;
+                  l_allUnary = 1;
+                }
+              }
             }
             if (l_isUnary) {
               elemListRef[betIdx]->isUnary = 1;
               curNode->entList.push_back( elemListRef[betIdx] );
 
-              if (curNode->entList.size() == 0)
+              if ((curNode->entList.size() == 0) || (l_allUnary > 0))
                 curElOp = -1;
               else {
                 if (betIdx < 0) {
@@ -792,13 +806,13 @@ int arithElem_c::auxTraverseInt(std::shared_ptr<arithParser_c> pp_parent, int &t
     int dat_n_idx = -1;
     int dat_n_var =  0;
 
-    int lfUnaryIdx = -1;
+    int lfUnaryIdx = -1, numLfUnary = 0;
     int rtUnaryIdx = -1;
-    if (entList[elIdx]->isUnary)                                            // left unary op
-      lfUnaryIdx = elIdx++;
-    if (entList[elIdx]->isUnary) {
-      SS_ERR_ATI_ABORT(ssErr << "Multiple left-side unary operators not supported!" << aa_util_entListDbg(entList,elIdx)); // TODO: handle in arithParser_c::BuildEqnTree()
-      return -1;
+
+    while (entList[elIdx]->isUnary) {                                       // left unary op
+      if (numLfUnary++ == 0)
+        lfUnaryIdx = elIdx;
+      elIdx++;
     }
     if ((elIdx + 1 < (int)entList.size()) && (entList[elIdx+1]->isUnary))   // right unary op
       rtUnaryIdx = elIdx+1;
@@ -812,6 +826,27 @@ int arithElem_c::auxTraverseInt(std::shared_ptr<arithParser_c> pp_parent, int &t
         SS_ERR_ATI_ABORT(ssErr << "Right-side unary OP '" << entList[elIdx]->strId << "' not expected!" << aa_util_entListDbg(entList,rtUnaryIdx));
         return -1;
       }
+
+      if (lfUnaryIdx >= 0) {
+        for (int jjj = 0; jjj < numLfUnary; jjj++) {
+          int kkk     = lfUnaryIdx + (numLfUnary-(1+jjj));
+          int unaryOp = entList[kkk]->opIdx;
+
+          switch (unaryOp)
+          {
+          case OP_PLUSPLUS:
+          case OP_MINUSMINUS:
+            SS_ERR_ATI_ABORT(ssErr << "Cannot apply unary op (opId=" << unaryOp << ")" << aa_util_entListDbg(entList,kkk));
+            return -1;
+          case OP_BIT_INV:    dat_nuevo = ~dat_nuevo;                                                    break;
+          case OP_LOG_NOT:    dat_nuevo = !dat_nuevo ? 1 : 0;                                            break;
+          case OP_MINUS:      dat_nuevo = -dat_nuevo;                                                    break;
+          default:
+            SS_ERR_ATI_ABORT(ssErr << "This state supposedly unreachable!" << aa_util_entListDbg(entList,rtUnaryIdx));
+            return -1;
+          }
+        }
+      }
     }
     else if ((entList[elIdx]->opPreced > 0) && (lfUnaryIdx < 0)) {          // OP not expected at this time
       SS_ERR_ATI_ABORT(ssErr << "OP '" << entList[elIdx]->strId << "' not expected!" << aa_util_entListDbg(entList,elIdx));
@@ -821,9 +856,10 @@ int arithElem_c::auxTraverseInt(std::shared_ptr<arithParser_c> pp_parent, int &t
     {
       if ((lfUnaryIdx >= 0) && (rtUnaryIdx > 0)) {
         // if both unary -- error if precedence are equal; otherwise right has precedence
+        // checked with last left unary
         // get value / resolve unary
-        if (entList[lfUnaryIdx]->opPreced == entList[rtUnaryIdx]->opPreced) {
-          SS_ERR_ATI_ABORT(ssErr << "Unary operators on both side of '" << entList[elIdx]->strId << "' -- unsupported!" << aa_util_entListDbg(entList,rtUnaryIdx));
+        if (entList[lfUnaryIdx+numLfUnary-1]->opPreced == entList[rtUnaryIdx]->opPreced) {
+          SS_ERR_ATI_ABORT(ssErr << "Unary operators of equal precedence on both sides of '" << entList[elIdx]->strId << "' is unsupported!" << aa_util_entListDbg(entList,rtUnaryIdx));
           return -1;
         }
       }
@@ -854,16 +890,25 @@ int arithElem_c::auxTraverseInt(std::shared_ptr<arithParser_c> pp_parent, int &t
         }
       }
       if (lfUnaryIdx >= 0) {
-        switch (entList[lfUnaryIdx]->opIdx)
-        {
-        case OP_PLUSPLUS:   pp_parent->setVarInt( entList[elIdx-1]->strId, dat_nuevo+1 ); dat_nuevo++; break;
-        case OP_MINUSMINUS: pp_parent->setVarInt( entList[elIdx-1]->strId, dat_nuevo-1 ); dat_nuevo--; break;
-        case OP_BIT_INV:    dat_nuevo = ~dat_nuevo;                                                    break;
-        case OP_LOG_NOT:    dat_nuevo = !dat_nuevo ? 1 : 0;                                            break;
-        case OP_MINUS:      dat_nuevo = -dat_nuevo;                                                    break;
-        default:
-          SS_ERR_ATI_ABORT(ssErr << "This state supposedly unreachable!" << aa_util_entListDbg(entList,rtUnaryIdx));
-          return -1;
+        for (int jjj = 0; jjj < numLfUnary; jjj++) {
+          int kkk = lfUnaryIdx + (numLfUnary-(1+jjj));
+          int unaryOp = entList[kkk]->opIdx;
+          if ((jjj != 0) && ((unaryOp == OP_PLUSPLUS) || (unaryOp == OP_MINUSMINUS))) {
+            SS_ERR_ATI_ABORT(ssErr << "Cannot apply unary op (opId=" << unaryOp << ")" << aa_util_entListDbg(entList,lfUnaryIdx));
+            return -1;
+          }
+
+          switch (unaryOp)
+          {
+          case OP_PLUSPLUS:   pp_parent->setVarInt( entList[elIdx-1]->strId, dat_nuevo+1 ); dat_nuevo++; break;
+          case OP_MINUSMINUS: pp_parent->setVarInt( entList[elIdx-1]->strId, dat_nuevo-1 ); dat_nuevo--; break;
+          case OP_BIT_INV:    dat_nuevo = ~dat_nuevo;                                                    break;
+          case OP_LOG_NOT:    dat_nuevo = !dat_nuevo ? 1 : 0;                                            break;
+          case OP_MINUS:      dat_nuevo = -dat_nuevo;                                                    break;
+          default:
+            SS_ERR_ATI_ABORT(ssErr << "This state supposedly unreachable!" << aa_util_entListDbg(entList,lfUnaryIdx));
+            return -1;
+          }
         }
       }
 
