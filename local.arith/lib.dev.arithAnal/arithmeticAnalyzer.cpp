@@ -94,7 +94,7 @@ public:
 
   std::vector<std::shared_ptr<arithElem_c> > entList;   // if size() > 0, then isList == TRUE
 
-  int             opIdx;      // 0 for Variable / Number, >0 for OP
+  int             opIdent;    // 0 for Variable / Number, >0 for OP
   int             opPreced;
   std::string     strId;
   arithDataType_e dataType;
@@ -104,7 +104,7 @@ public:
   int             betIdx;
 
 public:
-           arithElem_c() { opIdx = 0; opPreced = 0; dataType = ADT_INT; isUnary = 0; betIdx = -1; }
+           arithElem_c() { opIdent = 0; opPreced = 0; dataType = ADT_INT; isUnary = 0; betIdx = -1; }
   virtual ~arithElem_c() {
     AA_DEBUG("    ''' ~arithElem_c ''' destroy %s",strId.c_str());
     if (entList.size() > 0) {
@@ -115,7 +115,7 @@ public:
     AA_DEBUG("\n");
   }
 
-  void checkOp(void) { isUnary = isLhsUnaryOp(opIdx); }
+  void checkOp(void) { isUnary = isLhsUnaryOp(opIdent); }
 
   static void ConfigDataType( std::vector<std::shared_ptr<arithElem_c> > &elemListRef );
 };
@@ -200,7 +200,7 @@ std::shared_ptr<arithParser_c::arithEqn_c> arithParser_c::parseEqn(const std::st
     int jjj = 0;
     AA_DEBUG("  + Print tokens!\n");
     for (auto it = tokList.begin(); it != tokList.end(); it++)
-      AA_DEBUG("    + tokLst[%2d] opIdx: %2d, preced: %2d, '%s'\n",jjj++,(*it)->opIdx,(*it)->opPreced,(*it)->strId.c_str());
+      AA_DEBUG("    + tokLst[%2d] opIdent: %2d, preced: %2d, '%s'\n",jjj++,(*it)->opIdent,(*it)->opPreced,(*it)->strId.c_str());
   }
  #endif
 
@@ -432,7 +432,7 @@ std::shared_ptr<arithElem_c> parsTokAux_c::getTok(void)
       if (remStr.find(it->opStr) == 0) {
         idx += it->opStr.length();
         tokElem->strId    = it->opStr;
-        tokElem->opIdx    = it->opId;
+        tokElem->opIdent  = it->opId;
         tokElem->opPreced = it->preced;
         break;
       }
@@ -503,15 +503,15 @@ std::shared_ptr<arithElem_c> arithParser_c::BuildEqnTree( std::vector<std::share
     AA_DEBUG("  [betAbrt] headNode: %s\n",headNode->strId.c_str());
     auto dummyNode = std::make_shared<arithElem_c>();
     dummyNode->entList.clear();
-    dummyNode->opIdx = 0;
-    dummyNode->strId = "0";
+    dummyNode->opIdent = 0;
+    dummyNode->strId   = "0";
     return dummyNode;
   }
 #endif
   if (betAbrt) {
     headNode->entList.clear();
-    headNode->opIdx = 0;
-    headNode->strId = "0";
+    headNode->opIdent = 0;
+    headNode->strId   = "0";
   }
   return headNode;
 }
@@ -528,7 +528,7 @@ void arithParser_c::BuildSubEqn(
   int prevElOp = -1;
   while (betIdx < (int)elemListRef.size())
   {
-    curElOp = elemListRef[betIdx]->opIdx;
+    curElOp = elemListRef[betIdx]->opIdent;
 
     /*
       Unary Ops: ++, --, -, ~, !
@@ -599,13 +599,13 @@ void arithParser_c::BuildSubEqn(
 
           if (l_leftParDet) {
             // Expect matching right parenthesis
-            if ((betIdx >= (int)elemListRef.size()) || (elemListRef[betIdx]->opIdx != OP_RIGHTPAR)) {
+            if ((betIdx >= (int)elemListRef.size()) || (elemListRef[betIdx]->opIdent != OP_RIGHTPAR)) {
               SS_ERR_BET_ABORT(ssErr << "Parsing '(' statement, but matching right parenthesis ')' not found!!");
               return;
             }
           } else {
             // Found right parenthesis, but it is not ours -- exit set
-            if ((betIdx < (int)elemListRef.size()) && (elemListRef[betIdx]->opIdx == OP_RIGHTPAR))
+            if ((betIdx < (int)elemListRef.size()) && (elemListRef[betIdx]->opIdent == OP_RIGHTPAR))
               return;
           }
           break;
@@ -652,7 +652,7 @@ void arithParser_c::BuildSubEqn(
                   betAbrt = 1;
                   return;
                 }
-                curElOp = elemListRef[elIdx]->opIdx;
+                curElOp = elemListRef[elIdx]->opIdent;
               }
               break;
             }
@@ -681,8 +681,8 @@ void arithParser_c::BuildSubEqn(
               // We're in an OP, so look for the last variable
               int lstVarIdx = curNode->entList.size()-1;
               for ( ; lstVarIdx >= 0; lstVarIdx--) {
-                if (curNode->entList[lstVarIdx]->isUnary)    continue;
-                if (curNode->entList[lstVarIdx]->opIdx == 0) break;
+                if (curNode->entList[lstVarIdx]->isUnary)      continue;
+                if (curNode->entList[lstVarIdx]->opIdent == 0) break;
                 lstVarIdx = 0;
               }
               if (lstVarIdx < 0) {
@@ -693,9 +693,9 @@ void arithParser_c::BuildSubEqn(
               // Get preceding operator index
               for (int elIdx = curNode->entList.size()-1; elIdx >= 0; elIdx--) {
                 if (curNode->entList[elIdx]->isUnary) continue;
-                if (curNode->entList[elIdx]->opIdx > 0) {
+                if (curNode->entList[elIdx]->opIdent > 0) {
                   lastOpIdx = curNode->entList[elIdx]->betIdx;
-                  curElOp   = elemListRef[betIdx]->opIdx;
+                  curElOp   = elemListRef[betIdx]->opIdent;
                   break;
                 }
               }
@@ -707,9 +707,15 @@ void arithParser_c::BuildSubEqn(
               if (elemListRef[betIdx]->opPreced < elemListRef[lastOpIdx]->opPreced) {
                 AA_DEBUG("    &&&&&&&&&&& Here! Current op has higher prio! level=%2d | %s < %s\n",level,elemListRef[lastOpIdx]->strId.c_str(),elemListRef[betIdx]->strId.c_str());
 
+                // Pop the last item and any LHS-unary items
                 betIdx--;
                 curNode->entList.pop_back();
+                while (curNode->entList.back()->isUnary > 0) {
+                  betIdx--;
+                  curNode->entList.pop_back();
+                }
 
+                // Recurse
                 subNode = std::make_shared<arithElem_c>();
                 BuildSubEqn(subNode,level+1,elemListRef);
                 if (betAbrt)
@@ -830,7 +836,7 @@ int arithElem_c::auxTraverseInt(std::shared_ptr<arithParser_c> pp_parent, int &t
       if (lfUnaryIdx >= 0) {
         for (int jjj = 0; jjj < numLfUnary; jjj++) {
           int kkk     = lfUnaryIdx + (numLfUnary-(1+jjj));
-          int unaryOp = entList[kkk]->opIdx;
+          int unaryOp = entList[kkk]->opIdent;
 
           switch (unaryOp)
           {
@@ -880,7 +886,7 @@ int arithElem_c::auxTraverseInt(std::shared_ptr<arithParser_c> pp_parent, int &t
 
       // Perform unary ops -- right has precedence
       if (rtUnaryIdx > 0) {
-        switch (entList[rtUnaryIdx]->opIdx)
+        switch (entList[rtUnaryIdx]->opIdent)
         {
         case OP_PLUSPLUS:   pp_parent->setVarInt( entList[elIdx-1]->strId, dat_nuevo+1 ); break;
         case OP_MINUSMINUS: pp_parent->setVarInt( entList[elIdx-1]->strId, dat_nuevo-1 ); break;
@@ -892,7 +898,7 @@ int arithElem_c::auxTraverseInt(std::shared_ptr<arithParser_c> pp_parent, int &t
       if (lfUnaryIdx >= 0) {
         for (int jjj = 0; jjj < numLfUnary; jjj++) {
           int kkk = lfUnaryIdx + (numLfUnary-(1+jjj));
-          int unaryOp = entList[kkk]->opIdx;
+          int unaryOp = entList[kkk]->opIdent;
           if ((jjj != 0) && ((unaryOp == OP_PLUSPLUS) || (unaryOp == OP_MINUSMINUS))) {
             SS_ERR_ATI_ABORT(ssErr << "Cannot apply unary op (opId=" << unaryOp << ")" << aa_util_entListDbg(entList,lfUnaryIdx));
             return -1;
@@ -972,7 +978,7 @@ int arithElem_c::auxTraverseInt(std::shared_ptr<arithParser_c> pp_parent, int &t
         SS_ERR_ATI_ABORT(ssErr << "Unexpected unary operator!" << aa_util_entListDbg(entList,elIdx));
         return -1;
       }
-      lastOpId = entList[elIdx]->opIdx;
+      lastOpId = entList[elIdx]->opIdent;
       if (lastOpId <= 0) {
         SS_ERR_ATI_ABORT(ssErr << "This state supposedly unreachable!" << aa_util_entListDbg(entList,elIdx));
         return -1;
