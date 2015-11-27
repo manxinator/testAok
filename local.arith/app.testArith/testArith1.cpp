@@ -74,6 +74,9 @@ int g_verbose = 1;
        Afterwards, the functions below will print more debug information. */
     if (eStr.length() > 0)
       fprintf(stderr,"%s\n",eStr.c_str());
+    printf("ERROR!\nERROR!\nERROR!\n");
+    printf("ERROR! %s\n",eStr.c_str()); // Want this to be noticable since we're not exiting
+    printf("ERROR!\nERROR!\nERROR!\n");
     //exit(EXIT_FAILURE);
   }
 
@@ -240,15 +243,15 @@ void testCase1(void)
 
   dumpVars();
 
-  //// Corner case
-  //{
-  //  int q=4, r=2, s=3;
-  //  map<string,int> init_map2 = { {"q",4}, {"r",2}, {"s",3} };
-  //  map<string,int> chck_map2 = { {"q",4}, {"r",3}, {"s",3} };
-  //  TEST_EQN_INT2(init_map2,q+ ++r*s,chck_map2);  // <-- this has a problem: EQN_LIST_0 --> q + ++ EQN_LIST_1   ;   EQN_LIST_1 = r * s
-  //}
-  //
-  //dumpVars();
+  // Corner case -- Working
+  {
+    int q=4, r=2, s=3;
+    map<string,int> init_map2 = { {"q",4}, {"r",2}, {"s",3} };
+    map<string,int> chck_map2 = { {"q",4}, {"r",3}, {"s",3} };
+    TEST_EQN_INT2(init_map2,q+ -++r*s,chck_map2);
+  }
+
+  dumpVars();
 
 
   // Corner case ; then, add unary ops
