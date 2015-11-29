@@ -215,6 +215,14 @@ void testEqnInt2(const map<string,int> &initVals, const string &eqnStr, int expV
 
 void testCase1(void)
 {
+  {
+    // Sanity
+    int QQ=128, WW=2, EE=2;
+    map<string,int> init_map2 = { {"QQ",128}, {"WW",2}, {"EE",2} };
+    map<string,int> chck_map2 = { {"QQ",128} };
+    TEST_EQN_INT2(init_map2,QQ+WW*EE,chck_map2);
+  }
+
   int adjacent = 3, opposite = 4, hypotenuse = 0;
   map<string,int> init_map = { {"adjacent",3}, {"opposite",4}, {"hypotenuse",4} };
   map<string,int> chck_map = { {"adjacent",4}, {"opposite",3}, {"hypotenuse",9} };
@@ -253,9 +261,24 @@ void testCase1(void)
 
   dumpVars();
 
+  // Corner case ; then, add unary ops -- NOTE: This won't compile with -Wall or -Werror, so move to another compile
+  // A op1 B op2 C op3 D with op1 > op3 > op2
+  {
+    int AA=128, BB=2, CC=2, DD=1, RR=1;
+    map<string,int> init_map2 = { {"AA",128}, {"BB",2}, {"CC",2}, {"DD",1}, {"RR",1} };
+    map<string,int> chck_map2 = { {"RR",0x1001} };
+    TEST_EQN_INT2(init_map2,RR += AA << BB * CC + DD,chck_map2);
 
-  // Corner case ; then, add unary ops
-  // A op1 B op2 C op3 D with op1 > op3 >op2
+    TEST_EQN_INT1(RR += AA + BB * CC + DD);
+    TEST_EQN_INT1(AA * BB + CC);
+
+    //r = AA + BB * CC << DD;
+    //printf("%d, 0x%x\n",r,r);
+
+    //r = AA << BB * CC + DD;
+    //printf("%d, 0x%x\n",r,r);
+  }
+  dumpVars();
 }
 
 //--------------------------------------------------------------------

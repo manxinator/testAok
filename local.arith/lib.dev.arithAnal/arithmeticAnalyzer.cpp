@@ -497,7 +497,7 @@ std::shared_ptr<arithElem_c> arithParser_c::BuildEqnTree( std::vector<std::share
   betAbrt  = 0;
   betLstId = 0;
   std::shared_ptr<arithElem_c> headNode = std::make_shared<arithElem_c>();
-  BuildSubEqn(headNode,0,elemListRef);
+  BuildSubEqn(headNode,elemListRef,0);
 #if 0
   if (betAbrt) { // For easy debugging
     AA_DEBUG("  [betAbrt] headNode: %s\n",headNode->strId.c_str());
@@ -517,10 +517,13 @@ std::shared_ptr<arithElem_c> arithParser_c::BuildEqnTree( std::vector<std::share
 }
 
 void arithParser_c::BuildSubEqn(
-    std::shared_ptr<arithElem_c>                &curNode,     int level,
-    std::vector<std::shared_ptr<arithElem_c> >  &elemListRef
+    std::shared_ptr<arithElem_c>                &curNode,
+    std::vector<std::shared_ptr<arithElem_c> >  &elemListRef,
+    int subLvl, int prevPreced
   )
 {
+  // NOTE: if subLvl == 0, prevPreced is not valid
+
   curNode->strId    = genNodeName();
   curNode->dataType = elemListRef[betIdx]->dataType;
 
@@ -583,30 +586,33 @@ void arithParser_c::BuildSubEqn(
             return;
           }
         case OP_LEFTPAR:
-          if (curElOp == OP_LEFTPAR) {
-            l_leftParDet = 1;
-            betIdx++;
-          } else
-            // OP is included in
-            curNode->entList.push_back(elemListRef[betIdx++]);
+          {
+            int curPreced = elemListRef[betIdx]->opPreced;
+            if (curElOp == OP_LEFTPAR) {
+              l_leftParDet = 1;
+              betIdx++;
+            } else
+              // OP is included in
+              curNode->entList.push_back(elemListRef[betIdx++]);
 
-          subNode = std::make_shared<arithElem_c>();
-          BuildSubEqn(subNode,0,elemListRef);
-          if (betAbrt)
-            return;
-          curNode->entList.push_back(subNode);
-          curElOp = 0;  // Subtree must to evaluate to a single number
-
-          if (l_leftParDet) {
-            // Expect matching right parenthesis
-            if ((betIdx >= (int)elemListRef.size()) || (elemListRef[betIdx]->opIdent != OP_RIGHTPAR)) {
-              SS_ERR_BET_ABORT(ssErr << "Parsing '(' statement, but matching right parenthesis ')' not found!!");
+            subNode = std::make_shared<arithElem_c>();
+            BuildSubEqn(subNode,elemListRef,0);
+            if (betAbrt)
               return;
+            curNode->entList.push_back(subNode);
+            curElOp = 0;  // Subtree must to evaluate to a single number
+
+            if (l_leftParDet) {
+              // Expect matching right parenthesis
+              if ((betIdx >= (int)elemListRef.size()) || (elemListRef[betIdx]->opIdent != OP_RIGHTPAR)) {
+                SS_ERR_BET_ABORT(ssErr << "Parsing '(' statement, but matching right parenthesis ')' not found!!");
+                return;
+              }
+            } else {
+              // Found right parenthesis, but it is not ours -- exit set
+              if ((betIdx < (int)elemListRef.size()) && (elemListRef[betIdx]->opIdent == OP_RIGHTPAR))
+                return;
             }
-          } else {
-            // Found right parenthesis, but it is not ours -- exit set
-            if ((betIdx < (int)elemListRef.size()) && (elemListRef[betIdx]->opIdent == OP_RIGHTPAR))
-              return;
           }
           break;
         case OP_RIGHTPAR:
@@ -675,6 +681,7 @@ void arithParser_c::BuildSubEqn(
         case OP_BIT_OR:
         case OP_PLUS:
           {
+            int curPreced = elemListRef[betIdx]->opPreced;
             int lastOpIdx = -1;
             {
               // Traverse curNode, since that's all parsed already
@@ -703,9 +710,13 @@ void arithParser_c::BuildSubEqn(
               // Check operator precedence
             if (lastOpIdx >= 0)
             {
+              int lastPreced = elemListRef[lastOpIdx]->opPreced;
               // if cur preced < lastOpIdx ; then current has higher prio
-              if (elemListRef[betIdx]->opPreced < elemListRef[lastOpIdx]->opPreced) {
-                AA_DEBUG("    &&&&&&&&&&& Here! Current op has higher prio! level=%2d | %s < %s\n",level,elemListRef[lastOpIdx]->strId.c_str(),elemListRef[betIdx]->strId.c_str());
+              if (curPreced < lastPreced) {
+                int kaka = 0;
+                for (auto entIt = curNode->entList.cbegin(); entIt != curNode->entList.cend(); entIt++)
+                  printf("   *  entList[%d] %16s, isUnary: %d, betIdx: %d, listSize: %d\n",kaka++,(*entIt)->strId.c_str(),(*entIt)->isUnary,(*entIt)->betIdx,(*entIt)->entList.size());
+                AA_DEBUG("    &&&&&&&&&&& Here! Current op has higher prio! subLvl=%2d | %s < %s {preced: %d < %d}\n",subLvl,elemListRef[lastOpIdx]->strId.c_str(),elemListRef[betIdx]->strId.c_str(),curPreced,lastPreced);
 
                 // Pop the last item and any LHS-unary items
                 betIdx--;
@@ -717,7 +728,7 @@ void arithParser_c::BuildSubEqn(
 
                 // Recurse
                 subNode = std::make_shared<arithElem_c>();
-                BuildSubEqn(subNode,level+1,elemListRef);
+                BuildSubEqn(subNode,elemListRef,subLvl+1,lastPreced);
                 if (betAbrt)
                   return;
                 curNode->entList.push_back(subNode);
@@ -726,18 +737,35 @@ void arithParser_c::BuildSubEqn(
                 break;
               }
               // if cur preced > lastOpIdx ; then current has lower prio
-              if (elemListRef[betIdx]->opPreced > elemListRef[lastOpIdx]->opPreced) {
-                AA_DEBUG("    @@@@@@@@@@@ Here! Current op has lower  prio! level=%2d | %s > %s\n",level,elemListRef[lastOpIdx]->strId.c_str(),elemListRef[betIdx]->strId.c_str());
-                // if   level==0, replace top level
+              if (curPreced > lastPreced) {
+                int kaka = 0;
+                for (auto entIt = curNode->entList.cbegin(); entIt != curNode->entList.cend(); entIt++)
+                  printf("   !  entList[%d] %16s, isUnary: %d, betIdx: %d, listSize: %d -- subLvl: %d\n",kaka++,(*entIt)->strId.c_str(),(*entIt)->isUnary,(*entIt)->betIdx,(*entIt)->entList.size(),subLvl);
+                AA_DEBUG("    @@@@@@@@@@@ Here! Current op has lower  prio! subLvl=%2d | %s > %s {preced: %d > %d}\n",subLvl,elemListRef[lastOpIdx]->strId.c_str(),elemListRef[betIdx]->strId.c_str(),curPreced,lastPreced);
+                // if   subLvl==0, replace top level
                 // else back to prev level
-                if (level == 0) {
+                if (subLvl == 0) {
                   subNode = curNode;
                   curNode = std::make_shared<arithElem_c>();
                   curNode->strId = genNodeName();
                   curNode->entList.push_back(subNode);
                 } else {
-                  betIdx--;
-                  return;
+                  if (curPreced > prevPreced) {
+                    printf("ERROR: unexpected state! -- need to revisit!\n"); //-- TODO: figure out if a scenario for this, for now include in next if-statement
+                    exit(0);
+                  }
+                  if (curPreced >= prevPreced) {
+                    betIdx--;   // Example subeqn: A + B*C + D
+                    return;
+                  } else {
+                    // curPreced < prevPreced
+                    subNode = curNode;
+                    curNode = std::make_shared<arithElem_c>();
+                    curNode->strId = genNodeName();
+                    curNode->entList.push_back(subNode);
+
+                    curElOp = 0;
+                  }
                 }
               }
             }
@@ -844,9 +872,9 @@ int arithElem_c::auxTraverseInt(std::shared_ptr<arithParser_c> pp_parent, int &t
           case OP_MINUSMINUS:
             SS_ERR_ATI_ABORT(ssErr << "Cannot apply unary op (opId=" << unaryOp << ")" << aa_util_entListDbg(entList,kkk));
             return -1;
-          case OP_BIT_INV:    dat_nuevo = ~dat_nuevo;                                                    break;
-          case OP_LOG_NOT:    dat_nuevo = !dat_nuevo ? 1 : 0;                                            break;
-          case OP_MINUS:      dat_nuevo = -dat_nuevo;                                                    break;
+          case OP_BIT_INV: dat_nuevo = ~dat_nuevo;         break;
+          case OP_LOG_NOT: dat_nuevo = !dat_nuevo ? 1 : 0; break;
+          case OP_MINUS:   dat_nuevo = -dat_nuevo;         break;
           default:
             SS_ERR_ATI_ABORT(ssErr << "This state supposedly unreachable!" << aa_util_entListDbg(entList,rtUnaryIdx));
             return -1;

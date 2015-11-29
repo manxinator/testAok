@@ -83,8 +83,9 @@ private:
   int betLstId;
   std::shared_ptr<arithElem_c> BuildEqnTree( std::vector<std::shared_ptr<arithElem_c> > &elemListRef );
   void                         BuildSubEqn (
-    std::shared_ptr<arithElem_c>                &curNode,     int level,
-    std::vector<std::shared_ptr<arithElem_c> >  &elemListRef
+    std::shared_ptr<arithElem_c>                &curNode,
+    std::vector<std::shared_ptr<arithElem_c> >  &elemListRef,
+    int subLvl, int prevPreced=-1
   );
   std::string genNodeName(void);
 
