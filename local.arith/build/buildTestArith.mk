@@ -28,6 +28,10 @@
   #
 AOKLIB_WS_DIR:=$(REMOTE_WS_DIR)
 
+# compilation options
+MAKE_DEBUG=1
+#MAKE_STRICT=1
+
 
   # Options
   #
