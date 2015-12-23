@@ -30,6 +30,8 @@ _MK_EXTENSIBLE_KNOBS_=1
         #-------------------------------------------------------------
 
 CXX_FILES+=\
+  ekLex.cpp \
+  ekPars.cpp \
   ekInternals.cpp \
 
 INCPATH+=\
