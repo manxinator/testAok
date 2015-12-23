@@ -37,6 +37,7 @@ MAKE_STRICT=1
   #
 PLATFORM_NAME = $(shell uname | tr '[:lower:]' '[:upper:]')
 LOCAL_CFLAGS+=-DPLATFORM_${PLATFORM_NAME}=1 -DPLATFORM_NAME='"${PLATFORM_NAME}"'
+LOCAL_CFLAGS+=-DEKDEBUG
 
 # Profiling
 #LOCAL_CFLAGS+=-pg
@@ -54,7 +55,7 @@ endif
 
 #---------------------------------------------------------------------
 
-#CXX_FILES+=dev.testExKnLoader1.cpp
+#CXX_FILES+=dev.testExKnLoad1.cpp
 CXX_FILES+=testExKnLoad1.cpp
 INCPATH+=  ${LOCAL_WS_DIR}/app.testExKnLoad/
 vpath %c   ${LOCAL_WS_DIR}/app.testExKnLoad/
