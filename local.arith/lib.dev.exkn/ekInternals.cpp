@@ -33,6 +33,11 @@ using namespace ex_knobs;
 
 //------------------------------------------------------------------------------
 
+
+  // Delegate Interface
+  //
+function<void(primCommand_c*)> ex_knobs::ek_command_f;
+
   // Globals
   //
 extern int   ek_yyLineNum;
@@ -41,6 +46,7 @@ extern char* ek_yytext;
   // Global primitives
   //
 shared_ptr<primCommand_c> prim_command;
+
 
 //------------------------------------------------------------------------------
 
@@ -63,7 +69,9 @@ void ek_commandIdent (const char* dbgStr, const char *cmdId)
 
   // Process command -- for now, just print
   //
-  prim_command->print();
+  //prim_command->print();
+  if (ek_command_f)
+    ek_command_f(prim_command.get());
 
   // After the command has been processed, renew
   //
@@ -111,22 +119,29 @@ void primCommand_c::setIdent(const string& idStr, int l_lineNum)
   ident = idStr;
 }
 
-void primCommand_c::setArg (const string& idStr, int l_lineNum, int isQ)
+void primCommand_c::setArg (const string& arStr, int l_lineNum, int isQ)
 {
   setLineNum(l_lineNum);
-  argLst.push_back(idStr);
-  argIsQuote.push_back(isQ);
+
+  element_c *elem;
+  if (isQ) { elem = new elemStr_c (); static_cast<elemStr_c*> (elem)->varStr = arStr; }
+  else     { elem = new elemQStr_c(); static_cast<elemQStr_c*>(elem)->varStr = arStr; }
+
+  argLst.push_back(elem);
 }
 
 void primCommand_c::print (void)
 {
   printf("[primCommand_c::print] line: %d { %s",lineNum,ident.c_str());
-  int idx = 0;
   for (auto it = argLst.begin(); it != argLst.end(); it++) {
-    if (argIsQuote[idx++])
-      printf(", \'%s\'",it->c_str());
-    else
-      printf(", %s",it->c_str());
+    element_c::elementType_e elem_type = (*it)->elemType;
+    switch (elem_type)
+    {
+    case element_c::ELEM_STRING:  printf(", %s",    static_cast<elemStr_c*> (*it)->varStr.c_str()); break;
+    case element_c::ELEM_QSTRING: printf(", \'%s\'",static_cast<elemQStr_c*>(*it)->varStr.c_str()); break;
+    default:
+      printf(", ELEM_TYPE:%d",static_cast<int>(elem_type)); break;
+    }
   }
   printf(" }\n");
 }

@@ -30,11 +30,50 @@
 
 #include <string>
 #include <vector>
+#include <functional>
 
 //------------------------------------------------------------------------------
 
 namespace ex_knobs
 {
+  class element_c {
+  public:
+    typedef enum _elementType_e_ {
+      ELEM_UNDEF     = 0,
+      ELEM_STRING    = 1,
+      ELEM_QSTRING   = 2,
+      ELEM_EQUATION  = 3,
+      ELEM_FUNCTION  = 4,
+      ELEM_EXPANSION = 5
+    } elementType_e;
+    elementType_e elemType;
+
+  public:
+             element_c(elementType_e eType) { elemType = eType; }
+    virtual ~element_c() {}
+  };
+
+  class elemStr_c : public element_c {
+  public:
+    std::string varStr;
+
+  public:
+             elemStr_c() : element_c(ELEM_STRING) {}
+    virtual ~elemStr_c() {}
+  };
+
+  class elemQStr_c : public element_c {
+  public:
+    std::string varStr;
+    int         isDoubleQuote;
+
+  public:
+             elemQStr_c() : element_c(ELEM_QSTRING) { isDoubleQuote = 1; }
+    virtual ~elemQStr_c() {}
+  };
+
+    // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
   class primitive_c {
   public:
     typedef enum _primitiveType_e_ {
@@ -46,8 +85,7 @@ namespace ex_knobs
     int             lineNum;
 
   public:
-             primitive_c(primitiveType_e pType) { primType = pType;      lineNum = -1; }
-             primitive_c()                      { primType = PRIM_UNDEF; lineNum = -1; }
+             primitive_c(primitiveType_e pType) { primType = pType; lineNum = -1; }
     virtual ~primitive_c() { }
 
     virtual void setLineNum(int) = 0;
@@ -57,25 +95,28 @@ namespace ex_knobs
   public:
     std::string ident;
 
-    std::vector<std::string> argLst; // -- TODO: convert both of these to element class
-    std::vector<int>         argIsQuote;
+    std::vector<element_c*> argLst;
 
   public:
-             primCommand_c() : primitive_c(PRIM_COMMAND) { }
-    virtual ~primCommand_c() {}
+             primCommand_c() : primitive_c(PRIM_COMMAND) {}
+    virtual ~primCommand_c() {
+      for (auto it = argLst.begin(); it != argLst.end(); it++)
+        delete *it;
+    }
 
     virtual void setLineNum(int lNum);
 
     void setIdent(const std::string& idStr, int l_lineNum);
-    void setArg  (const std::string& idStr, int l_lineNum, int isQ);
+    void setArg  (const std::string& arStr, int l_lineNum, int isQ);
 
     void print (void);
   };
 
     // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-  int ek_readfile(const char* inFN, int exitOnErr);
+  extern int ek_readfile(const char* inFN, int exitOnErr);
 
+  extern std::function<void(primCommand_c*)> ek_command_f;
 }
 
 //------------------------------------------------------------------------------

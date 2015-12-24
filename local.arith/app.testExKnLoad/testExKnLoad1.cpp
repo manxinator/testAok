@@ -30,12 +30,32 @@
 
 //------------------------------------------------------------------------------
 
+void func_command(ex_knobs::primCommand_c* cmdPrim)
+{
+  printf("+++ [func_command] line: %d { %s",cmdPrim->lineNum,cmdPrim->ident.c_str());
+  for (auto it = cmdPrim->argLst.begin(); it != cmdPrim->argLst.end(); it++) {
+    ex_knobs::element_c::elementType_e elem_type = (*it)->elemType;
+    switch (elem_type)
+    {
+    case ex_knobs::element_c::ELEM_STRING:  printf(", %s",    static_cast<ex_knobs::elemStr_c*> (*it)->varStr.c_str()); break;
+    case ex_knobs::element_c::ELEM_QSTRING: printf(", \'%s\'",static_cast<ex_knobs::elemQStr_c*>(*it)->varStr.c_str()); break;
+    default:
+      printf(", ELEM_TYPE:%d",static_cast<int>(elem_type)); break;
+    }
+  }
+  printf(" }\n");
+}
+
+//------------------------------------------------------------------------------
+
 int main(int argc, char *argv[])
 {
   if (argc < 2) {
     printf("ERROR: %s requires argument <INPUT_FILENAME>\n",argv[0]);
     return EXIT_FAILURE;
   }
+
+  ex_knobs::ek_command_f = std::bind(&func_command,std::placeholders::_1);
 
   char* inpFN  = argv[1];
   int   retVal = ex_knobs::ek_readfile(inpFN,0);
