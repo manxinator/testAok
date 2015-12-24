@@ -26,13 +26,19 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include "ekRead.h"
 
 //------------------------------------------------------------------------------
 
 int main(int argc, char *argv[])
 {
-  int retVal = 1;
-  char *inpFN = argc > 1 ? argv[1] : 0;
+  if (argc < 2) {
+    printf("ERROR: %s requires argument <INPUT_FILENAME>\n",argv[0]);
+    return EXIT_FAILURE;
+  }
+
+  char* inpFN  = argv[1];
+  int   retVal = ex_knobs::ek_readfile(inpFN,0);
   printf("~\n~ [main] argc: %d, argv[0]: %s\n",argc,inpFN);
   printf("~\n~ [main] aok_readfile() returned %d!\n~\n",retVal);
   return 0;

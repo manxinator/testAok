@@ -27,14 +27,11 @@
 ------------------------------------------------------------------------------*/
 %{
 #include "ekPars.hpp"
-#include "ekRead.h"
 #include "ekInternals.h"
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <iostream>
-#include <vector>
-#include <string>
 
   /*
     Utility Functions
@@ -374,6 +371,11 @@ void stringNewline2LineNum(const char* readStr)
   for (int iii=0; readStr[iii] != 0; iii++)
     if ('\n' == readStr[iii])
       ek_newLine();
+}
+
+void ek_lexCleanup(void)
+{
+  ek_quoteAccum.reset();
 }
 
         /*--------------------------------------------------------------------*/

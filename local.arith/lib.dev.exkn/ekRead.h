@@ -28,26 +28,55 @@
 #ifndef __EK_READ__
 #define __EK_READ__
 
+#include <string>
+#include <vector>
+
 //------------------------------------------------------------------------------
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+namespace ex_knobs
+{
+  class primitive_c {
+  public:
+    typedef enum _primitiveType_e_ {
+      PRIM_UNDEF   = 0,
+      PRIM_COMMAND = 1
+    } primitiveType_e;
 
-    int ek_readfile(const char* inFN, int exitOnErr);
+    primitiveType_e primType;
+    int             lineNum;
 
-#ifdef __cplusplus
+  public:
+             primitive_c(primitiveType_e pType) { primType = pType;      lineNum = -1; }
+             primitive_c()                      { primType = PRIM_UNDEF; lineNum = -1; }
+    virtual ~primitive_c() { }
+
+    virtual void setLineNum(int) = 0;
+  };
+
+  class primCommand_c : public primitive_c {
+  public:
+    std::string ident;
+
+    std::vector<std::string> argLst; // -- TODO: convert both of these to element class
+    std::vector<int>         argIsQuote;
+
+  public:
+             primCommand_c() : primitive_c(PRIM_COMMAND) { }
+    virtual ~primCommand_c() {}
+
+    virtual void setLineNum(int lNum);
+
+    void setIdent(const std::string& idStr, int l_lineNum);
+    void setArg  (const std::string& idStr, int l_lineNum, int isQ);
+
+    void print (void);
+  };
+
+    // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+  int ek_readfile(const char* inFN, int exitOnErr);
+
 }
-#endif
-
-
-
-
-#ifdef EKDEBUG
-  #define E_DEBUG(...)   printf(__VA_ARGS__)
-#else
-  #define E_DEBUG(...)
-#endif
 
 //------------------------------------------------------------------------------
 

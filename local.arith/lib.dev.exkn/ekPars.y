@@ -39,8 +39,9 @@ extern char* ek_yytext;
 
         //----------------------------------------------------------------------
 
-extern void ek_yyerror(const char *s);
-extern int  ek_yylex  (void);
+extern void ek_yyerror   (const char *s);
+extern int  ek_yylex     (void);
+extern void ek_lexCleanup(void);
 
 %}
 
@@ -131,7 +132,7 @@ void ek_yyerror(const char *s)
   - To enable debugging, set ek_yydebug=1 before calling ek_readfile()
   - ek_readfile() returns 1 for success
 */
-int ek_readfile(const char* inFN, int exitOnErr)
+int ex_knobs::ek_readfile(const char* inFN, int exitOnErr)
 {
 //ek_yydebug=1;
   ek_yyExitOnErr = exitOnErr;
@@ -154,6 +155,8 @@ int ek_readfile(const char* inFN, int exitOnErr)
     ek_yyparse();
   }
   fclose(inFH);
+  ek_lexCleanup();
+  ek_parserClenup();
   return ek_yyExitOnErr == 0x00c0ffee ? 0 : 1;
 }
 

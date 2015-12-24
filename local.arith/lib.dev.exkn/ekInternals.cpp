@@ -29,60 +29,106 @@
 #include "ekRead.h"
 #include "ekInternals.h"
 using namespace std;
+using namespace ex_knobs;
 
 //------------------------------------------------------------------------------
 
-class primitive_c {
-public:
-  typedef enum _primitiveType_e_ {
-    PRIM_UNDEF   = 0,
-    PRIM_COMMAND = 1
-  } primitiveType_e;
-
-  primitiveType_e primType;
-
-public:
-           primitive_c(primitiveType_e pType) { primType = pType; }
-           primitive_c()                      { primType = PRIM_UNDEF; }
-  virtual ~primitive_c() { }
-};
-
   // Globals
   //
-shared_ptr<primitive_c> prim_command;
-
 extern int   ek_yyLineNum;
 extern char* ek_yytext;
+
+  // Global primitives
+  //
+shared_ptr<primCommand_c> prim_command;
 
 //------------------------------------------------------------------------------
 
 void ek_internInit(void)
 {
-  prim_command = make_shared<primitive_c>(primitive_c::PRIM_COMMAND);
+  prim_command = make_shared<primCommand_c>();
+}
+
+void ek_parserClenup(void)
+{
+  prim_command.reset();
 }
 
 //------------------------------------------------------------------------------
 
 void ek_commandIdent (const char* dbgStr, const char *cmdId)
 {
-  E_DEBUG("[%3d]   +   [%s] [ek_commandIdent] %s\n",ek_yyLineNum,dbgStr,cmdId);
+  //E_DEBUG("[%3d]   +   [%s] [ek_commandIdent] %s\n",ek_yyLineNum,dbgStr,cmdId);
+  prim_command->setIdent(cmdId,ek_yyLineNum);
+
+  // Process command -- for now, just print
+  //
+  prim_command->print();
 
   // After the command has been processed, renew
   //
-  prim_command = make_shared<primitive_c>(primitive_c::PRIM_COMMAND);
+  prim_command = make_shared<primCommand_c>();
 }
 
 void ek_commandArgs (const char* dbgStr, const char *cmdArgs)
 {
-  E_DEBUG("[%3d]   +   [%s] [ek_commandArgs]  %s\n",ek_yyLineNum,dbgStr,cmdArgs);
+  //E_DEBUG("[%3d]   +   [%s] [ek_commandArgs]  %s\n",ek_yyLineNum,dbgStr,cmdArgs);
+  prim_command->setArg(cmdArgs,ek_yyLineNum,0);
 }
 
-void ek_commandQStr (const char* dbgStr, std::shared_ptr<std::vector<std::string> > quoteStr)
+void ek_commandQStr (const char* dbgStr, shared_ptr<vector<string> > quoteStr)
 {
-  printf("Here! vector.size(): %d\n",quoteStr->size());
+  //E_DEBUG("[%3d]   +   [%s] [ek_commandQStr]  %s, vector.size(): %d\n",ek_yyLineNum,dbgStr,quoteStr->begin()->c_str(),quoteStr->size());
+  int strLen = 8;
+  for (auto it = quoteStr->begin(); it != quoteStr->end(); it++)
+    strLen += it->length() + 2;
 
-  E_DEBUG("[%3d]   +   [%s] [ek_commandQStr]  %s\n",ek_yyLineNum,dbgStr,quoteStr->begin()->c_str());
+  string workStr;
+  workStr.reserve(strLen);
+  for (auto it = quoteStr->begin(); ; ) {
+    workStr += *it;
+    it++;
+    if (it != quoteStr->end())
+      workStr += "\n";
+    else
+      break;
+  }
+
+  prim_command->setArg(workStr,ek_yyLineNum,1);
 }
 
+
+//++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+void primCommand_c::setLineNum(int lNum)
+{
+  if      (lineNum < 0)    lineNum = lNum;
+  else if (lineNum > lNum) lineNum = lNum;
+}
+
+void primCommand_c::setIdent(const string& idStr, int l_lineNum)
+{
+  setLineNum(l_lineNum);
+  ident = idStr;
+}
+
+void primCommand_c::setArg (const string& idStr, int l_lineNum, int isQ)
+{
+  setLineNum(l_lineNum);
+  argLst.push_back(idStr);
+  argIsQuote.push_back(isQ);
+}
+
+void primCommand_c::print (void)
+{
+  printf("[primCommand_c::print] line: %d { %s",lineNum,ident.c_str());
+  int idx = 0;
+  for (auto it = argLst.begin(); it != argLst.end(); it++) {
+    if (argIsQuote[idx++])
+      printf(", \'%s\'",it->c_str());
+    else
+      printf(", %s",it->c_str());
+  }
+  printf(" }\n");
+}
 //------------------------------------------------------------------------------
 

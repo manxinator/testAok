@@ -35,6 +35,7 @@
 //------------------------------------------------------------------------------
 
 extern void ek_internInit  (void);
+extern void ek_parserClenup(void);
 
   // Commands
 extern void ek_commandIdent(const char* dbgStr, const char *cmdId);
@@ -42,6 +43,14 @@ extern void ek_commandArgs (const char* dbgStr, const char *cmdArgs);
 extern void ek_commandQStr (const char* dbgStr, std::shared_ptr<std::vector<std::string> > quoteStr);
 
 extern std::shared_ptr<std::vector<std::string> > ek_collectQStr(void);
+
+    // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+#ifdef EKDEBUG
+  #define E_DEBUG(...)   printf(__VA_ARGS__)
+#else
+  #define E_DEBUG(...)
+#endif
 
 //------------------------------------------------------------------------------
 
