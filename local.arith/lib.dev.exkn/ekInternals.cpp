@@ -27,14 +27,62 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "ekRead.h"
+#include "ekInternals.h"
+using namespace std;
 
 //------------------------------------------------------------------------------
 
-//int ek_readfile(const char* inFN, int exitOnErr)
-//{
-//  printf("[ek_readfile] Here! ( %s, %d )\n",inFN,exitOnErr);
-//  return 123;
-//}
+class primitive_c {
+public:
+  typedef enum _primitiveType_e_ {
+    PRIM_UNDEF   = 0,
+    PRIM_COMMAND = 1
+  } primitiveType_e;
+
+  primitiveType_e primType;
+
+public:
+           primitive_c(primitiveType_e pType) { primType = pType; }
+           primitive_c()                      { primType = PRIM_UNDEF; }
+  virtual ~primitive_c() { }
+};
+
+  // Globals
+  //
+shared_ptr<primitive_c> prim_command;
+
+extern int   ek_yyLineNum;
+extern char* ek_yytext;
+
+//------------------------------------------------------------------------------
+
+void ek_internInit(void)
+{
+  prim_command = make_shared<primitive_c>(primitive_c::PRIM_COMMAND);
+}
+
+//------------------------------------------------------------------------------
+
+void ek_commandIdent (const char* dbgStr, const char *cmdId)
+{
+  E_DEBUG("[%3d]   +   [%s] [ek_commandIdent] %s\n",ek_yyLineNum,dbgStr,cmdId);
+
+  // After the command has been processed, renew
+  //
+  prim_command = make_shared<primitive_c>(primitive_c::PRIM_COMMAND);
+}
+
+void ek_commandArgs (const char* dbgStr, const char *cmdArgs)
+{
+  E_DEBUG("[%3d]   +   [%s] [ek_commandArgs]  %s\n",ek_yyLineNum,dbgStr,cmdArgs);
+}
+
+void ek_commandQStr (const char* dbgStr, std::shared_ptr<std::vector<std::string> > quoteStr)
+{
+  printf("Here! vector.size(): %d\n",quoteStr->size());
+
+  E_DEBUG("[%3d]   +   [%s] [ek_commandQStr]  %s\n",ek_yyLineNum,dbgStr,quoteStr->begin()->c_str());
+}
 
 //------------------------------------------------------------------------------
 

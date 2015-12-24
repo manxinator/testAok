@@ -29,6 +29,7 @@
 %{
 #include "ekPars.hpp"
 #include "ekRead.h"
+#include "ekInternals.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <iostream>
@@ -48,7 +49,7 @@ extern int  ek_yylex  (void);
 %token ENDL
 %token COMMAND_ID
 %token COMMAND_ARGS
-%token COMMAND_COLLECT
+%token COMMAND_QSTR
 
 %token XML_TAGID
 %token XML_BLOCKTEXT
@@ -59,13 +60,12 @@ extern int  ek_yylex  (void);
 %union {
   const char *commandIdStr;
   const char *commandArgStr;
-  //int         commandCollect;   // states that instead of commandArgStr, collect from lex string vector (pass in vector<char>)
+
   const char *xmlTagId;
 }
 %type <commandIdStr>      COMMAND_ID
-%type <xmlTagId>          XML_TAGID
 %type <commandArgStr>     COMMAND_ARGS
-  //%type <commandCollect>    COMMAND_COLLECT
+%type <xmlTagId>          XML_TAGID
 
 //------------------------------------------------------------------------------
 %%
@@ -84,15 +84,15 @@ ekline:
   ;
 
 command_stmt:
-    COMMAND_ID command_args       { E_DEBUG("[%3d]   +   [command_stmt] 1 ~%s~\n",ek_yyLineNum,$1); }
-  | COMMAND_ID                    { E_DEBUG("[%3d]   +   [command_stmt] 2 ~%s~\n",ek_yyLineNum,$1); }
+    COMMAND_ID command_args       { ek_commandIdent("command_stmt 1",$1); }
+  | COMMAND_ID                    { ek_commandIdent("command_stmt 2",$1); }
   ;
 
 command_args:
-    command_args COMMAND_ARGS     { E_DEBUG("[%3d]   +   [command_args] 1 ~%s~\n",ek_yyLineNum,$2); }
-  | command_args COMMAND_COLLECT  { E_DEBUG("[%3d]   +   [command_args] 2 COLLECT\n",ek_yyLineNum); }
-  | COMMAND_ARGS                  { E_DEBUG("[%3d]   +   [command_args] 3 ~%s~\n",ek_yyLineNum,$1); }
-  | COMMAND_COLLECT               { E_DEBUG("[%3d]   +   [command_args] 4 COLLECT\n",ek_yyLineNum); }
+    command_args COMMAND_ARGS     { ek_commandArgs("command_args 1",$2); }
+  | command_args COMMAND_QSTR     { ek_commandQStr("command_args 2",ek_collectQStr()); }
+  | COMMAND_ARGS                  { ek_commandArgs("command_args 3",$1); }
+  | COMMAND_QSTR                  { ek_commandQStr("command_args 4",ek_collectQStr()); }
   ;
 
 xml_stmt:
@@ -146,6 +146,7 @@ int ek_readfile(const char* inFN, int exitOnErr)
   // must initialize line numbers
   ek_yyin      = inFH;
   ek_yyLineNum = 1;
+  ek_internInit();
 
   // parsing loop
   while (!feof(ek_yyin)) {

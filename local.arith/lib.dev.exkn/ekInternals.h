@@ -28,7 +28,20 @@
 #ifndef __EK_INTERNALS__
 #define __EK_INTERNALS__
 
+#include <memory>
+#include <string>
+#include <vector>
 
+//------------------------------------------------------------------------------
+
+extern void ek_internInit  (void);
+
+  // Commands
+extern void ek_commandIdent(const char* dbgStr, const char *cmdId);
+extern void ek_commandArgs (const char* dbgStr, const char *cmdArgs);
+extern void ek_commandQStr (const char* dbgStr, std::shared_ptr<std::vector<std::string> > quoteStr);
+
+extern std::shared_ptr<std::vector<std::string> > ek_collectQStr(void);
 
 //------------------------------------------------------------------------------
 

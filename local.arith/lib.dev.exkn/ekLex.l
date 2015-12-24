@@ -28,6 +28,7 @@
 %{
 #include "ekPars.hpp"
 #include "ekRead.h"
+#include "ekInternals.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -107,7 +108,7 @@ xml_end             \<[\t \n]*\/[A-Za-z0-9_][A-Za-z0-9_\-\.\/\\]*[\t \n]*\>
 <INITIAL>{newLine}          {                               ek_newLine();          return ENDL; }
 <INITIAL>.                  ek_yyerror("Unexpected token [inside INITIAL state]");
 
-<COMMAND>{quotStr_start}    { ek_commandQuote(yytext);               return COMMAND_COLLECT; }    //{ ek_quoteStr(yytext); } // TODO: set commandArgCollect=1;  return COMMAND_ARGS;
+<COMMAND>{quotStr_start}    { ek_commandQuote(yytext);               return COMMAND_QSTR; }
 <COMMAND>{commentSl}        { BEGIN INITIAL; ek_comment_sl(yytext);  return ENDL; }
 <COMMAND>{commentBl_start}  { yy_push_state(IN_COMMENT_BL); ek_comment_b0(yytext); }
 <COMMAND>{commandArgs}      { ek_command_ar(yytext);                 return COMMAND_ARGS; }
@@ -210,7 +211,7 @@ void ek_comment_b2(const char* commStr)
 void ek_command_id(const char* commStr)
 {
 static int ek_command_id_iii = 0;
-  sprintf(ek_static_str,"[%d]%s",ek_command_id_iii++,commStr);
+  sprintf(ek_static_str,"%s[%d]",&commStr[1],ek_command_id_iii++);
   ek_yylval.commandIdStr = ek_static_str;
 }
 
@@ -224,7 +225,6 @@ static char commArgStr[MAX_STR_SIZE];
 void ek_commandQuote(const char* startStr)
 {
   ek_quoteStr(startStr);
-  //ek_yylval.commandCollect = 1;
 }
         //----------------------------------------------------------------------
 void ek_xml_start(const char* xmlStr)
@@ -284,19 +284,23 @@ int ek_xml_match(const char* xmlStr)
 }
 
         /*--------------------------------------------------------------------*/
+std::shared_ptr<std::vector<std::string> > ek_quoteAccum;
 
 void ek_quoteStr(const char* startStr)
 {
-  E_DEBUG("BEGIN ek_quoteStr('%s')\n",startStr);
+  //E_DEBUG("BEGIN ek_quoteStr('%s')\n",startStr);
 
-  // TODO: accumulate unlimited-sized strings
+  // Renew ek_quoteAccum
+  ek_quoteAccum = decltype(ek_quoteAccum)(new std::vector<std::string>);
+  std::string curLineStr;
 
   // Quote string handler
   char curLine[4096];
-  int  curIdx = 0, c;
+  int  curIdx = 0, c = '.', prevC;
 
   for ( ; ; )
   {
+    prevC = c;
     c = yyinput();
     if (c == '\"') {
       curLine[curIdx] = 0;
@@ -320,9 +324,11 @@ void ek_quoteStr(const char* startStr)
       case '\\':
         break;
       case '\n':
-        c = 0x0a;
         ek_newLine();
-        break;
+        curLine[curIdx] = 0; curIdx = 0; // null-terminate, and restart
+        curLineStr.assign(curLine);
+        ek_quoteAccum->push_back(curLineStr);
+        continue;
       case 'a': c = 0x07; break;
       case 'b': c = 0x08; break;
       case 'f': c = 0x0c; break;
@@ -343,7 +349,22 @@ void ek_quoteStr(const char* startStr)
     curLine[curIdx++] = c;
   }
 
-  E_DEBUG("END ek_quoteStr --> ~%s~ line num: %d\n",curLine,ek_yyLineNum);
+  if ((curIdx > 0) || (prevC == '\n')) {
+    // Check for prevC, otherwise if the last line is
+    //   only a quote("), it gets thrown away
+    curLine[curIdx] = 0;
+    curLineStr.assign(curLine);
+    ek_quoteAccum->push_back(curLineStr);
+  }
+
+  //E_DEBUG("END ek_quoteStr --> ~%s~ line num: %d\n",curLine,ek_yyLineNum);
+}
+
+std::shared_ptr<std::vector<std::string> > ek_collectQStr(void)
+{
+  auto temp = ek_quoteAccum;
+  ek_quoteAccum.reset();
+  return temp;
 }
 
         /*--------------------------------------------------------------------*/
