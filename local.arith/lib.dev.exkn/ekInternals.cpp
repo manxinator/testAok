@@ -105,6 +105,16 @@ void ek_commandQStr (const char* dbgStr, shared_ptr<vector<string> > quoteStr)
   prim_command->setArg(workStr,ek_yyLineNum,1);
 }
 
+void ek_commandBTick(const char* dbgStr)
+{
+  int    btType = -1;
+  string btIdentStr;
+
+  ek_collectBTIdent(btIdentStr,btType);
+
+  E_DEBUG("[%3d]   +   [%s] [ek_commandBTick] ------> identStr: '%s', btType: %d\n",ek_yyLineNum,dbgStr,btIdentStr.c_str(),btType);
+}
+
 
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 void primCommand_c::setLineNum(int lNum)

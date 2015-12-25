@@ -54,6 +54,9 @@ static int  ek_xml_match (const char* xmlStr);
 
 static void ek_quoteStr    (const char* startStr);
 static void ek_commandQuote(const char* startStr);
+static void ek_btick_start (const char* startStr);
+static void ek_btick_ident (const char* startStr);
+static void ek_btick_rparen(const char* startStr);
 
   /*
     Yacc Functions
@@ -72,6 +75,8 @@ int ek_yyLineNum = -1; // must be initialized
 %s      IN_COMMENT_BL
 %s      IN_XML_START
 %s      IN_XML_BODY
+%s      IN_BACKTICK_START
+%s      IN_BACKTICK_PAREN
 
   /*
     Lex Tokens
@@ -83,8 +88,13 @@ identString         [A-Za-z0-9_][A-Za-z0-9_\-\.\/\\]*
 
 newLine             [\t ]*\n
 
+backtick            "`"
+leftparen           "("
+rightparen          ")"
+identLParen         [A-Za-z0-9_][A-Za-z0-9_\-\.\/\\]*[\t ]*"("
+
 commandId           "#"[\t ]*[A-Za-z0-9_][A-Za-z0-9_\-\.\/\\]*
-commandArgs         [^\t\n \"]+
+commandArgs         [^\t\n \"`]+
 
 commentSl           \/\/[^\n]*\n
 commentBl_start     \/\*
@@ -98,17 +108,18 @@ xml_end             \<[\t \n]*\/[A-Za-z0-9_][A-Za-z0-9_\-\.\/\\]*[\t \n]*\>
   //       this tells yacc when the last statement was initiated
 
 <INITIAL>{wsLeading}        ;
-<INITIAL>{commentSl}        {                               ek_comment_sl(yytext); return ENDL; }
-<INITIAL>{commentBl_start}  { yy_push_state(IN_COMMENT_BL); ek_comment_b0(yytext); }
-<INITIAL>{commandId}        { BEGIN COMMAND;                ek_command_id(yytext); return COMMAND_ID; }
-<INITIAL>{xml_start}        { BEGIN IN_XML_START;           ek_xml_start (yytext); }
-<INITIAL>{newLine}          {                               ek_newLine();          return ENDL; }
+<INITIAL>{commentSl}        {                               ek_comment_sl(yytext); return ENDL;         }
+<INITIAL>{commentBl_start}  { yy_push_state(IN_COMMENT_BL); ek_comment_b0(yytext);                      }
+<INITIAL>{commandId}        { BEGIN COMMAND;                ek_command_id(yytext); return COMMAND_ID;   }
+<INITIAL>{xml_start}        { BEGIN IN_XML_START;           ek_xml_start (yytext);                      }
+<INITIAL>{newLine}          {                               ek_newLine();          return ENDL;         }
 <INITIAL>.                  ek_yyerror("Unexpected token [inside INITIAL state]");
 
-<COMMAND>{quotStr_start}    { ek_commandQuote(yytext);               return COMMAND_QSTR; }
-<COMMAND>{commentSl}        { BEGIN INITIAL; ek_comment_sl(yytext);  return ENDL; }
-<COMMAND>{commentBl_start}  { yy_push_state(IN_COMMENT_BL); ek_comment_b0(yytext); }
-<COMMAND>{commandArgs}      { ek_command_ar(yytext);                 return COMMAND_ARGS; }
+<COMMAND>{quotStr_start}    { ek_commandQuote(yytext);                             return COMMAND_QSTR; }
+<COMMAND>{commentSl}        { BEGIN INITIAL; ek_comment_sl(yytext);                return ENDL;         }
+<COMMAND>{commentBl_start}  { yy_push_state(IN_COMMENT_BL);     ek_comment_b0 (yytext);                 }
+<COMMAND>{backtick}         { yy_push_state(IN_BACKTICK_START); ek_btick_start(yytext);                 }
+<COMMAND>{commandArgs}      { ek_command_ar(yytext);                               return COMMAND_ARGS; }
 <COMMAND>{whitespace}       ;
 <COMMAND>{newLine}          { BEGIN INITIAL; ek_newLine(); return ENDL; }
   /*<COMMAND>.              { printf(" { <COMMAND>. '%s' }\n",yytext); } -- Supposedly unreachable state */
@@ -134,6 +145,15 @@ xml_end             \<[\t \n]*\/[A-Za-z0-9_][A-Za-z0-9_\-\.\/\\]*[\t \n]*\>
     {xml_end}   { if (ek_xml_match(yytext)) { BEGIN INITIAL; return XML_BLOCKTEXT; } }  // TODO: else, collect
     \n          ek_newLine(); // TODO: pass into XML
     .+          printf("===> [IN_XML_BODY] eat xml body '%s' at line %d\n",yytext,ek_yyLineNum);
+}
+
+<IN_BACKTICK_START>{
+    {identLParen}   { ek_btick_ident(yytext); BEGIN IN_BACKTICK_PAREN; }
+    .               printf("===> [IN_BACKTICK_START] unexpected '%s' at line %d\n",yytext,ek_yyLineNum);
+}
+<IN_BACKTICK_PAREN>{
+    {rightparen}    { yy_pop_state(); ek_btick_rparen(yytext); return BTICK_SEQ; }
+    .               printf("===> [IN_BACKTICK_PAREN] unexpected '%s' at line %d\n",yytext,ek_yyLineNum);
 }
 
 
@@ -207,6 +227,7 @@ void ek_comment_b2(const char* commStr)
         //----------------------------------------------------------------------
 void ek_command_id(const char* commStr)
 {
+  //E_DEBUG("* [ek_command_id] '%s' line %d\n",commStr,ek_yyLineNum);
 static int ek_command_id_iii = 0;
   sprintf(ek_static_str,"%s[%d]",&commStr[1],ek_command_id_iii++);
   ek_yylval.commandIdStr = ek_static_str;
@@ -214,6 +235,7 @@ static int ek_command_id_iii = 0;
 
 void ek_command_ar(const char* commStr)
 {
+  //E_DEBUG("* [ek_command_ar] '%s' line %d\n",commStr,ek_yyLineNum);
 static char commArgStr[MAX_STR_SIZE];
   strcpy(commArgStr,commStr);
   ek_yylval.commandArgStr = commArgStr;
@@ -221,6 +243,7 @@ static char commArgStr[MAX_STR_SIZE];
 
 void ek_commandQuote(const char* startStr)
 {
+  //E_DEBUG("* [ek_commandQuote] '%s' line %d\n",startStr,ek_yyLineNum);
   ek_quoteStr(startStr);
 }
         //----------------------------------------------------------------------
@@ -362,6 +385,43 @@ std::shared_ptr<std::vector<std::string> > ek_collectQStr(void)
   auto temp = ek_quoteAccum;
   ek_quoteAccum.reset();
   return temp;
+}
+        /*--------------------------------------------------------------------*/
+std::string ekBTickIdentStr;
+int         ekBtType = 0;   // 0-Eqn, 1-Func, 2-ExpansionA, 3-ExpansionB, 4-ExpansionC
+
+void ek_btick_start (const char* startStr)
+{
+  ekBTickIdentStr.clear();
+  E_DEBUG("* [ek_btick_start]  '%s' at line %d\n",startStr,ek_yyLineNum);
+}
+
+void ek_btick_ident (const char* idStr)
+{
+  ekBTickIdentStr.assign(idStr);
+  // Remove trailing '(' and spaces
+  //
+  for (int idx = ekBTickIdentStr.length()-1; idx>=0; idx--) {
+    int c = ekBTickIdentStr[idx];
+    if ((c == '(') || (c == ' ') || (c == '\t'))
+      continue;
+    ekBTickIdentStr.resize(idx+1);
+    break;
+  }
+  ekBtType = 1;
+  E_DEBUG("* [ek_btick_ident]  '%s' at line %d\n",idStr,ek_yyLineNum);
+}
+
+void ek_btick_rparen (const char* startStr)
+{
+  E_DEBUG("* [ek_btick_rparen] '%s' at line %d\n",startStr,ek_yyLineNum);
+}
+
+void ek_collectBTIdent (std::string &destStr, int &btType)
+{
+  btType  = ekBtType;
+  destStr = ekBTickIdentStr;
+  ekBTickIdentStr.clear();
 }
 
         /*--------------------------------------------------------------------*/

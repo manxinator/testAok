@@ -72,6 +72,15 @@ namespace ex_knobs
     virtual ~elemQStr_c() {}
   };
 
+  class elemBTFunc_c : public element_c {
+  public:
+    std::string identStr;
+
+  public:
+             elemBTFunc_c() : element_c(ELEM_FUNCTION) { }
+    virtual ~elemBTFunc_c() {}
+  };
+
     // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
   class primitive_c {

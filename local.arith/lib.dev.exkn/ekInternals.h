@@ -41,8 +41,12 @@ extern void ek_parserClenup(void);
 extern void ek_commandIdent(const char* dbgStr, const char *cmdId);
 extern void ek_commandArgs (const char* dbgStr, const char *cmdArgs);
 extern void ek_commandQStr (const char* dbgStr, std::shared_ptr<std::vector<std::string> > quoteStr);
+extern void ek_commandBTick(const char* dbgStr);
 
+  // Collect functions
 extern std::shared_ptr<std::vector<std::string> > ek_collectQStr(void);
+
+extern void ek_collectBTIdent (std::string &destStr, int &btType);
 
     // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 

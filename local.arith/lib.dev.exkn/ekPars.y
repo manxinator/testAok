@@ -55,13 +55,14 @@ extern void ek_lexCleanup(void);
 %token XML_TAGID
 %token XML_BLOCKTEXT
 
+%token BTICK_SEQ
+
   // - Yacc requires a union for lex return values
   // - Then, associate the return values to defined token types
   //
 %union {
   const char *commandIdStr;
   const char *commandArgStr;
-
   const char *xmlTagId;
 }
 %type <commandIdStr>      COMMAND_ID
@@ -90,10 +91,12 @@ command_stmt:
   ;
 
 command_args:
-    command_args COMMAND_ARGS     { ek_commandArgs("command_args 1",$2); }
-  | command_args COMMAND_QSTR     { ek_commandQStr("command_args 2",ek_collectQStr()); }
-  | COMMAND_ARGS                  { ek_commandArgs("command_args 3",$1); }
-  | COMMAND_QSTR                  { ek_commandQStr("command_args 4",ek_collectQStr()); }
+    command_args COMMAND_ARGS     { ek_commandArgs ("command_args 1",$2); }
+  | command_args COMMAND_QSTR     { ek_commandQStr ("command_args 2",ek_collectQStr());  }
+  | command_args BTICK_SEQ        { ek_commandBTick("command_args 3"); }
+  | COMMAND_ARGS                  { ek_commandArgs ("command_args 4",$1); }
+  | COMMAND_QSTR                  { ek_commandQStr ("command_args 5",ek_collectQStr());  }
+  | BTICK_SEQ                     { ek_commandBTick("command_args 6"); }
   ;
 
 xml_stmt:
