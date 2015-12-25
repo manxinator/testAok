@@ -107,10 +107,12 @@ void ek_commandQStr (const char* dbgStr, shared_ptr<vector<string> > quoteStr)
 
 void ek_commandBTick(const char* dbgStr)
 {
-  int    btType = -1;
-  string btIdentStr;
+  btickType_e btType = BTICK_UNDEF;
+  string      btIdentStr;
+  string      btParenStr("-PAREN-");  // TODO
 
   ek_collectBTIdent(btIdentStr,btType);
+  prim_command->setBTick(static_cast<int>(btType),btIdentStr,btParenStr);
 
   E_DEBUG("[%3d]   +   [%s] [ek_commandBTick] ------> identStr: '%s', btType: %d\n",ek_yyLineNum,dbgStr,btIdentStr.c_str(),btType);
 }
@@ -139,6 +141,34 @@ void primCommand_c::setArg (const string& arStr, int l_lineNum, int isQ)
 
   argLst.push_back(elem);
 }
+
+void primCommand_c::setBTick(int btType, const string& idStr, const string& parenStr)
+{
+  btickType_e btt = static_cast<btickType_e>(btType);
+  switch (btt)
+  {
+  case BTICK_FUNC: {
+      elemFunc_c *btCl = new elemFunc_c();
+      btCl->identStr = idStr;
+      btCl->parenStr = parenStr;
+      argLst.push_back(static_cast<element_c*>(btCl));
+    }
+    break;
+  case BTICK_EQN: {
+      elemEqn_c *btEq = new elemEqn_c();
+      btEq->parenStr = parenStr;
+      argLst.push_back(static_cast<element_c*>(btEq));
+    }
+    break;
+  case BTICK_EXPANSION_A:
+  case BTICK_EXPANSION_B:
+  case BTICK_EXPANSION_C:
+  case BTICK_UNDEF:
+  default:
+    break;
+  }
+}
+
 
 void primCommand_c::print (void)
 {

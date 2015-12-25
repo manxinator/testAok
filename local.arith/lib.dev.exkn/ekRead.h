@@ -72,13 +72,23 @@ namespace ex_knobs
     virtual ~elemQStr_c() {}
   };
 
-  class elemBTFunc_c : public element_c {
+  class elemFunc_c : public element_c {
   public:
     std::string identStr;
+    std::string parenStr;
 
   public:
-             elemBTFunc_c() : element_c(ELEM_FUNCTION) { }
-    virtual ~elemBTFunc_c() {}
+             elemFunc_c() : element_c(ELEM_FUNCTION) { }
+    virtual ~elemFunc_c() {}
+  };
+
+  class elemEqn_c : public element_c {
+  public:
+    std::string parenStr;
+
+  public:
+             elemEqn_c() : element_c(ELEM_EQUATION) { }
+    virtual ~elemEqn_c() {}
   };
 
     // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -117,6 +127,8 @@ namespace ex_knobs
 
     void setIdent(const std::string& idStr, int l_lineNum);
     void setArg  (const std::string& arStr, int l_lineNum, int isQ);
+
+    void setBTick(int btType, const std::string& idStr, const std::string& parenStr);
 
     void print (void);
   };

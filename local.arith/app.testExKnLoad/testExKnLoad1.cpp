@@ -37,8 +37,18 @@ void func_command(ex_knobs::primCommand_c* cmdPrim)
     ex_knobs::element_c::elementType_e elem_type = (*it)->elemType;
     switch (elem_type)
     {
-    case ex_knobs::element_c::ELEM_STRING:  printf(", %s",    static_cast<ex_knobs::elemStr_c*> (*it)->varStr.c_str()); break;
-    case ex_knobs::element_c::ELEM_QSTRING: printf(", \'%s\'",static_cast<ex_knobs::elemQStr_c*>(*it)->varStr.c_str()); break;
+    case ex_knobs::element_c::ELEM_STRING:   printf(", %s",    static_cast<ex_knobs::elemStr_c*> (*it)->varStr.c_str()); break;
+    case ex_knobs::element_c::ELEM_QSTRING:  printf(", \'%s\'",static_cast<ex_knobs::elemQStr_c*>(*it)->varStr.c_str()); break;
+    case ex_knobs::element_c::ELEM_FUNCTION: {
+        ex_knobs::elemFunc_c *eBtFn = dynamic_cast<ex_knobs::elemFunc_c*>(*it);
+        printf(", elemFunc_c{%s,%s}",eBtFn->identStr.c_str(),eBtFn->parenStr.c_str());
+        break;
+      }
+    case ex_knobs::element_c::ELEM_EQUATION: {
+        ex_knobs::elemEqn_c *eBtFn = dynamic_cast<ex_knobs::elemEqn_c*>(*it);
+        printf(", elemEqn_c{%s}",eBtFn->parenStr.c_str());
+        break;
+      }
     default:
       printf(", ELEM_TYPE:%d",static_cast<int>(elem_type)); break;
     }

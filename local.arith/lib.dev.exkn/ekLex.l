@@ -55,8 +55,9 @@ static int  ek_xml_match (const char* xmlStr);
 static void ek_quoteStr    (const char* startStr);
 static void ek_commandQuote(const char* startStr);
 static void ek_btick_start (const char* startStr);
-static void ek_btick_ident (const char* startStr);
-static void ek_btick_rparen(const char* startStr);
+static void ek_btick_ident (const char* idStr   );
+static void ek_btick_rparen(const char* tailStr );
+static void ek_btick_eqn   (const char* parenStr);
 
   /*
     Yacc Functions
@@ -149,11 +150,12 @@ xml_end             \<[\t \n]*\/[A-Za-z0-9_][A-Za-z0-9_\-\.\/\\]*[\t \n]*\>
 
 <IN_BACKTICK_START>{
     {identLParen}   { ek_btick_ident(yytext); BEGIN IN_BACKTICK_PAREN; }
-    .               printf("===> [IN_BACKTICK_START] unexpected '%s' at line %d\n",yytext,ek_yyLineNum);
+    {leftparen}     { ek_btick_eqn  (yytext); BEGIN IN_BACKTICK_PAREN; }
+    .               { ek_yyerror("===> [IN_BACKTICK_START] unexpected token!\n"); yyterminate(); }
 }
 <IN_BACKTICK_PAREN>{
     {rightparen}    { yy_pop_state(); ek_btick_rparen(yytext); return BTICK_SEQ; }
-    .               printf("===> [IN_BACKTICK_PAREN] unexpected '%s' at line %d\n",yytext,ek_yyLineNum);
+    .               { ek_yyerror("===> [IN_BACKTICK_PAREN] unexpected token!\n"); yyterminate(); }
 }
 
 
@@ -388,7 +390,7 @@ std::shared_ptr<std::vector<std::string> > ek_collectQStr(void)
 }
         /*--------------------------------------------------------------------*/
 std::string ekBTickIdentStr;
-int         ekBtType = 0;   // 0-Eqn, 1-Func, 2-ExpansionA, 3-ExpansionB, 4-ExpansionC
+btickType_e ekBtType = BTICK_UNDEF;
 
 void ek_btick_start (const char* startStr)
 {
@@ -408,19 +410,25 @@ void ek_btick_ident (const char* idStr)
     ekBTickIdentStr.resize(idx+1);
     break;
   }
-  ekBtType = 1;
+  ekBtType = BTICK_FUNC;
   E_DEBUG("* [ek_btick_ident]  '%s' at line %d\n",idStr,ek_yyLineNum);
 }
 
-void ek_btick_rparen (const char* startStr)
+void ek_btick_eqn (const char* parenStr)
 {
-  E_DEBUG("* [ek_btick_rparen] '%s' at line %d\n",startStr,ek_yyLineNum);
+  ekBtType = BTICK_EQN;
+  E_DEBUG("* [ek_btick_eqn]  '%s' at line %d\n",parenStr,ek_yyLineNum);
 }
 
-void ek_collectBTIdent (std::string &destStr, int &btType)
+void ek_btick_rparen (const char* tailStr)
 {
-  btType  = ekBtType;
-  destStr = ekBTickIdentStr;
+  E_DEBUG("* [ek_btick_rparen] '%s' at line %d\n",tailStr,ek_yyLineNum);
+}
+
+void ek_collectBTIdent (std::string &identStr, btickType_e &btType)
+{
+  btType   = ekBtType;
+  identStr = ekBTickIdentStr;
   ekBTickIdentStr.clear();
 }
 
