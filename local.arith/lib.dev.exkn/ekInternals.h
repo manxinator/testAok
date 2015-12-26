@@ -34,8 +34,8 @@
 
 //------------------------------------------------------------------------------
 
-extern void ek_internInit  (void);
-extern void ek_parserClenup(void);
+extern void ek_parserInit   (void);
+extern void ek_parserCleanup(void);
 
   // Commands
 extern void ek_commandIdent(const char* dbgStr, const char *cmdId);
@@ -48,16 +48,16 @@ typedef enum _btickType_e_ {
   BTICK_UNDEF       = 0,
   BTICK_EQN         = 1,
   BTICK_FUNC        = 2,
-  BTICK_EXPANSION_A = 3,
-  BTICK_EXPANSION_B = 4,
-  BTICK_EXPANSION_C = 5
+  BTICK_EXPANSION_A = 3,    // ^
+  BTICK_EXPANSION_B = 4,    // %
+  BTICK_EXPANSION_C = 5     // $
 } btickType_e;
 
 
   // Collect functions
 extern std::shared_ptr<std::vector<std::string> > ek_collectQStr(void);
 
-extern void ek_collectBTIdent (std::string &identStr, btickType_e &btType);
+extern void ek_collectBTInfo (std::string &identStr, std::string &parenStr, btickType_e &btType);
 
     // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 

@@ -39,9 +39,8 @@ extern char* ek_yytext;
 
         //----------------------------------------------------------------------
 
-extern void ek_yyerror   (const char *s);
-extern int  ek_yylex     (void);
-extern void ek_lexCleanup(void);
+extern void ek_yyerror(const char *s);
+extern int  ek_yylex  (void);
 
 %}
 
@@ -150,7 +149,7 @@ int ex_knobs::ek_readfile(const char* inFN, int exitOnErr)
   // must initialize line numbers
   ek_yyin      = inFH;
   ek_yyLineNum = 1;
-  ek_internInit();
+  ek_parserInit();
 
   // parsing loop
   while (!feof(ek_yyin)) {
@@ -158,8 +157,7 @@ int ex_knobs::ek_readfile(const char* inFN, int exitOnErr)
     ek_yyparse();
   }
   fclose(inFH);
-  ek_lexCleanup();
-  ek_parserClenup();
+  ek_parserCleanup();
   return ek_yyExitOnErr == 0x00c0ffee ? 0 : 1;
 }
 

@@ -43,6 +43,9 @@ function<void(primCommand_c*)> ex_knobs::ek_command_f;
 extern int   ek_yyLineNum;
 extern char* ek_yytext;
 
+extern void ek_lexInit   (void);
+extern void ek_lexCleanup(void);
+
   // Global primitives
   //
 shared_ptr<primCommand_c> prim_command;
@@ -50,13 +53,17 @@ shared_ptr<primCommand_c> prim_command;
 
 //------------------------------------------------------------------------------
 
-void ek_internInit(void)
+void ek_parserInit(void)
 {
   prim_command = make_shared<primCommand_c>();
+
+  ek_lexInit();
 }
 
-void ek_parserClenup(void)
+void ek_parserCleanup(void)
 {
+  ek_lexCleanup();
+
   prim_command.reset();
 }
 
@@ -109,9 +116,9 @@ void ek_commandBTick(const char* dbgStr)
 {
   btickType_e btType = BTICK_UNDEF;
   string      btIdentStr;
-  string      btParenStr("-PAREN-");  // TODO
+  string      btParenStr;
 
-  ek_collectBTIdent(btIdentStr,btType);
+  ek_collectBTInfo(btIdentStr,btParenStr,btType);
   prim_command->setBTick(static_cast<int>(btType),btIdentStr,btParenStr);
 
   E_DEBUG("[%3d]   +   [%s] [ek_commandBTick] ------> identStr: '%s', btType: %d\n",ek_yyLineNum,dbgStr,btIdentStr.c_str(),btType);
@@ -163,8 +170,17 @@ void primCommand_c::setBTick(int btType, const string& idStr, const string& pare
   case BTICK_EXPANSION_A:
   case BTICK_EXPANSION_B:
   case BTICK_EXPANSION_C:
+    {
+      elemExp_c *btEx = new elemExp_c();
+      btEx->identStr = idStr;
+      btEx->parenStr = parenStr;
+      argLst.push_back(static_cast<element_c*>(btEx));
+    }
+    break;
   case BTICK_UNDEF:
   default:
+    printf("[primCommand_c::setBTick] This state supposedly unreachable!\n");
+    exit(EXIT_FAILURE);
     break;
   }
 }

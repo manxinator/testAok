@@ -56,8 +56,11 @@ static void ek_quoteStr    (const char* startStr);
 static void ek_commandQuote(const char* startStr);
 static void ek_btick_start (const char* startStr);
 static void ek_btick_ident (const char* idStr   );
-static void ek_btick_rparen(const char* tailStr );
 static void ek_btick_eqn   (const char* parenStr);
+static void ek_btick_rparen(const char* tailStr );
+static void ek_btick_accum (const char* dataStr );
+static void ek_btick_exp   (const char* typeStr );
+static void ek_btick_expAcc(const char* dataStr );
 
   /*
     Yacc Functions
@@ -78,6 +81,8 @@ int ek_yyLineNum = -1; // must be initialized
 %s      IN_XML_BODY
 %s      IN_BACKTICK_START
 %s      IN_BACKTICK_PAREN
+%s      IN_BACKTICK_EXP1
+%s      IN_BACKTICK_EXP2
 
   /*
     Lex Tokens
@@ -151,11 +156,27 @@ xml_end             \<[\t \n]*\/[A-Za-z0-9_][A-Za-z0-9_\-\.\/\\]*[\t \n]*\>
 <IN_BACKTICK_START>{
     {identLParen}   { ek_btick_ident(yytext); BEGIN IN_BACKTICK_PAREN; }
     {leftparen}     { ek_btick_eqn  (yytext); BEGIN IN_BACKTICK_PAREN; }
+    [\%\$]          { ek_btick_exp  (yytext); BEGIN IN_BACKTICK_EXP1;  }
+    \^              { ek_btick_exp  (yytext); BEGIN IN_BACKTICK_EXP2;  }
     .               { ek_yyerror("===> [IN_BACKTICK_START] unexpected token!\n"); yyterminate(); }
 }
 <IN_BACKTICK_PAREN>{
     {rightparen}    { yy_pop_state(); ek_btick_rparen(yytext); return BTICK_SEQ; }
+    [^\(\)\n]+      { ek_btick_accum(yytext); }
+    \n              { ek_btick_accum(yytext); ek_newLine(); }
+    /* TODO: support for recursive parentheses */
     .               { ek_yyerror("===> [IN_BACKTICK_PAREN] unexpected token!\n"); yyterminate(); }
+}
+<IN_BACKTICK_EXP1>{
+      /* Spaces not allowed at expansions at this time */
+    [0-9]+          { yy_pop_state(); ek_btick_expAcc(yytext); return BTICK_SEQ; }
+    \([0-9]+\)      { yy_pop_state(); ek_btick_expAcc(yytext); return BTICK_SEQ; }
+    .               { ek_yyerror("===> [IN_BACKTICK_EXP1] unexpected token!\n"); yyterminate(); }
+}
+<IN_BACKTICK_EXP2>{
+      /* Spaces not allowed at expansions at this time */
+    \([(\.\.)0-9]+\) { yy_pop_state(); ek_btick_expAcc(yytext); return BTICK_SEQ; }
+    .                { ek_yyerror("===> [IN_BACKTICK_EXP2] unexpected token!\n"); yyterminate(); }
 }
 
 
@@ -390,11 +411,19 @@ std::shared_ptr<std::vector<std::string> > ek_collectQStr(void)
 }
         /*--------------------------------------------------------------------*/
 std::string ekBTickIdentStr;
+std::string ekBTickParenStr;
 btickType_e ekBtType = BTICK_UNDEF;
 
 void ek_btick_start (const char* startStr)
 {
+#if 0
   ekBTickIdentStr.clear();
+  ekBTickParenStr.clear();
+#else
+  // Assertions
+  if (ekBTickIdentStr.length() > 0) ek_yyerror("Assertion failed: ekBTickIdentStr not empty!!!");
+  if (ekBTickParenStr.length() > 0) ek_yyerror("Assertion failed: ekBTickParenStr not empty!!!");
+#endif
   E_DEBUG("* [ek_btick_start]  '%s' at line %d\n",startStr,ek_yyLineNum);
 }
 
@@ -417,7 +446,7 @@ void ek_btick_ident (const char* idStr)
 void ek_btick_eqn (const char* parenStr)
 {
   ekBtType = BTICK_EQN;
-  E_DEBUG("* [ek_btick_eqn]  '%s' at line %d\n",parenStr,ek_yyLineNum);
+  E_DEBUG("* [ek_btick_eqn]    '%s' at line %d\n",parenStr,ek_yyLineNum);
 }
 
 void ek_btick_rparen (const char* tailStr)
@@ -425,11 +454,58 @@ void ek_btick_rparen (const char* tailStr)
   E_DEBUG("* [ek_btick_rparen] '%s' at line %d\n",tailStr,ek_yyLineNum);
 }
 
-void ek_collectBTIdent (std::string &identStr, btickType_e &btType)
+void ek_btick_accum (const char* dataStr)
+{
+  E_DEBUG("* [ek_btick_accum]  '%s' at line %d\n",dataStr,ek_yyLineNum);
+  ekBTickParenStr += dataStr;
+}
+
+void ek_btick_exp (const char* typeStr)
+{
+  switch (typeStr[0])
+  {
+  case '^': ekBtType = BTICK_EXPANSION_A; ekBTickIdentStr.assign("^"); break;
+  case '%': ekBtType = BTICK_EXPANSION_B; ekBTickIdentStr.assign("%"); break;
+  case '$': ekBtType = BTICK_EXPANSION_C; ekBTickIdentStr.assign("$"); break;
+  default:
+    ek_yyerror("This state supposedly unreachable! [ek_btick_exp()]!");
+    break;
+  }
+  E_DEBUG("* [ek_btick_exp]    '%s' at line %d ====> '%s'\n",typeStr,ek_yyLineNum,ekBTickIdentStr.c_str());
+}
+
+void ek_btick_expAcc(const char* dataStr)
+{
+  E_DEBUG("* [ek_btick_expAcc] '%s' at line %d\n",dataStr,ek_yyLineNum);
+  ekBTickParenStr += dataStr;
+  if (ekBTickParenStr[0] == '(') {
+    int len = ekBTickParenStr.length();
+    if (ekBTickParenStr[len-1] != ')') {
+      printf("[ek_btick_expAcc] This state supposedly unreachable!\n");
+      exit(EXIT_FAILURE);
+    }
+    ekBTickParenStr = ekBTickParenStr.substr(1,len-2);
+  }
+}
+
+void ek_collectBTInfo (std::string &identStr, std::string &parenStr, btickType_e &btType)
 {
   btType   = ekBtType;
   identStr = ekBTickIdentStr;
+  parenStr = ekBTickParenStr;
   ekBTickIdentStr.clear();
+  ekBTickParenStr.clear();
+}
+        /*--------------------------------------------------------------------*/
+void ek_lexInit(void)
+{
+  ekBTickIdentStr.reserve(4096);
+  ekBTickParenStr.reserve(4096);
+}
+
+void ek_lexCleanup(void)
+{
+  ek_quoteAccum.reset();
 }
 
         /*--------------------------------------------------------------------*/
@@ -439,11 +515,6 @@ void stringNewline2LineNum(const char* readStr)
   for (int iii=0; readStr[iii] != 0; iii++)
     if ('\n' == readStr[iii])
       ek_newLine();
-}
-
-void ek_lexCleanup(void)
-{
-  ek_quoteAccum.reset();
 }
 
         /*--------------------------------------------------------------------*/

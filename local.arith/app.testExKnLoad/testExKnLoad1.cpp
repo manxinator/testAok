@@ -32,7 +32,7 @@
 
 void func_command(ex_knobs::primCommand_c* cmdPrim)
 {
-  printf("+++ [func_command] line: %d { %s",cmdPrim->lineNum,cmdPrim->ident.c_str());
+  printf("+++++ [func_command] line: %d { %s",cmdPrim->lineNum,cmdPrim->ident.c_str());
   for (auto it = cmdPrim->argLst.begin(); it != cmdPrim->argLst.end(); it++) {
     ex_knobs::element_c::elementType_e elem_type = (*it)->elemType;
     switch (elem_type)
@@ -47,6 +47,11 @@ void func_command(ex_knobs::primCommand_c* cmdPrim)
     case ex_knobs::element_c::ELEM_EQUATION: {
         ex_knobs::elemEqn_c *eBtFn = dynamic_cast<ex_knobs::elemEqn_c*>(*it);
         printf(", elemEqn_c{%s}",eBtFn->parenStr.c_str());
+        break;
+      }
+    case ex_knobs::element_c::ELEM_EXPANSION: {
+        ex_knobs::elemExp_c *eBtEx = dynamic_cast<ex_knobs::elemExp_c*>(*it);
+        printf(", elemExp_c{%s,%s}",eBtEx->identStr.c_str(),eBtEx->parenStr.c_str());
         break;
       }
     default:

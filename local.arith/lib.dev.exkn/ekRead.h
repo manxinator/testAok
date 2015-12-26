@@ -91,6 +91,16 @@ namespace ex_knobs
     virtual ~elemEqn_c() {}
   };
 
+  class elemExp_c : public element_c {
+  public:
+    std::string identStr;
+    std::string parenStr;
+
+  public:
+             elemExp_c() : element_c(ELEM_EXPANSION) { }
+    virtual ~elemExp_c() {}
+  };
+
     // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
   class primitive_c {
