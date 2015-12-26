@@ -36,7 +36,7 @@ using namespace ex_knobs;
 
   // Delegate Interface
   //
-function<void(primCommand_c*)> ex_knobs::ek_command_f;
+function<void(primCommand_c*)> ex_knobs::ek_command_f;  // TODO: make this <void(shared_ptr<...>)>
 
   // Globals
   //

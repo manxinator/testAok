@@ -77,6 +77,7 @@ int ek_yyLineNum = -1; // must be initialized
     States
   */
 %s      COMMAND
+%s      OBJECT
 %s      IN_COMMENT_BL
 %s      IN_XML_START
 %s      IN_XML_BODY
@@ -99,6 +100,8 @@ identString         [A-Za-z0-9_][A-Za-z0-9_\-\.\/\\]*
 newLine             [\t ]*\n
 
 backtick            "`"
+percent             "%"
+colons              ":"+
 leftparen           "("
 rightparen          ")"
 identLParen         [A-Za-z0-9_][A-Za-z0-9_\-\.\/\\]*[\t ]*"("
@@ -114,11 +117,12 @@ xml_end             \<[\t \n]*\/[A-Za-z0-9_][A-Za-z0-9_\-\.\/\\]*[\t \n]*\>
 
 /*----------------------------------------------------------------------------*/
 %%
-  // Idea:
-  // - Within INITIAL, save last line number before any state transition -- or maybe always
-  // - This tells yacc when the last statement was initiated
-
+  /* Idea:
+     - Within INITIAL, save last line number before any state transition -- or maybe always
+     - This tells yacc when the last statement was initiated
+  */
 <INITIAL>{wsLeading}        ;
+<INITIAL>{percent}          { BEGIN OBJECT; }
 <INITIAL>{commentSl}        {                               ek_comment_sl(yytext); return ENDL;         }
 <INITIAL>{commentBl_start}  { yy_push_state(IN_COMMENT_BL); ek_comment_b0(yytext);                      }
 <INITIAL>{commandId}        { BEGIN COMMAND;                ek_command_id(yytext); return COMMAND_ID;   }
@@ -126,6 +130,7 @@ xml_end             \<[\t \n]*\/[A-Za-z0-9_][A-Za-z0-9_\-\.\/\\]*[\t \n]*\>
 <INITIAL>{newLine}          {                               ek_newLine();          return ENDL;         }
 <INITIAL>.                  ek_yyerror("Unexpected token [inside INITIAL state]");
 
+  /* NOTE: CommandID is parsed even before entering the COMMAND state */
 <COMMAND>{quotStr_start}    { ek_commandQuote(yytext);                             return COMMAND_QSTR; }
 <COMMAND>{commentSl}        { BEGIN INITIAL; ek_comment_sl(yytext);                return ENDL;         }
 <COMMAND>{commentBl_start}  { yy_push_state(IN_COMMENT_BL);     ek_comment_b0 (yytext);                 }
@@ -135,11 +140,18 @@ xml_end             \<[\t \n]*\/[A-Za-z0-9_][A-Za-z0-9_\-\.\/\\]*[\t \n]*\>
 <COMMAND>{newLine}          { BEGIN INITIAL; ek_newLine(); return ENDL; }
   /*<COMMAND>.              { printf(" { <COMMAND>. '%s' }\n",yytext); } -- Supposedly unreachable state */
 
+  /* TODO: backticks, strings and comments */
+<OBJECT>{identString}       { E_DEBUG("* [OBJECT{identString}]  '%s' at line %d\n",yytext,ek_yyLineNum); return OBJ_ID; }
+<OBJECT>{colons}            { E_DEBUG("* [OBJECT{identString}]  '%s' at line %d\n",yytext,ek_yyLineNum); return OBJ_ID; }
+<OBJECT>{whitespace}        ;
+<OBJECT>{newLine}           { BEGIN INITIAL; ek_newLine(); return ENDL; }
+<OBJECT>.                   ek_yyerror("Unexpected token [inside OBJECT state]");
+
 <IN_COMMENT_BL>{
     "*/"        { yy_pop_state(); ek_comment_b2(yytext); }
     [^*\n]+     ek_comment_b1(yytext);
     "*"         ek_comment_b1(yytext);
-    \n          ek_comment_nl();
+    \n          ek_comment_nl();  // TODO: if previous {int yy_top_state()} is either command or object, terminate those states -- pop, begin comment, return endl
     <<EOF>>     { ek_yyerror("Unexpected EOF encountered while parsing comment block"); yyterminate(); }
 } /* { ...; } -- NOTE: Suceeding code block has no effect, but I can't find where this is documented in the flex manual */
 

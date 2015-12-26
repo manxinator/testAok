@@ -56,6 +56,8 @@ extern int  ek_yylex  (void);
 
 %token BTICK_SEQ
 
+%token OBJ_ID
+
   // - Yacc requires a union for lex return values
   // - Then, associate the return values to defined token types
   //
@@ -80,7 +82,8 @@ eklines:
 
 ekline:
     command_stmt              ENDL  { E_DEBUG("[%3d] + [ekline] 1 command_stmt             \n\n",ek_yyLineNum); }
-  | xml_stmt                  ENDL  { E_DEBUG("[%3d] + [ekline] 2 xml_stmt                 \n\n",ek_yyLineNum); }
+  | obj_stmt                  ENDL  { E_DEBUG("[%3d] + [ekline] 2 obj_stmt                 \n\n",ek_yyLineNum); }
+  | xml_stmt                  ENDL  { E_DEBUG("[%3d] + [ekline] 3 xml_stmt                 \n\n",ek_yyLineNum); }
   | ENDL                            { /* E_DEBUG("[%3d] + [ekline] 6 ENDL                     \n\n",ek_yyLineNum); */ }
   ;
 
@@ -93,9 +96,16 @@ command_args:
     command_args COMMAND_ARGS     { ek_commandArgs ("command_args 1",$2); }
   | command_args COMMAND_QSTR     { ek_commandQStr ("command_args 2",ek_collectQStr());  }
   | command_args BTICK_SEQ        { ek_commandBTick("command_args 3"); }
-  | COMMAND_ARGS                  { ek_commandArgs ("command_args 4",$1); }
-  | COMMAND_QSTR                  { ek_commandQStr ("command_args 5",ek_collectQStr());  }
-  | BTICK_SEQ                     { ek_commandBTick("command_args 6"); }
+  |              COMMAND_ARGS     { ek_commandArgs ("command_args 4",$1); }
+  |              COMMAND_QSTR     { ek_commandQStr ("command_args 5",ek_collectQStr());  }
+  |              BTICK_SEQ        { ek_commandBTick("command_args 6"); }
+  ;
+
+obj_stmt:
+    obj_stmt OBJ_ID               { E_DEBUG("[%3d] + [obj_stmt] 1 obj_stmt OBJ_ID    \n",ek_yyLineNum); }
+  | obj_stmt BTICK_SEQ            { E_DEBUG("[%3d] + [obj_stmt] 2 obj_stmt BTICK_SEQ \n",ek_yyLineNum); }
+  |          OBJ_ID               { E_DEBUG("[%3d] + [obj_stmt] 3          OBJ_ID    \n",ek_yyLineNum); }
+  |          BTICK_SEQ            { E_DEBUG("[%3d] + [obj_stmt] 4          BTICK_SEQ \n",ek_yyLineNum); }
   ;
 
 xml_stmt:
