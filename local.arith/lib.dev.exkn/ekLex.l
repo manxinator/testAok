@@ -57,7 +57,8 @@ static void ek_commandQuote(const char* startStr);
 static void ek_btick_start (const char* startStr);
 static void ek_btick_ident (const char* idStr   );
 static void ek_btick_eqn   (const char* parenStr);
-static void ek_btick_rparen(const char* tailStr );
+static void ek_btick_lparen(const char* openStr );
+static int  ek_btick_rparen(const char* tailStr );
 static void ek_btick_accum (const char* dataStr );
 static void ek_btick_exp   (const char* typeStr );
 static void ek_btick_expAcc(const char* dataStr );
@@ -86,6 +87,9 @@ int ek_yyLineNum = -1; // must be initialized
 
   /*
     Lex Tokens
+    - identString / identLParen
+      Note:      Identifiers can start with numbers, as well as alphabet and underscore
+      Rationale: EK doesn't handle numbers discretely, so everything is considered a string
   */
 wsLeading           ^[\t ]+
 whitespace          [\t ]+
@@ -110,8 +114,9 @@ xml_end             \<[\t \n]*\/[A-Za-z0-9_][A-Za-z0-9_\-\.\/\\]*[\t \n]*\>
 
 /*----------------------------------------------------------------------------*/
 %%
-  // Idea: within INITIAL, save last line number before any state transition -- or maybe always
-  //       this tells yacc when the last statement was initiated
+  // Idea:
+  // - Within INITIAL, save last line number before any state transition -- or maybe always
+  // - This tells yacc when the last statement was initiated
 
 <INITIAL>{wsLeading}        ;
 <INITIAL>{commentSl}        {                               ek_comment_sl(yytext); return ENDL;         }
@@ -161,20 +166,20 @@ xml_end             \<[\t \n]*\/[A-Za-z0-9_][A-Za-z0-9_\-\.\/\\]*[\t \n]*\>
     .               { ek_yyerror("===> [IN_BACKTICK_START] unexpected token!\n"); yyterminate(); }
 }
 <IN_BACKTICK_PAREN>{
-    {rightparen}    { yy_pop_state(); ek_btick_rparen(yytext); return BTICK_SEQ; }
+    {rightparen}    { if (ek_btick_rparen(yytext)) { yy_pop_state(); return BTICK_SEQ; } }
+    {leftparen}     { ek_btick_lparen(yytext); }
     [^\(\)\n]+      { ek_btick_accum(yytext); }
     \n              { ek_btick_accum(yytext); ek_newLine(); }
-    /* TODO: support for recursive parentheses */
-    .               { ek_yyerror("===> [IN_BACKTICK_PAREN] unexpected token!\n"); yyterminate(); }
+    /* .               { ek_yyerror("===> [IN_BACKTICK_PAREN] unexpected token!\n"); yyterminate(); } */
 }
 <IN_BACKTICK_EXP1>{
-      /* Spaces not allowed at expansions at this time */
+      /* Spaces not allowed at expansions */
     [0-9]+          { yy_pop_state(); ek_btick_expAcc(yytext); return BTICK_SEQ; }
     \([0-9]+\)      { yy_pop_state(); ek_btick_expAcc(yytext); return BTICK_SEQ; }
     .               { ek_yyerror("===> [IN_BACKTICK_EXP1] unexpected token!\n"); yyterminate(); }
 }
 <IN_BACKTICK_EXP2>{
-      /* Spaces not allowed at expansions at this time */
+      /* Spaces not allowed at expansions */
     \([(\.\.)0-9]+\) { yy_pop_state(); ek_btick_expAcc(yytext); return BTICK_SEQ; }
     .                { ek_yyerror("===> [IN_BACKTICK_EXP2] unexpected token!\n"); yyterminate(); }
 }
@@ -412,6 +417,7 @@ std::shared_ptr<std::vector<std::string> > ek_collectQStr(void)
         /*--------------------------------------------------------------------*/
 std::string ekBTickIdentStr;
 std::string ekBTickParenStr;
+int         ekBTickParenCount;
 btickType_e ekBtType = BTICK_UNDEF;
 
 void ek_btick_start (const char* startStr)
@@ -420,6 +426,7 @@ void ek_btick_start (const char* startStr)
   ekBTickIdentStr.clear();
   ekBTickParenStr.clear();
 #else
+  ekBTickParenCount = 0;
   // Assertions
   if (ekBTickIdentStr.length() > 0) ek_yyerror("Assertion failed: ekBTickIdentStr not empty!!!");
   if (ekBTickParenStr.length() > 0) ek_yyerror("Assertion failed: ekBTickParenStr not empty!!!");
@@ -449,9 +456,21 @@ void ek_btick_eqn (const char* parenStr)
   E_DEBUG("* [ek_btick_eqn]    '%s' at line %d\n",parenStr,ek_yyLineNum);
 }
 
-void ek_btick_rparen (const char* tailStr)
+int ek_btick_rparen (const char* tailStr)
 {
-  E_DEBUG("* [ek_btick_rparen] '%s' at line %d\n",tailStr,ek_yyLineNum);
+  E_DEBUG("* [ek_btick_rparen] '%s' at line %d {ekBTickParenCount: %d}\n",tailStr,ek_yyLineNum,ekBTickParenCount);
+  if (ekBTickParenCount > 0) {
+    ekBTickParenStr += tailStr;
+    ekBTickParenCount--;
+    return 0;
+  }
+  return 1;
+}
+
+void ek_btick_lparen(const char* openStr)
+{
+  ekBTickParenCount++;
+  ekBTickParenStr += openStr;
 }
 
 void ek_btick_accum (const char* dataStr)
