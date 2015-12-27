@@ -57,6 +57,7 @@ extern int  ek_yylex  (void);
 %token BTICK_SEQ
 
 %token OBJ_ID
+%token OBJ_QSTR
 
   // - Yacc requires a union for lex return values
   // - Then, associate the return values to defined token types
@@ -103,9 +104,11 @@ command_args:
 
 obj_stmt:
     obj_stmt OBJ_ID               { E_DEBUG("[%3d] + [obj_stmt] 1 obj_stmt OBJ_ID    \n",ek_yyLineNum); }
-  | obj_stmt BTICK_SEQ            { E_DEBUG("[%3d] + [obj_stmt] 2 obj_stmt BTICK_SEQ \n",ek_yyLineNum); }
-  |          OBJ_ID               { E_DEBUG("[%3d] + [obj_stmt] 3          OBJ_ID    \n",ek_yyLineNum); }
-  |          BTICK_SEQ            { E_DEBUG("[%3d] + [obj_stmt] 4          BTICK_SEQ \n",ek_yyLineNum); }
+  | obj_stmt OBJ_QSTR             { E_DEBUG("[%3d] + [obj_stmt] 2 obj_stmt OBJ_QSTR  \n",ek_yyLineNum); }
+  | obj_stmt BTICK_SEQ            { E_DEBUG("[%3d] + [obj_stmt] 3 obj_stmt BTICK_SEQ \n",ek_yyLineNum); }
+  |          OBJ_ID               { E_DEBUG("[%3d] + [obj_stmt] 4          OBJ_ID    \n",ek_yyLineNum); }
+  |          OBJ_QSTR             { E_DEBUG("[%3d] + [obj_stmt] 5          OBJ_QSTR  \n",ek_yyLineNum); }
+  |          BTICK_SEQ            { E_DEBUG("[%3d] + [obj_stmt] 6          BTICK_SEQ \n",ek_yyLineNum); }
   ;
 
 xml_stmt:

@@ -54,6 +54,7 @@ static int  ek_xml_match (const char* xmlStr);      // Returns 1 to terminate XM
 
 static void ek_quoteStr    (const char* startStr);
 static void ek_commandQuote(const char* startStr);
+static void ek_objectQuote (const char* startStr);
 static void ek_btick_start (const char* startStr);
 static void ek_btick_ident (const char* idStr   );
 static void ek_btick_eqn   (const char* parenStr);
@@ -142,9 +143,12 @@ xml_end             \<[\t \n]*\/[A-Za-z0-9_][A-Za-z0-9_\-\.\/\\]*[\t \n]*\>
 <COMMAND>{newLine}          { BEGIN INITIAL; ek_newLine(); return ENDL; }
   /*<COMMAND>.              { printf(" { <COMMAND>. '%s' }\n",yytext); } -- Supposedly unreachable state */
 
-  /* TODO: backticks, strings and comments */
+  /* TODO: backticks */
+<OBJECT>{quotStr_start}     { ek_objectQuote(yytext);                                                    return OBJ_QSTR; }
 <OBJECT>{identString}       { E_DEBUG("* [OBJECT{identString}]  '%s' at line %d\n",yytext,ek_yyLineNum); return OBJ_ID; }
 <OBJECT>{colons}            { E_DEBUG("* [OBJECT{identString}]  '%s' at line %d\n",yytext,ek_yyLineNum); return OBJ_ID; }
+<OBJECT>{commentSl}         { BEGIN INITIAL; ek_comment_sl(yytext); return ENDL; }
+<OBJECT>{commentBl_start}   { yy_push_state(IN_COMMENT_BL); ek_comment_b0 (yytext); }
 <OBJECT>{whitespace}        ;
 <OBJECT>{newLine}           { BEGIN INITIAL; ek_newLine(); return ENDL; }
 <OBJECT>.                   ek_yyerror("Unexpected token [inside OBJECT state]");
@@ -189,7 +193,7 @@ xml_end             \<[\t \n]*\/[A-Za-z0-9_][A-Za-z0-9_\-\.\/\\]*[\t \n]*\>
     {leftparen}       { ek_btick_lparen(yytext); }
  /* [^\(\)\n]+        { ek_btick_accum(yytext);  }  -- this doesn't work, as I couldn't find an exclude for comment block start */
     \n                { ek_btick_accum(yytext); ek_newLine(); }
-    .                 { ek_btick_accum(yytext); }   // Forced to use the '.' here
+    .                 { ek_btick_accum(yytext); }   /* Forced to use the '.' here */
 }
 <IN_BACKTICK_EXP1>{
       /* Spaces not allowed at expansions */
@@ -313,6 +317,12 @@ static char commArgStr[MAX_STR_SIZE];
 void ek_commandQuote(const char* startStr)
 {
   //E_DEBUG("* [ek_commandQuote] '%s' line %d\n",startStr,ek_yyLineNum);
+  ek_quoteStr(startStr);
+}
+        //----------------------------------------------------------------------
+void ek_objectQuote(const char* startStr)
+{
+  E_DEBUG("* [ek_objectQuote] '%s' line %d\n",startStr,ek_yyLineNum);
   ek_quoteStr(startStr);
 }
         //----------------------------------------------------------------------
