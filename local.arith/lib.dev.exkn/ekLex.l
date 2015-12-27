@@ -43,14 +43,14 @@ void stringNewline2LineNum(const char* readStr);
   */
 static void ek_newLine   (void);
 static void ek_comment_sl(const char* commStr);
-static void ek_comment_b0(const char* commStr);    // Start of comment
-static void ek_comment_b1(const char* commStr);    // Comment chunks
-static void ek_comment_b2(const char* commStr);    // End of comment
-static void ek_comment_nl(void);                   // Newline inside comment
+static void ek_comment_b0(const char* commStr);     // Start of comment
+static void ek_comment_b1(const char* commStr);     // Comment chunks
+static int  ek_comment_b2(const char* commStr);     // End of comment, Returns 1 if a pop occurred
+static int  ek_comment_nl(void);                    // Newline inside comment, Returns 1 to terminate previous state
 static void ek_command_id(const char* commStr);
 static void ek_command_ar(const char* commStr);
 static void ek_xml_start (const char* xmlStr);
-static int  ek_xml_match (const char* xmlStr);
+static int  ek_xml_match (const char* xmlStr);      // Returns 1 to terminate XML parsing
 
 static void ek_quoteStr    (const char* startStr);
 static void ek_commandQuote(const char* startStr);
@@ -58,7 +58,7 @@ static void ek_btick_start (const char* startStr);
 static void ek_btick_ident (const char* idStr   );
 static void ek_btick_eqn   (const char* parenStr);
 static void ek_btick_lparen(const char* openStr );
-static int  ek_btick_rparen(const char* tailStr );
+static int  ek_btick_rparen(const char* tailStr );  // Returns 1 to terminate backtick parsing
 static void ek_btick_accum (const char* dataStr );
 static void ek_btick_exp   (const char* typeStr );
 static void ek_btick_expAcc(const char* dataStr );
@@ -78,6 +78,7 @@ int ek_yyLineNum = -1; // must be initialized
   */
 %s      COMMAND
 %s      OBJECT
+%s      KNOB_DEF
 %s      IN_COMMENT_BL
 %s      IN_XML_START
 %s      IN_XML_BODY
@@ -121,7 +122,8 @@ xml_end             \<[\t \n]*\/[A-Za-z0-9_][A-Za-z0-9_\-\.\/\\]*[\t \n]*\>
      - Within INITIAL, save last line number before any state transition -- or maybe always
      - This tells yacc when the last statement was initiated
   */
-<INITIAL>{wsLeading}        ;
+  /* <INITIAL>{wsLeading}        ; */
+<INITIAL>{whitespace}       ;
 <INITIAL>{percent}          { BEGIN OBJECT; }
 <INITIAL>{commentSl}        {                               ek_comment_sl(yytext); return ENDL;         }
 <INITIAL>{commentBl_start}  { yy_push_state(IN_COMMENT_BL); ek_comment_b0(yytext);                      }
@@ -148,10 +150,14 @@ xml_end             \<[\t \n]*\/[A-Za-z0-9_][A-Za-z0-9_\-\.\/\\]*[\t \n]*\>
 <OBJECT>.                   ek_yyerror("Unexpected token [inside OBJECT state]");
 
 <IN_COMMENT_BL>{
-    "*/"        { yy_pop_state(); ek_comment_b2(yytext); }
+    "*/"        { if (ek_comment_b2(yytext)) { BEGIN INITIAL; return ENDL; } else yy_pop_state();  }   /* return ENDL; Rationale: succeeding statements should be considered as being in their own line */
     [^*\n]+     ek_comment_b1(yytext);
     "*"         ek_comment_b1(yytext);
-    \n          ek_comment_nl();  // TODO: if previous {int yy_top_state()} is either command or object, terminate those states -- pop, begin comment, return endl
+      /* Newlines within comment blocks as delimiters to previous state:
+         - if previous {int yy_top_state()} is either command, object or knob, terminate those states
+           - pop, begin comment, and return endl when comment is done
+           - don't terminate within backtick or other states */
+    \n          { if (ek_comment_nl()) { yy_pop_state(); BEGIN IN_COMMENT_BL; } }
     <<EOF>>     { ek_yyerror("Unexpected EOF encountered while parsing comment block"); yyterminate(); }
 } /* { ...; } -- NOTE: Suceeding code block has no effect, but I can't find where this is documented in the flex manual */
 
@@ -178,11 +184,12 @@ xml_end             \<[\t \n]*\/[A-Za-z0-9_][A-Za-z0-9_\-\.\/\\]*[\t \n]*\>
     .               { ek_yyerror("===> [IN_BACKTICK_START] unexpected token!\n"); yyterminate(); }
 }
 <IN_BACKTICK_PAREN>{
-    {rightparen}    { if (ek_btick_rparen(yytext)) { yy_pop_state(); return BTICK_SEQ; } }
-    {leftparen}     { ek_btick_lparen(yytext); }
-    [^\(\)\n]+      { ek_btick_accum(yytext); }
-    \n              { ek_btick_accum(yytext); ek_newLine(); }
-    /* .               { ek_yyerror("===> [IN_BACKTICK_PAREN] unexpected token!\n"); yyterminate(); } */
+    {commentBl_start} { yy_push_state(IN_COMMENT_BL); ek_comment_b0 (yytext); } /* allow block comments */
+    {rightparen}      { if (ek_btick_rparen(yytext)) { yy_pop_state(); return BTICK_SEQ; } }
+    {leftparen}       { ek_btick_lparen(yytext); }
+ /* [^\(\)\n]+        { ek_btick_accum(yytext);  }  -- this doesn't work, as I couldn't find an exclude for comment block start */
+    \n                { ek_btick_accum(yytext); ek_newLine(); }
+    .                 { ek_btick_accum(yytext); }   // Forced to use the '.' here
 }
 <IN_BACKTICK_EXP1>{
       /* Spaces not allowed at expansions */
@@ -192,7 +199,7 @@ xml_end             \<[\t \n]*\/[A-Za-z0-9_][A-Za-z0-9_\-\.\/\\]*[\t \n]*\>
 }
 <IN_BACKTICK_EXP2>{
       /* Spaces not allowed at expansions */
-    \([(\.\.)0-9]+\) { yy_pop_state(); ek_btick_expAcc(yytext); return BTICK_SEQ; }
+    \([(\.\.)0-9]+\) { yy_pop_state(); ek_btick_expAcc(yytext); return BTICK_SEQ; }   // TODO: parentheses doesn't work the way I thought, need to revisit this
     .                { ek_yyerror("===> [IN_BACKTICK_EXP2] unexpected token!\n"); yyterminate(); }
 }
 
@@ -222,16 +229,34 @@ void ek_comment_sl(const char* commStr)
 
         //----------------------------------------------------------------------
 
+static int                      commentMlPopped = 0;
 static std::vector<std::string> commentMlLines;
 static char                     commentMlAccum[MAX_STR_SIZE];
 
-void ek_comment_nl(void)
+int ek_comment_nl(void) // Returns 1 to terminate previous state
 {
-  E_DEBUG("* [ek_comment_nl] '%s' -- at line %d\n",commentMlAccum,ek_yyLineNum);
+  int termPrevState = 0;
+  int topState = yy_top_state();
+  if ((topState == COMMAND) || (topState == OBJECT) || (topState == KNOB_DEF)) {
+    termPrevState   = 1;
+    commentMlPopped = 1;
+  }
+
+#ifdef EKDEBUG
+  std::string topStateStr;
+  if      (topState == COMMAND)  topStateStr = "COMMAND";
+  else if (topState == OBJECT)   topStateStr = "OBJECT";
+  else if (topState == KNOB_DEF) topStateStr = "KNOB_DEF";
+  else                           topStateStr = std::to_string(topState);
+#endif
+
+  E_DEBUG("* [ek_comment_nl] '%s' -- at line %d; yy_top_state(): %s\n",commentMlAccum,ek_yyLineNum,topStateStr.c_str());
   std::string newCommLine(commentMlAccum);
   commentMlLines.push_back(newCommLine);
   commentMlAccum[0] = 0;
   ek_newLine();
+
+  return termPrevState;
 }
 
 void ek_comment_b0(const char* commStr)
@@ -248,9 +273,9 @@ void ek_comment_b1(const char* commStr)
   strcat(commentMlAccum,commStr);
 }
 
-void ek_comment_b2(const char* commStr)
+int ek_comment_b2(const char* commStr) // Returns 1 if a pop occurred
 {
-  E_DEBUG("* [ek_comment_b2] '%s' -- ended at line %d\n",commStr,ek_yyLineNum);
+  E_DEBUG("* [ek_comment_b2] '%s' -- ended at line %d; commentMlPopped: %d\n",commStr,ek_yyLineNum,commentMlPopped);
   strcat(commentMlAccum,commStr);
   std::string newCommLine(commentMlAccum);
   commentMlLines.push_back(newCommLine);
@@ -263,6 +288,10 @@ void ek_comment_b2(const char* commStr)
 #endif
 
   commentMlLines.clear();
+
+  int retPop = commentMlPopped;
+  commentMlPopped = 0;
+  return retPop;
 }
         //----------------------------------------------------------------------
 void ek_command_id(const char* commStr)
@@ -318,7 +347,7 @@ void ek_yo(void) //-- for targeted debugging
   printf("[ek_yo]!\n");
 }
 
-int ek_xml_match(const char* xmlStr)
+int ek_xml_match(const char* xmlStr)  // returns 1 to terminate XML parsing
 {
   // Extract TAG in /TAG string
   int srcIdx=1;
@@ -468,7 +497,7 @@ void ek_btick_eqn (const char* parenStr)
   E_DEBUG("* [ek_btick_eqn]    '%s' at line %d\n",parenStr,ek_yyLineNum);
 }
 
-int ek_btick_rparen (const char* tailStr)
+int ek_btick_rparen (const char* tailStr)  // Returns 1 to terminate backtick parsing
 {
   E_DEBUG("* [ek_btick_rparen] '%s' at line %d {ekBTickParenCount: %d}\n",tailStr,ek_yyLineNum,ekBTickParenCount);
   if (ekBTickParenCount > 0) {
