@@ -143,12 +143,12 @@ xml_end             \<[\t \n]*\/[A-Za-z0-9_][A-Za-z0-9_\-\.\/\\]*[\t \n]*\>
 <COMMAND>{newLine}          { BEGIN INITIAL; ek_newLine(); return ENDL; }
   /*<COMMAND>.              { printf(" { <COMMAND>. '%s' }\n",yytext); } -- Supposedly unreachable state */
 
-  /* TODO: backticks */
 <OBJECT>{quotStr_start}     { ek_objectQuote(yytext);                                                    return OBJ_QSTR; }
 <OBJECT>{identString}       { E_DEBUG("* [OBJECT{identString}]  '%s' at line %d\n",yytext,ek_yyLineNum); return OBJ_ID; }
 <OBJECT>{colons}            { E_DEBUG("* [OBJECT{identString}]  '%s' at line %d\n",yytext,ek_yyLineNum); return OBJ_ID; }
 <OBJECT>{commentSl}         { BEGIN INITIAL; ek_comment_sl(yytext); return ENDL; }
 <OBJECT>{commentBl_start}   { yy_push_state(IN_COMMENT_BL); ek_comment_b0 (yytext); }
+<OBJECT>{backtick}          { yy_push_state(IN_BACKTICK_START); ek_btick_start(yytext);                 }
 <OBJECT>{whitespace}        ;
 <OBJECT>{newLine}           { BEGIN INITIAL; ek_newLine(); return ENDL; }
 <OBJECT>.                   ek_yyerror("Unexpected token [inside OBJECT state]");
@@ -185,13 +185,15 @@ xml_end             \<[\t \n]*\/[A-Za-z0-9_][A-Za-z0-9_\-\.\/\\]*[\t \n]*\>
     {leftparen}     { ek_btick_eqn  (yytext); BEGIN IN_BACKTICK_PAREN; }
     [\%\$]          { ek_btick_exp  (yytext); BEGIN IN_BACKTICK_EXP1;  }
     \^              { ek_btick_exp  (yytext); BEGIN IN_BACKTICK_EXP2;  }
-    .               { ek_yyerror("===> [IN_BACKTICK_START] unexpected token!\n"); yyterminate(); }
+    .               { ek_yyerror("===> [IN_BACKTICK_START] unexpected token!"); yyterminate(); }
 }
 <IN_BACKTICK_PAREN>{
+      /* At this time, quote-strings are parsed just like any other character sequence */
     {commentBl_start} { yy_push_state(IN_COMMENT_BL); ek_comment_b0 (yytext); } /* allow block comments */
     {rightparen}      { if (ek_btick_rparen(yytext)) { yy_pop_state(); return BTICK_SEQ; } }
     {leftparen}       { ek_btick_lparen(yytext); }
  /* [^\(\)\n]+        { ek_btick_accum(yytext);  }  -- this doesn't work, as I couldn't find an exclude for comment block start */
+    {identString}     { ek_btick_accum(yytext); }   /* Forced to use this with '.' */
     \n                { ek_btick_accum(yytext); ek_newLine(); }
     .                 { ek_btick_accum(yytext); }   /* Forced to use the '.' here */
 }
@@ -199,12 +201,12 @@ xml_end             \<[\t \n]*\/[A-Za-z0-9_][A-Za-z0-9_\-\.\/\\]*[\t \n]*\>
       /* Spaces not allowed at expansions */
     [0-9]+          { yy_pop_state(); ek_btick_expAcc(yytext); return BTICK_SEQ; }
     \([0-9]+\)      { yy_pop_state(); ek_btick_expAcc(yytext); return BTICK_SEQ; }
-    .               { ek_yyerror("===> [IN_BACKTICK_EXP1] unexpected token!\n"); yyterminate(); }
+    .               { ek_yyerror("===> [IN_BACKTICK_EXP1] unexpected token!"); yyterminate(); }
 }
 <IN_BACKTICK_EXP2>{
       /* Spaces not allowed at expansions */
-    \([(\.\.)0-9]+\) { yy_pop_state(); ek_btick_expAcc(yytext); return BTICK_SEQ; }   // TODO: parentheses doesn't work the way I thought, need to revisit this
-    .                { ek_yyerror("===> [IN_BACKTICK_EXP2] unexpected token!\n"); yyterminate(); }
+    \((\.\.|[0-9|\,])+\)  { yy_pop_state(); ek_btick_expAcc(yytext); return BTICK_SEQ; }
+    .                     { ek_yyerror("Parsing '^(...)', expected list or range (or combination of both) of numbers"); yyterminate(); }
 }
 
 
