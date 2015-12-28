@@ -55,6 +55,8 @@ static int  ek_xml_match (const char* xmlStr);      // Returns 1 to terminate XM
 static void ek_quoteStr    (const char* startStr);
 static void ek_commandQuote(const char* startStr);
 static void ek_objectQuote (const char* startStr);
+static void ek_objectString(const char* idStr   );
+
 static void ek_btick_start (const char* startStr);
 static void ek_btick_ident (const char* idStr   );
 static void ek_btick_eqn   (const char* parenStr);
@@ -143,10 +145,10 @@ xml_end             \<[\t \n]*\/[A-Za-z0-9_][A-Za-z0-9_\-\.\/\\]*[\t \n]*\>
 <COMMAND>{newLine}          { BEGIN INITIAL; ek_newLine(); return ENDL; }
   /*<COMMAND>.              { printf(" { <COMMAND>. '%s' }\n",yytext); } -- Supposedly unreachable state */
 
-<OBJECT>{quotStr_start}     { ek_objectQuote(yytext);                                                    return OBJ_QSTR; }
-<OBJECT>{identString}       { E_DEBUG("* [OBJECT{identString}]  '%s' at line %d\n",yytext,ek_yyLineNum); return OBJ_ID; }
-<OBJECT>{colons}            { E_DEBUG("* [OBJECT{identString}]  '%s' at line %d\n",yytext,ek_yyLineNum); return OBJ_ID; }
-<OBJECT>{commentSl}         { BEGIN INITIAL; ek_comment_sl(yytext); return ENDL; }
+<OBJECT>{quotStr_start}     { ek_objectQuote(yytext);               return OBJ_QSTR; }
+<OBJECT>{identString}       { ek_objectString(yytext);              return OBJ_ID;  }
+<OBJECT>{colons}            { ek_objectString(yytext);              return OBJ_ID;  }
+<OBJECT>{commentSl}         { BEGIN INITIAL; ek_comment_sl(yytext); return ENDL;    }
 <OBJECT>{commentBl_start}   { yy_push_state(IN_COMMENT_BL); ek_comment_b0 (yytext); }
 <OBJECT>{backtick}          { yy_push_state(IN_BACKTICK_START); ek_btick_start(yytext);                 }
 <OBJECT>{whitespace}        ;
@@ -216,8 +218,13 @@ xml_end             \<[\t \n]*\/[A-Za-z0-9_][A-Za-z0-9_\-\.\/\\]*[\t \n]*\>
 /*----------------------------------------------------------------------------*/
 #define MAX_STR_SIZE    4096
 
-static char ek_static_str[MAX_STR_SIZE]; // CommandID, XmlTag
+static char ek_static_str[MAX_STR_SIZE]; // CommandID, XmlTag, Object
 int debug_aaaa = 0;
+
+void ek_yo(void) //-- for targeted debugging
+{
+  printf("[ek_yo]!\n");
+}
 
 void ek_newLine(void)
 {
@@ -327,6 +334,13 @@ void ek_objectQuote(const char* startStr)
   E_DEBUG("* [ek_objectQuote] '%s' line %d\n",startStr,ek_yyLineNum);
   ek_quoteStr(startStr);
 }
+
+void ek_objectString(const char* idStr)
+{
+  E_DEBUG("* [ek_objectString] '%s' line %d\n",idStr,ek_yyLineNum);
+  sprintf(ek_static_str,"%s",idStr);
+  ek_yylval.objNameStr = ek_static_str;
+}
         //----------------------------------------------------------------------
 void ek_xml_start(const char* xmlStr)
 {
@@ -354,11 +368,6 @@ void ek_xml_start(const char* xmlStr)
   ek_yylval.xmlTagId = ek_static_str;
 }
 
-void ek_yo(void) //-- for targeted debugging
-{
-  printf("[ek_yo]!\n");
-}
-
 int ek_xml_match(const char* xmlStr)  // returns 1 to terminate XML parsing
 {
   // Extract TAG in /TAG string
@@ -377,10 +386,7 @@ int ek_xml_match(const char* xmlStr)  // returns 1 to terminate XML parsing
 
   const char* tagStart = &xmlStr[srcIdx];
   E_DEBUG("* [ek_xml_match] '%s' at line %d\n",tagStart,ek_yyLineNum);
-//if (strstr(tagStart,"gandalf")) {
-//  debug_aaaa = 1;
-//  ek_yo();
-//}
+
   return strstr(tagStart,ek_static_str) == tagStart ? 1 : 0;
 }
 

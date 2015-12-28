@@ -37,11 +37,17 @@
 extern void ek_parserInit   (void);
 extern void ek_parserCleanup(void);
 
-  // Commands
+  // Command
 extern void ek_commandIdent(const char* dbgStr, const char *cmdId);
 extern void ek_commandArgs (const char* dbgStr, const char *cmdArgs);
 extern void ek_commandQStr (const char* dbgStr, std::shared_ptr<std::vector<std::string> > quoteStr);
 extern void ek_commandBTick(const char* dbgStr);
+
+  // Object
+extern void ek_objectDone (const char* dbgStr);
+extern void ek_objectStr  (const char* dbgStr, const char *objStr);
+extern void ek_objectQStr (const char* dbgStr, std::shared_ptr<std::vector<std::string> > quoteStr);
+extern void ek_objectBTick(const char* dbgStr);
 
 
 typedef enum _btickType_e_ {

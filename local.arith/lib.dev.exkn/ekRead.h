@@ -107,7 +107,8 @@ namespace ex_knobs
   public:
     typedef enum _primitiveType_e_ {
       PRIM_UNDEF   = 0,
-      PRIM_COMMAND = 1
+      PRIM_COMMAND = 1,
+      PRIM_OBJECT  = 2
     } primitiveType_e;
 
     primitiveType_e primType;
@@ -143,11 +144,31 @@ namespace ex_knobs
     void print (void);
   };
 
+  class primObject_c : public primitive_c {
+  public:
+    std::vector<element_c*> argLst; // TODO: change name from argLst into something appropriate
+
+  public:
+             primObject_c() : primitive_c(PRIM_OBJECT) {}
+    virtual ~primObject_c() {
+      for (auto it = argLst.begin(); it != argLst.end(); it++)
+        delete *it;
+    }
+
+    virtual void setLineNum(int lNum);
+
+    void setStr  (const std::string& arStr, int l_lineNum, int isQ);
+    void setBTick(int btType, const std::string& idStr, const std::string& parenStr);
+
+    void print (void);
+  };
+
     // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
   extern int ek_readfile(const char* inFN, int exitOnErr);
 
   extern std::function<void(primCommand_c*)> ek_command_f;
+  extern std::function<void(primObject_c*)>  ek_object_f;
 }
 
 //------------------------------------------------------------------------------

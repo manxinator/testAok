@@ -37,6 +37,7 @@ using namespace ex_knobs;
   // Delegate Interface
   //
 function<void(primCommand_c*)> ex_knobs::ek_command_f;  // TODO: make this <void(shared_ptr<...>)>
+function<void(primObject_c*)>  ex_knobs::ek_object_f;   // TODO: make this <void(shared_ptr<...>)>
 
   // Globals
   //
@@ -49,6 +50,7 @@ extern void ek_lexCleanup(void);
   // Global primitives
   //
 shared_ptr<primCommand_c> prim_command;
+shared_ptr<primObject_c>  prim_object;
 
 
 //------------------------------------------------------------------------------
@@ -56,6 +58,7 @@ shared_ptr<primCommand_c> prim_command;
 void ek_parserInit(void)
 {
   prim_command = make_shared<primCommand_c>();
+  prim_object  = make_shared<primObject_c>();
 
   ek_lexInit();
 }
@@ -65,9 +68,11 @@ void ek_parserCleanup(void)
   ek_lexCleanup();
 
   prim_command.reset();
+  prim_object.reset();
 }
 
 //------------------------------------------------------------------------------
+
 
 void ek_commandIdent (const char* dbgStr, const char *cmdId)
 {
@@ -125,6 +130,67 @@ void ek_commandBTick(const char* dbgStr)
 }
 
 
+//==============================================================================
+
+
+void ek_objectDone (const char* dbgStr)
+{
+  E_DEBUG("[%3d] + [%s] [ek_objectDone] \n",ek_yyLineNum,dbgStr);
+
+  // Process object -- for now, just print
+  //
+  if (ek_object_f)
+    ek_object_f(prim_object.get());
+  else
+    prim_object->print();
+
+  // After the command has been processed, renew
+  //
+  prim_object = make_shared<primObject_c>();
+}
+
+void ek_objectStr (const char* dbgStr, const char *objStr)
+{
+  E_DEBUG("[%3d] + [%s] [ek_objectStr] \n",ek_yyLineNum,dbgStr);
+
+  prim_object->setStr(objStr,ek_yyLineNum,0);
+}
+
+void ek_objectQStr (const char* dbgStr, shared_ptr<vector<string> > quoteStr)
+{
+  E_DEBUG("[%3d] + [%s] [ek_objectQStr] quoteStr->size(): %d\n",ek_yyLineNum,dbgStr,quoteStr->size());
+  int strLen = 8;
+  for (auto it = quoteStr->begin(); it != quoteStr->end(); it++)
+    strLen += it->length() + 2;
+
+  string workStr;
+  workStr.reserve(strLen);
+  for (auto it = quoteStr->begin(); ; ) {
+    workStr += *it;
+    it++;
+    if (it != quoteStr->end())
+      workStr += "\n";
+    else
+      break;
+  }
+
+  prim_object->setStr(workStr,ek_yyLineNum,1);
+}
+
+void ek_objectBTick (const char* dbgStr)
+{
+  btickType_e btType = BTICK_UNDEF;
+  string      btIdentStr;
+  string      btParenStr;
+
+  ek_collectBTInfo(btIdentStr,btParenStr,btType);
+  prim_object->setBTick(static_cast<int>(btType),btIdentStr,btParenStr);
+
+  E_DEBUG("[%3d] + [%s] [ek_objectBTick] ------> identStr: '%s', btType: %d\n",ek_yyLineNum,dbgStr,btIdentStr.c_str(),btType);
+}
+
+
+
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 void primCommand_c::setLineNum(int lNum)
 {
@@ -142,13 +208,15 @@ void primCommand_c::setArg (const string& arStr, int l_lineNum, int isQ)
 {
   setLineNum(l_lineNum);
 
+  // TODO: move to base class
   element_c *elem;
-  if (isQ) { elem = new elemStr_c (); static_cast<elemStr_c*> (elem)->varStr = arStr; }
-  else     { elem = new elemQStr_c(); static_cast<elemQStr_c*>(elem)->varStr = arStr; }
+  if (isQ) { elem = new elemQStr_c(); static_cast<elemQStr_c*>(elem)->varStr = arStr; }
+  else     { elem = new elemStr_c (); static_cast<elemStr_c*> (elem)->varStr = arStr; }
 
   argLst.push_back(elem);
 }
 
+// TODO: move to base class
 void primCommand_c::setBTick(int btType, const string& idStr, const string& parenStr)
 {
   btickType_e btt = static_cast<btickType_e>(btType);
@@ -185,7 +253,6 @@ void primCommand_c::setBTick(int btType, const string& idStr, const string& pare
   }
 }
 
-
 void primCommand_c::print (void)
 {
   printf("[primCommand_c::print] line: %d { %s",lineNum,ident.c_str());
@@ -200,6 +267,63 @@ void primCommand_c::print (void)
     }
   }
   printf(" }\n");
+}
+//++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+void primObject_c::setLineNum(int lNum)
+{
+  if (lineNum < 0)
+    lineNum = lNum;
+}
+
+void primObject_c::setStr (const string& arStr, int l_lineNum, int isQ)
+{
+  setLineNum(l_lineNum);
+
+  element_c *elem;
+  if (isQ) { elem = new elemQStr_c(); static_cast<elemQStr_c*>(elem)->varStr = arStr; }
+  else     { elem = new elemStr_c (); static_cast<elemStr_c*> (elem)->varStr = arStr; }
+
+  argLst.push_back(elem);
+}
+
+void primObject_c::setBTick (int btType, const string& idStr, const string& parenStr)
+{
+  btickType_e btt = static_cast<btickType_e>(btType);
+  switch (btt)
+  {
+  case BTICK_FUNC: {
+      elemFunc_c *btCl = new elemFunc_c();
+      btCl->identStr = idStr;
+      btCl->parenStr = parenStr;
+      argLst.push_back(static_cast<element_c*>(btCl));
+    }
+    break;
+  case BTICK_EQN: {
+      elemEqn_c *btEq = new elemEqn_c();
+      btEq->parenStr = parenStr;
+      argLst.push_back(static_cast<element_c*>(btEq));
+    }
+    break;
+  case BTICK_EXPANSION_A:
+  case BTICK_EXPANSION_B:
+  case BTICK_EXPANSION_C:
+    {
+      elemExp_c *btEx = new elemExp_c();
+      btEx->identStr = idStr;
+      btEx->parenStr = parenStr;
+      argLst.push_back(static_cast<element_c*>(btEx));
+    }
+    break;
+  case BTICK_UNDEF:
+  default:
+    printf("[primCommand_c::setBTick] This state supposedly unreachable!\n");
+    exit(EXIT_FAILURE);
+    break;
+  }
+}
+
+void primObject_c::print (void)
+{
 }
 //------------------------------------------------------------------------------
 

@@ -65,10 +65,12 @@ extern int  ek_yylex  (void);
 %union {
   const char *commandIdStr;
   const char *commandArgStr;
+  const char *objNameStr;
   const char *xmlTagId;
 }
 %type <commandIdStr>      COMMAND_ID
 %type <commandArgStr>     COMMAND_ARGS
+%type <objNameStr>        OBJ_ID
 %type <xmlTagId>          XML_TAGID
 
 //------------------------------------------------------------------------------
@@ -83,7 +85,7 @@ eklines:
 
 ekline:
     command_stmt              ENDL  { E_DEBUG("[%3d] + [ekline] 1 command_stmt             \n\n",ek_yyLineNum); }
-  | obj_stmt                  ENDL  { E_DEBUG("[%3d] + [ekline] 2 obj_stmt                 \n\n",ek_yyLineNum); }
+  | obj_stmt_aux              ENDL  { E_DEBUG("[%3d] + [ekline] 2 obj_stmt_aux             \n\n",ek_yyLineNum); }
   | xml_stmt                  ENDL  { E_DEBUG("[%3d] + [ekline] 3 xml_stmt                 \n\n",ek_yyLineNum); }
   | ENDL                            { /* E_DEBUG("[%3d] + [ekline] 6 ENDL                     \n\n",ek_yyLineNum); */ }
   ;
@@ -102,13 +104,17 @@ command_args:
   |              BTICK_SEQ        { ek_commandBTick("command_args 6"); }
   ;
 
+obj_stmt_aux:
+    obj_stmt                      { ek_objectDone("obj_stmt_aux 1"); }    // TODO: roll this back into ekline when debugging is finished
+  ;
+
 obj_stmt:
-    obj_stmt OBJ_ID               { E_DEBUG("[%3d] + [obj_stmt] 1 obj_stmt OBJ_ID    \n",ek_yyLineNum); }
-  | obj_stmt OBJ_QSTR             { E_DEBUG("[%3d] + [obj_stmt] 2 obj_stmt OBJ_QSTR  \n",ek_yyLineNum); }
-  | obj_stmt BTICK_SEQ            { E_DEBUG("[%3d] + [obj_stmt] 3 obj_stmt BTICK_SEQ \n",ek_yyLineNum); }
-  |          OBJ_ID               { E_DEBUG("[%3d] + [obj_stmt] 4          OBJ_ID    \n",ek_yyLineNum); }
-  |          OBJ_QSTR             { E_DEBUG("[%3d] + [obj_stmt] 5          OBJ_QSTR  \n",ek_yyLineNum); }
-  |          BTICK_SEQ            { E_DEBUG("[%3d] + [obj_stmt] 6          BTICK_SEQ \n",ek_yyLineNum); }
+    obj_stmt OBJ_ID               { ek_objectStr  ("obj_stmt 1",$2); }
+  | obj_stmt OBJ_QSTR             { ek_objectQStr ("obj_stmt 2",ek_collectQStr()); }
+  | obj_stmt BTICK_SEQ            { ek_objectBTick("obj_stmt 3"); }
+  |          OBJ_ID               { ek_objectStr  ("obj_stmt 4",$1); }
+  |          OBJ_QSTR             { ek_objectQStr ("obj_stmt 5",ek_collectQStr()); }
+  |          BTICK_SEQ            { ek_objectBTick("obj_stmt 6"); }
   ;
 
 xml_stmt:
