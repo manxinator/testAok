@@ -151,7 +151,7 @@ void ek_objectDone (const char* dbgStr)
 
 void ek_objectStr (const char* dbgStr, const char *objStr)
 {
-  E_DEBUG("[%3d] + [%s] [ek_objectStr] \n",ek_yyLineNum,dbgStr);
+  E_DEBUG("[%3d] + [%s] [ek_objectStr] objStr: %s\n",ek_yyLineNum,dbgStr,objStr);
 
   prim_object->setStr(objStr,ek_yyLineNum,0);
 }
@@ -189,6 +189,59 @@ void ek_objectBTick (const char* dbgStr)
   E_DEBUG("[%3d] + [%s] [ek_objectBTick] ------> identStr: '%s', btType: %d\n",ek_yyLineNum,dbgStr,btIdentStr.c_str(),btType);
 }
 
+
+//==============================================================================
+
+void ek_knobDone (const char* dbgStr)
+{
+  E_DEBUG("[%3d] + [%s] [ek_knobDone] \n",ek_yyLineNum,dbgStr);
+
+  // Process object -- for now, just print
+  //
+
+  // After the command has been processed, renew
+  //
+}
+
+void ek_knobStr (const char* dbgStr, int isRhs, const char *objStr)
+{
+  E_DEBUG("[%3d] + [%s] [ek_knobStr] isRhs: %d, objStr: %s\n",ek_yyLineNum,dbgStr,isRhs,objStr);
+
+  //prim_object->setStr(objStr,ek_yyLineNum,0);
+}
+
+void ek_knobQStr (const char* dbgStr, int isRhs, shared_ptr<vector<string> > quoteStr)
+{
+  E_DEBUG("[%3d] + [%s] [ek_knobQStr] quoteStr->size(): %d\n",ek_yyLineNum,dbgStr,quoteStr->size());
+  int strLen = 8;
+  for (auto it = quoteStr->begin(); it != quoteStr->end(); it++)
+    strLen += it->length() + 2;
+
+  string workStr;
+  workStr.reserve(strLen);
+  for (auto it = quoteStr->begin(); ; ) {
+    workStr += *it;
+    it++;
+    if (it != quoteStr->end())
+      workStr += "\n";
+    else
+      break;
+  }
+
+  //prim_object->setStr(objStr,ek_yyLineNum,0);
+}
+
+void ek_knobBTick (const char* dbgStr, int isRhs)
+{
+  btickType_e btType = BTICK_UNDEF;
+  string      btIdentStr;
+  string      btParenStr;
+
+  ek_collectBTInfo(btIdentStr,btParenStr,btType);
+  //prim_object->setBTick(static_cast<int>(btType),btIdentStr,btParenStr);
+
+  E_DEBUG("[%3d] + [%s] [ek_knobBTick] ------> identStr: '%s', btType: %d\n",ek_yyLineNum,dbgStr,btIdentStr.c_str(),btType);
+}
 
 
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++

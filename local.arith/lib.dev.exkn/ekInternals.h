@@ -49,6 +49,12 @@ extern void ek_objectStr  (const char* dbgStr, const char *objStr);
 extern void ek_objectQStr (const char* dbgStr, std::shared_ptr<std::vector<std::string> > quoteStr);
 extern void ek_objectBTick(const char* dbgStr);
 
+  // Knob
+extern void ek_knobDone (const char* dbgStr);
+extern void ek_knobStr  (const char* dbgStr, int isRhs, const char *objStr);
+extern void ek_knobQStr (const char* dbgStr, int isRhs, std::shared_ptr<std::vector<std::string> > quoteStr);
+extern void ek_knobBTick(const char* dbgStr, int isRhs);
+
 
 typedef enum _btickType_e_ {
   BTICK_UNDEF       = 0,

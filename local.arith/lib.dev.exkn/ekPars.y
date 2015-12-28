@@ -113,7 +113,7 @@ command_args:
   ;
 
 obj_stmt_aux:
-    OBJ_START obj_stmt            { ek_objectDone("obj_stmt_aux 1"); }    // TODO: consider rolling back into ekline when development is finished
+    OBJ_START obj_stmt            { ek_objectDone("obj_stmt_aux 1"); }
   ;
 
 obj_stmt:
@@ -127,25 +127,25 @@ obj_stmt:
 
 
 knob_eqn:
-    knob_lhs KNOB_EQ knob_rhs     { E_DEBUG("[%3d]   +   [knob_eqn] ek_yytext: '%s'\n",ek_yyLineNum,ek_yytext); }
+    knob_lhs KNOB_EQ knob_rhs     { ek_knobDone("knob_eqn"); }
   ;
 
 knob_lhs:
-    knob_lhs KNOB_NAME            { E_DEBUG("[%3d]   +   [knob_lhs] 1 knob_lhs KNOB_NAME, yytext=%s\n",ek_yyLineNum,ek_yytext); }
-  | knob_lhs KNOB_QSTR            { E_DEBUG("[%3d]   +   [knob_lhs] 2 knob_lhs KNOB_QSTR, yytext=%s\n",ek_yyLineNum,ek_yytext); }
-  | knob_lhs BTICK_SEQ            { E_DEBUG("[%3d]   +   [knob_lhs] 3 knob_lhs BTICK_SEQ, yytext=%s\n",ek_yyLineNum,ek_yytext); }
-  |          KNOB_NAME            { E_DEBUG("[%3d]   +   [knob_lhs] 4          KNOB_NAME, yytext=%s\n",ek_yyLineNum,ek_yytext); }
-  |          KNOB_QSTR            { E_DEBUG("[%3d]   +   [knob_lhs] 5          KNOB_QSTR, yytext=%s\n",ek_yyLineNum,ek_yytext); }
-  |          BTICK_SEQ            { E_DEBUG("[%3d]   +   [knob_lhs] 6          BTICK_SEQ, yytext=%s\n",ek_yyLineNum,ek_yytext); }
+    knob_lhs KNOB_NAME            { ek_knobStr  ("knob_lhs 1",0,$2); }
+  | knob_lhs KNOB_QSTR            { ek_knobQStr ("knob_lhs 2",0,ek_collectQStr()); }
+  | knob_lhs BTICK_SEQ            { ek_knobBTick("knob_lhs 3",0); }
+  |          KNOB_NAME            { ek_knobStr  ("knob_lhs 4",0,$1); }
+  |          KNOB_QSTR            { ek_knobQStr ("knob_lhs 5",0,ek_collectQStr()); }
+  |          BTICK_SEQ            { ek_knobBTick("knob_lhs 6",0); }
   ;
 
 knob_rhs:
-    knob_rhs KNOB_NAME            { E_DEBUG("[%3d]   +   [knob_rhs] 1 knob_rhs KNOB_NAME, yytext=%s\n",ek_yyLineNum,$2); }
-  | knob_rhs KNOB_QSTR            { E_DEBUG("[%3d]   +   [knob_rhs] 2 knob_rhs KNOB_QSTR, yytext=%s\n",ek_yyLineNum,ek_yytext); }
-  | knob_rhs BTICK_SEQ            { E_DEBUG("[%3d]   +   [knob_rhs] 3 knob_rhs BTICK_SEQ, yytext=%s\n",ek_yyLineNum,ek_yytext); }
-  |          KNOB_NAME            { E_DEBUG("[%3d]   +   [knob_rhs] 4          KNOB_NAME, yytext=%s\n",ek_yyLineNum,$1); }
-  |          KNOB_QSTR            { E_DEBUG("[%3d]   +   [knob_rhs] 5          KNOB_QSTR, yytext=%s\n",ek_yyLineNum,ek_yytext); }
-  |          BTICK_SEQ            { E_DEBUG("[%3d]   +   [knob_rhs] 6          BTICK_SEQ, yytext=%s\n",ek_yyLineNum,ek_yytext); }
+    knob_rhs KNOB_NAME            { ek_knobStr  ("knob_rhs 1",1,$2); }
+  | knob_rhs KNOB_QSTR            { ek_knobQStr ("knob_rhs 2",1,ek_collectQStr()); }
+  | knob_rhs BTICK_SEQ            { ek_knobBTick("knob_rhs 3",1); }
+  |          KNOB_NAME            { ek_knobStr  ("knob_rhs 4",1,$1); }
+  |          KNOB_QSTR            { ek_knobQStr ("knob_rhs 5",1,ek_collectQStr()); }
+  |          BTICK_SEQ            { ek_knobBTick("knob_rhs 6",1); }
   ;
 
 xml_stmt:
