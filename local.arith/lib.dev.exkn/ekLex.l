@@ -57,6 +57,10 @@ static void ek_commandQuote(const char* startStr);
 static void ek_objectQuote (const char* startStr);
 static void ek_objectString(const char* idStr   );
 
+static void ek_knob_start(const char* idStr);
+static void ek_knob_stRhs(const char* eqStr);
+static void ek_knob_rhs  (const char* idStr);
+
 static void ek_btick_start (const char* startStr);
 static void ek_btick_ident (const char* idStr   );
 static void ek_btick_eqn   (const char* parenStr);
@@ -81,7 +85,8 @@ int ek_yyLineNum = -1; // must be initialized
   */
 %s      COMMAND
 %s      OBJECT
-%s      KNOB_DEF
+%s      KNOB_LHS
+%s      KNOB_RHS
 %s      IN_COMMENT_BL
 %s      IN_XML_START
 %s      IN_XML_BODY
@@ -108,6 +113,7 @@ percent             "%"
 colons              ":"+
 leftparen           "("
 rightparen          ")"
+equalsign           \=
 identLParen         [A-Za-z0-9_][A-Za-z0-9_\-\.\/\\]*[\t ]*"("
 
 commandId           "#"[\t ]*[A-Za-z0-9_][A-Za-z0-9_\-\.\/\\]*
@@ -127,12 +133,13 @@ xml_end             \<[\t \n]*\/[A-Za-z0-9_][A-Za-z0-9_\-\.\/\\]*[\t \n]*\>
   */
   /* <INITIAL>{wsLeading}        ; */
 <INITIAL>{whitespace}       ;
-<INITIAL>{percent}          { BEGIN OBJECT; }
+<INITIAL>{percent}          { BEGIN OBJECT;                                        return OBJ_START;    }
 <INITIAL>{commentSl}        {                               ek_comment_sl(yytext); return ENDL;         }
 <INITIAL>{commentBl_start}  { yy_push_state(IN_COMMENT_BL); ek_comment_b0(yytext);                      }
 <INITIAL>{commandId}        { BEGIN COMMAND;                ek_command_id(yytext); return COMMAND_ID;   }
 <INITIAL>{xml_start}        { BEGIN IN_XML_START;           ek_xml_start (yytext);                      }
 <INITIAL>{newLine}          {                               ek_newLine();          return ENDL;         }
+<INITIAL>{identString}      { BEGIN KNOB_LHS;               ek_knob_start(yytext); return KNOB_NAME;    }
 <INITIAL>.                  ek_yyerror("Unexpected token [inside INITIAL state]");
 
   /* NOTE: CommandID is parsed even before entering the COMMAND state */
@@ -145,15 +152,24 @@ xml_end             \<[\t \n]*\/[A-Za-z0-9_][A-Za-z0-9_\-\.\/\\]*[\t \n]*\>
 <COMMAND>{newLine}          { BEGIN INITIAL; ek_newLine(); return ENDL; }
   /*<COMMAND>.              { printf(" { <COMMAND>. '%s' }\n",yytext); } -- Supposedly unreachable state */
 
-<OBJECT>{quotStr_start}     { ek_objectQuote(yytext);               return OBJ_QSTR; }
-<OBJECT>{identString}       { ek_objectString(yytext);              return OBJ_ID;  }
-<OBJECT>{colons}            { ek_objectString(yytext);              return OBJ_ID;  }
-<OBJECT>{commentSl}         { BEGIN INITIAL; ek_comment_sl(yytext); return ENDL;    }
-<OBJECT>{commentBl_start}   { yy_push_state(IN_COMMENT_BL); ek_comment_b0 (yytext); }
-<OBJECT>{backtick}          { yy_push_state(IN_BACKTICK_START); ek_btick_start(yytext);                 }
+<OBJECT>{quotStr_start}     { ek_objectQuote(yytext);           return OBJ_QSTR; }
+<OBJECT>{identString}       { ek_objectString(yytext);          return OBJ_ID;   }
+<OBJECT>{colons}            { ek_objectString(yytext);          return OBJ_ID;   }
+<OBJECT>{commentSl}         { BEGIN INITIAL;                    ek_comment_sl (yytext); return ENDL; }
+<OBJECT>{commentBl_start}   { yy_push_state(IN_COMMENT_BL);     ek_comment_b0 (yytext);              }
+<OBJECT>{backtick}          { yy_push_state(IN_BACKTICK_START); ek_btick_start(yytext);              }
 <OBJECT>{whitespace}        ;
 <OBJECT>{newLine}           { BEGIN INITIAL; ek_newLine(); return ENDL; }
 <OBJECT>.                   ek_yyerror("Unexpected token [inside OBJECT state]");
+
+<KNOB_LHS>{equalsign}       { BEGIN KNOB_RHS; ek_knob_stRhs(yytext); return KNOB_EQ; }
+<KNOB_LHS>{whitespace}      ;
+<KNOB_LHS>.                 ek_yyerror("Unexpected token [inside KNOB_LHS state]");
+
+<KNOB_RHS>{identString}     {                ek_knob_rhs(yytext); return KNOB_NAME; }
+<KNOB_RHS>{newLine}         { BEGIN INITIAL; ek_newLine();        return ENDL;      }
+<KNOB_RHS>{whitespace}      ;
+<KNOB_RHS>.                 ek_yyerror("Unexpected token [inside KNOB_RHS state]");
 
 <IN_COMMENT_BL>{
     "*/"        { if (ek_comment_b2(yytext)) { BEGIN INITIAL; return ENDL; } else yy_pop_state();  }   /* return ENDL; Rationale: succeeding statements should be considered as being in their own line */
@@ -218,7 +234,7 @@ xml_end             \<[\t \n]*\/[A-Za-z0-9_][A-Za-z0-9_\-\.\/\\]*[\t \n]*\>
 /*----------------------------------------------------------------------------*/
 #define MAX_STR_SIZE    4096
 
-static char ek_static_str[MAX_STR_SIZE]; // CommandID, XmlTag, Object
+static char ek_static_str[MAX_STR_SIZE]; // CommandID, XmlTag, Object, Knob
 int debug_aaaa = 0;
 
 void ek_yo(void) //-- for targeted debugging
@@ -250,7 +266,7 @@ int ek_comment_nl(void) // Returns 1 to terminate previous state
 {
   int termPrevState = 0;
   int topState = yy_top_state();
-  if ((topState == COMMAND) || (topState == OBJECT) || (topState == KNOB_DEF)) {
+  if ((topState == COMMAND) || (topState == OBJECT) || (topState == KNOB_RHS)) {
     termPrevState   = 1;
     commentMlPopped = 1;
   }
@@ -259,7 +275,7 @@ int ek_comment_nl(void) // Returns 1 to terminate previous state
   std::string topStateStr;
   if      (topState == COMMAND)  topStateStr = "COMMAND";
   else if (topState == OBJECT)   topStateStr = "OBJECT";
-  else if (topState == KNOB_DEF) topStateStr = "KNOB_DEF";
+  else if (topState == KNOB_RHS) topStateStr = "KNOB_RHS";
   else                           topStateStr = std::to_string(topState);
 #endif
 
@@ -340,6 +356,25 @@ void ek_objectString(const char* idStr)
   E_DEBUG("* [ek_objectString] '%s' line %d\n",idStr,ek_yyLineNum);
   sprintf(ek_static_str,"%s",idStr);
   ek_yylval.objNameStr = ek_static_str;
+}
+        //----------------------------------------------------------------------
+void ek_knob_start (const char* idStr)
+{
+  E_DEBUG("* [ek_knob_start] '%s' line %d\n",idStr,ek_yyLineNum);
+  sprintf(ek_static_str,"%s",idStr);
+  ek_yylval.knobNameStr = ek_static_str;
+}
+
+void ek_knob_stRhs (const char* eqStr)
+{
+  E_DEBUG("* [ek_knob_stRhs] '%s' line %d\n",eqStr,ek_yyLineNum);
+}
+
+void ek_knob_rhs (const char* idStr)
+{
+  E_DEBUG("* [ek_knob_rhs] '%s' line %d\n",idStr,ek_yyLineNum);
+  sprintf(ek_static_str,"%s",idStr);
+  ek_yylval.knobNameStr = ek_static_str;
 }
         //----------------------------------------------------------------------
 void ek_xml_start(const char* xmlStr)

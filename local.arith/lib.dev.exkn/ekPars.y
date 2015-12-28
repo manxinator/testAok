@@ -56,8 +56,13 @@ extern int  ek_yylex  (void);
 
 %token BTICK_SEQ
 
+%token OBJ_START
 %token OBJ_ID
 %token OBJ_QSTR
+
+%token KNOB_NAME
+%token KNOB_QSTR
+%token KNOB_EQ
 
   // - Yacc requires a union for lex return values
   // - Then, associate the return values to defined token types
@@ -66,11 +71,13 @@ extern int  ek_yylex  (void);
   const char *commandIdStr;
   const char *commandArgStr;
   const char *objNameStr;
+  const char *knobNameStr;
   const char *xmlTagId;
 }
 %type <commandIdStr>      COMMAND_ID
 %type <commandArgStr>     COMMAND_ARGS
 %type <objNameStr>        OBJ_ID
+%type <knobNameStr>       KNOB_NAME
 %type <xmlTagId>          XML_TAGID
 
 //------------------------------------------------------------------------------
@@ -84,10 +91,11 @@ eklines:
   ;
 
 ekline:
-    command_stmt              ENDL  { E_DEBUG("[%3d] + [ekline] 1 command_stmt             \n\n",ek_yyLineNum); }
-  | obj_stmt_aux              ENDL  { E_DEBUG("[%3d] + [ekline] 2 obj_stmt_aux             \n\n",ek_yyLineNum); }
-  | xml_stmt                  ENDL  { E_DEBUG("[%3d] + [ekline] 3 xml_stmt                 \n\n",ek_yyLineNum); }
-  | ENDL                            { /* E_DEBUG("[%3d] + [ekline] 6 ENDL                     \n\n",ek_yyLineNum); */ }
+    command_stmt              ENDL  { E_DEBUG("[%3d] + [ekline] 1 command_stmt\n\n",ek_yyLineNum); }
+  | obj_stmt_aux              ENDL  { E_DEBUG("[%3d] + [ekline] 2 obj_stmt_aux\n\n",ek_yyLineNum); }
+  | knob_eqn                  ENDL  { E_DEBUG("[%3d] + [ekline] 3 knob_eqn    \n\n",ek_yyLineNum); }
+  | xml_stmt                  ENDL  { E_DEBUG("[%3d] + [ekline] 4 xml_stmt    \n\n",ek_yyLineNum); }
+  | ENDL                         { /* E_DEBUG("[%3d] + [ekline] 6 ENDL        \n\n",ek_yyLineNum); */ }
   ;
 
 command_stmt:
@@ -105,7 +113,7 @@ command_args:
   ;
 
 obj_stmt_aux:
-    obj_stmt                      { ek_objectDone("obj_stmt_aux 1"); }    // TODO: roll this back into ekline when debugging is finished
+    OBJ_START obj_stmt            { ek_objectDone("obj_stmt_aux 1"); }    // TODO: consider rolling back into ekline when development is finished
   ;
 
 obj_stmt:
@@ -115,6 +123,29 @@ obj_stmt:
   |          OBJ_ID               { ek_objectStr  ("obj_stmt 4",$1); }
   |          OBJ_QSTR             { ek_objectQStr ("obj_stmt 5",ek_collectQStr()); }
   |          BTICK_SEQ            { ek_objectBTick("obj_stmt 6"); }
+  ;
+
+
+knob_eqn:
+    knob_lhs KNOB_EQ knob_rhs     { E_DEBUG("[%3d]   +   [knob_eqn] ek_yytext: '%s'\n",ek_yyLineNum,ek_yytext); }
+  ;
+
+knob_lhs:
+    knob_lhs KNOB_NAME            { E_DEBUG("[%3d]   +   [knob_lhs] 1 knob_lhs KNOB_NAME, yytext=%s\n",ek_yyLineNum,ek_yytext); }
+  | knob_lhs KNOB_QSTR            { E_DEBUG("[%3d]   +   [knob_lhs] 2 knob_lhs KNOB_QSTR, yytext=%s\n",ek_yyLineNum,ek_yytext); }
+  | knob_lhs BTICK_SEQ            { E_DEBUG("[%3d]   +   [knob_lhs] 3 knob_lhs BTICK_SEQ, yytext=%s\n",ek_yyLineNum,ek_yytext); }
+  |          KNOB_NAME            { E_DEBUG("[%3d]   +   [knob_lhs] 4          KNOB_NAME, yytext=%s\n",ek_yyLineNum,ek_yytext); }
+  |          KNOB_QSTR            { E_DEBUG("[%3d]   +   [knob_lhs] 5          KNOB_QSTR, yytext=%s\n",ek_yyLineNum,ek_yytext); }
+  |          BTICK_SEQ            { E_DEBUG("[%3d]   +   [knob_lhs] 6          BTICK_SEQ, yytext=%s\n",ek_yyLineNum,ek_yytext); }
+  ;
+
+knob_rhs:
+    knob_rhs KNOB_NAME            { E_DEBUG("[%3d]   +   [knob_rhs] 1 knob_rhs KNOB_NAME, yytext=%s\n",ek_yyLineNum,$2); }
+  | knob_rhs KNOB_QSTR            { E_DEBUG("[%3d]   +   [knob_rhs] 2 knob_rhs KNOB_QSTR, yytext=%s\n",ek_yyLineNum,ek_yytext); }
+  | knob_rhs BTICK_SEQ            { E_DEBUG("[%3d]   +   [knob_rhs] 3 knob_rhs BTICK_SEQ, yytext=%s\n",ek_yyLineNum,ek_yytext); }
+  |          KNOB_NAME            { E_DEBUG("[%3d]   +   [knob_rhs] 4          KNOB_NAME, yytext=%s\n",ek_yyLineNum,$1); }
+  |          KNOB_QSTR            { E_DEBUG("[%3d]   +   [knob_rhs] 5          KNOB_QSTR, yytext=%s\n",ek_yyLineNum,ek_yytext); }
+  |          BTICK_SEQ            { E_DEBUG("[%3d]   +   [knob_rhs] 6          BTICK_SEQ, yytext=%s\n",ek_yyLineNum,ek_yytext); }
   ;
 
 xml_stmt:

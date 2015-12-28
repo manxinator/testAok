@@ -1,0 +1,8 @@
+
+#french`^(5..9,4)legion
+
+%country of origin
+%Capital`table(name,"founded")"locale"city
+
+
+
