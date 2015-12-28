@@ -164,6 +164,15 @@ namespace ex_knobs
   };
 
     // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    // Utility functions
+    //
+
+  extern element_c* exkn_str2elem (const std::string& myStr, int isQ);
+  extern element_c* backTickToElem(int btType, const std::string& idStr, const std::string& parenStr);
+
+    // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    // Interface functions
+    //
 
   extern int ek_readfile(const char* inFN, int exitOnErr);
 

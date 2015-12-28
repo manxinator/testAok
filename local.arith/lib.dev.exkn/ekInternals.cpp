@@ -192,6 +192,49 @@ void ek_objectBTick (const char* dbgStr)
 
 
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+element_c* ex_knobs::exkn_str2elem(const string& myStr, int isQ)
+{
+  element_c *elem;
+  if (isQ) { elem = new elemQStr_c(); static_cast<elemQStr_c*>(elem)->varStr = myStr; }
+  else     { elem = new elemStr_c (); static_cast<elemStr_c*> (elem)->varStr = myStr; }
+  return elem;
+}
+
+element_c* ex_knobs::backTickToElem (int btType, const string& idStr, const string& parenStr)
+{
+  btickType_e btt = static_cast<btickType_e>(btType);
+  switch (btt)
+  {
+  case BTICK_FUNC: {
+      elemFunc_c *btCl = new elemFunc_c();
+      btCl->identStr = idStr;
+      btCl->parenStr = parenStr;
+      return static_cast<element_c*>(btCl);
+    }
+    break;
+  case BTICK_EQN: {
+      elemEqn_c *btEq = new elemEqn_c();
+      btEq->parenStr = parenStr;
+      return static_cast<element_c*>(btEq);
+    }
+    break;
+  case BTICK_EXPANSION_A:
+  case BTICK_EXPANSION_B:
+  case BTICK_EXPANSION_C:
+    {
+      elemExp_c *btEx = new elemExp_c();
+      btEx->identStr = idStr;
+      btEx->parenStr = parenStr;
+      return static_cast<element_c*>(btEx);
+    }
+    break;
+  case BTICK_UNDEF:
+  default:
+    break;
+  }
+  return static_cast<element_c*>(0);
+}
+//++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 void primCommand_c::setLineNum(int lNum)
 {
   if      (lineNum < 0)    lineNum = lNum;
@@ -207,50 +250,12 @@ void primCommand_c::setIdent(const string& idStr, int l_lineNum)
 void primCommand_c::setArg (const string& arStr, int l_lineNum, int isQ)
 {
   setLineNum(l_lineNum);
-
-  // TODO: move to base class
-  element_c *elem;
-  if (isQ) { elem = new elemQStr_c(); static_cast<elemQStr_c*>(elem)->varStr = arStr; }
-  else     { elem = new elemStr_c (); static_cast<elemStr_c*> (elem)->varStr = arStr; }
-
-  argLst.push_back(elem);
+  argLst.push_back(exkn_str2elem(arStr,isQ));
 }
 
-// TODO: move to base class
 void primCommand_c::setBTick(int btType, const string& idStr, const string& parenStr)
 {
-  btickType_e btt = static_cast<btickType_e>(btType);
-  switch (btt)
-  {
-  case BTICK_FUNC: {
-      elemFunc_c *btCl = new elemFunc_c();
-      btCl->identStr = idStr;
-      btCl->parenStr = parenStr;
-      argLst.push_back(static_cast<element_c*>(btCl));
-    }
-    break;
-  case BTICK_EQN: {
-      elemEqn_c *btEq = new elemEqn_c();
-      btEq->parenStr = parenStr;
-      argLst.push_back(static_cast<element_c*>(btEq));
-    }
-    break;
-  case BTICK_EXPANSION_A:
-  case BTICK_EXPANSION_B:
-  case BTICK_EXPANSION_C:
-    {
-      elemExp_c *btEx = new elemExp_c();
-      btEx->identStr = idStr;
-      btEx->parenStr = parenStr;
-      argLst.push_back(static_cast<element_c*>(btEx));
-    }
-    break;
-  case BTICK_UNDEF:
-  default:
-    printf("[primCommand_c::setBTick] This state supposedly unreachable!\n");
-    exit(EXIT_FAILURE);
-    break;
-  }
+  argLst.push_back(backTickToElem(btType,idStr,parenStr));
 }
 
 void primCommand_c::print (void)
@@ -278,48 +283,12 @@ void primObject_c::setLineNum(int lNum)
 void primObject_c::setStr (const string& arStr, int l_lineNum, int isQ)
 {
   setLineNum(l_lineNum);
-
-  element_c *elem;
-  if (isQ) { elem = new elemQStr_c(); static_cast<elemQStr_c*>(elem)->varStr = arStr; }
-  else     { elem = new elemStr_c (); static_cast<elemStr_c*> (elem)->varStr = arStr; }
-
-  argLst.push_back(elem);
+  argLst.push_back(exkn_str2elem(arStr,isQ));
 }
 
 void primObject_c::setBTick (int btType, const string& idStr, const string& parenStr)
 {
-  btickType_e btt = static_cast<btickType_e>(btType);
-  switch (btt)
-  {
-  case BTICK_FUNC: {
-      elemFunc_c *btCl = new elemFunc_c();
-      btCl->identStr = idStr;
-      btCl->parenStr = parenStr;
-      argLst.push_back(static_cast<element_c*>(btCl));
-    }
-    break;
-  case BTICK_EQN: {
-      elemEqn_c *btEq = new elemEqn_c();
-      btEq->parenStr = parenStr;
-      argLst.push_back(static_cast<element_c*>(btEq));
-    }
-    break;
-  case BTICK_EXPANSION_A:
-  case BTICK_EXPANSION_B:
-  case BTICK_EXPANSION_C:
-    {
-      elemExp_c *btEx = new elemExp_c();
-      btEx->identStr = idStr;
-      btEx->parenStr = parenStr;
-      argLst.push_back(static_cast<element_c*>(btEx));
-    }
-    break;
-  case BTICK_UNDEF:
-  default:
-    printf("[primCommand_c::setBTick] This state supposedly unreachable!\n");
-    exit(EXIT_FAILURE);
-    break;
-  }
+  argLst.push_back(backTickToElem(btType,idStr,parenStr));
 }
 
 void primObject_c::print (void)
