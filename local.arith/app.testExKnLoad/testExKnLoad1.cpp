@@ -30,9 +30,9 @@
 
 //------------------------------------------------------------------------------
 
-void func_command(ex_knobs::primCommand_c* cmdPrim)
+void TestEK_command(ex_knobs::primCommand_c* cmdPrim)
 {
-  printf("+++++ [func_command] line: %d { %s",cmdPrim->lineNum,cmdPrim->ident.c_str());
+  printf("+++++ [TestEK_command] line: %d { %s",cmdPrim->lineNum,cmdPrim->ident.c_str());
   for (auto it = cmdPrim->argLst.begin(); it != cmdPrim->argLst.end(); it++) {
     ex_knobs::element_c::elementType_e elem_type = (*it)->elemType;
     switch (elem_type)
@@ -61,6 +61,39 @@ void func_command(ex_knobs::primCommand_c* cmdPrim)
   printf(" }\n");
 }
 
+void TestEK_object(ex_knobs::primObject_c* cmdPrim)
+{
+  printf("+++++ [TestEK_object] line: %d { ",cmdPrim->lineNum);
+  for (auto it = cmdPrim->argLst.begin(); it != cmdPrim->argLst.end(); it++) {
+    if (it != cmdPrim->argLst.begin())
+      printf(", ");
+    ex_knobs::element_c::elementType_e elem_type = (*it)->elemType;
+    switch (elem_type)
+    {
+    case ex_knobs::element_c::ELEM_STRING:   printf("%s",    static_cast<ex_knobs::elemStr_c*> (*it)->varStr.c_str()); break;
+    case ex_knobs::element_c::ELEM_QSTRING:  printf("\'%s\'",static_cast<ex_knobs::elemQStr_c*>(*it)->varStr.c_str()); break;
+    case ex_knobs::element_c::ELEM_FUNCTION: {
+        ex_knobs::elemFunc_c *eBtFn = dynamic_cast<ex_knobs::elemFunc_c*>(*it);
+        printf("elemFunc_c{%s,%s}",eBtFn->identStr.c_str(),eBtFn->parenStr.c_str());
+        break;
+      }
+    case ex_knobs::element_c::ELEM_EQUATION: {
+        ex_knobs::elemEqn_c *eBtFn = dynamic_cast<ex_knobs::elemEqn_c*>(*it);
+        printf("elemEqn_c{%s}",eBtFn->parenStr.c_str());
+        break;
+      }
+    case ex_knobs::element_c::ELEM_EXPANSION: {
+        ex_knobs::elemExp_c *eBtEx = dynamic_cast<ex_knobs::elemExp_c*>(*it);
+        printf("elemExp_c{%s,%s}",eBtEx->identStr.c_str(),eBtEx->parenStr.c_str());
+        break;
+      }
+    default:
+      printf("ELEM_TYPE:%d",static_cast<int>(elem_type)); break;
+    }
+  }
+  printf(" }\n");
+}
+
 //------------------------------------------------------------------------------
 
 int main(int argc, char *argv[])
@@ -70,7 +103,8 @@ int main(int argc, char *argv[])
     return EXIT_FAILURE;
   }
 
-  ex_knobs::ek_command_f = std::bind(&func_command,std::placeholders::_1);
+  ex_knobs::ek_command_f = std::bind(&TestEK_command,std::placeholders::_1);
+  ex_knobs::ek_object_f  = std::bind(&TestEK_object,std::placeholders::_1);
 
   char* inpFN  = argv[1];
   int   retVal = ex_knobs::ek_readfile(inpFN,0);
