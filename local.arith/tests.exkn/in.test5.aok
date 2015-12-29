@@ -3,6 +3,11 @@
 %ticket`plane(airbus,"a380")boarding
   class = first
   dest"stopover"`promo(food+drink) miles = sfo
-  origin = cancun`(all*inclusive) "vacation"
+  origin = cancun`(all*inclusive) "vacation" // commentSL
+
+  tomato = red /* 12345
+     67890
+     caught a fish alive
+     */
 
 

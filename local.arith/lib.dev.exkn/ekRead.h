@@ -30,6 +30,7 @@
 
 #include <string>
 #include <vector>
+#include <memory>
 #include <functional>
 
 //------------------------------------------------------------------------------
@@ -197,9 +198,11 @@ namespace ex_knobs
 
   extern int ek_readfile(const char* inFN, int exitOnErr);
 
-  extern std::function<void(primCommand_c*)> ek_command_f;
-  extern std::function<void(primObject_c*)>  ek_object_f;
-  extern std::function<void(primKnob_c*)>    ek_knob_f;
+  extern std::function<void(std::shared_ptr<primCommand_c>)>   ek_command_f;
+  extern std::function<void(std::shared_ptr<primObject_c>)>    ek_object_f;
+  extern std::function<void(std::shared_ptr<primKnob_c>)>      ek_knob_f;
+  extern std::function<void(std::shared_ptr<std::string>,int)> ek_comment_sl_f;
+  extern std::function<void(std::shared_ptr<std::string>,int)> ek_comment_ml_f;
 }
 
 //------------------------------------------------------------------------------

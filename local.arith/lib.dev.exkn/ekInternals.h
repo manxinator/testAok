@@ -55,6 +55,10 @@ extern void ek_knobStr  (const char* dbgStr, int isRhs, const char *knobStr);
 extern void ek_knobQStr (const char* dbgStr, int isRhs, std::shared_ptr<std::vector<std::string> > quoteStr);
 extern void ek_knobBTick(const char* dbgStr, int isRhs);
 
+  // Comments
+extern void ek_commentSL(const char* commentStr,              int lineNum);
+extern void ek_commentML(std::vector<std::string> *commLines, int lineNum);
+
 
 typedef enum _btickType_e_ {
   BTICK_UNDEF       = 0,

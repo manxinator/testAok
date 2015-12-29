@@ -30,7 +30,7 @@
 
 //------------------------------------------------------------------------------
 
-void TestEK_command(ex_knobs::primCommand_c* cmdPrim)
+void TestEK_command(std::shared_ptr<ex_knobs::primCommand_c> cmdPrim)
 {
   printf("+++++ [TestEK_command] line: %d { %s",cmdPrim->lineNum,cmdPrim->ident.c_str());
   for (auto it = cmdPrim->argLst.begin(); it != cmdPrim->argLst.end(); it++) {
@@ -61,7 +61,7 @@ void TestEK_command(ex_knobs::primCommand_c* cmdPrim)
   printf(" }\n");
 }
 
-void TestEK_object(ex_knobs::primObject_c* objPrim)
+void TestEK_object(std::shared_ptr<ex_knobs::primObject_c> objPrim)
 {
   printf("+++++ [TestEK_object] line: %d { ",objPrim->lineNum);
   for (auto it = objPrim->argLst.begin(); it != objPrim->argLst.end(); it++) {
@@ -94,7 +94,7 @@ void TestEK_object(ex_knobs::primObject_c* objPrim)
   printf(" }\n");
 }
 
-void TestEK_knob(ex_knobs::primKnob_c* knobPrim)
+void TestEK_knob(std::shared_ptr<ex_knobs::primKnob_c> knobPrim)
 {
   printf("+++++ [TestEK_knob] LHS line: %d { ",knobPrim->lineNum);
   for (auto it = knobPrim->lhsLst.begin(); it != knobPrim->lhsLst.end(); it++) {
@@ -157,6 +157,16 @@ void TestEK_knob(ex_knobs::primKnob_c* knobPrim)
   printf(" }\n");
 }
 
+void TestEK_RemSL(std::shared_ptr<std::string> remStr, int lineNum)
+{
+  printf("+++++ [TestEK_RemSL] line: %d ~%s~\n",lineNum,remStr->c_str());
+}
+
+void TestEK_RemML(std::shared_ptr<std::string> remStr, int lineNum)
+{
+  printf("+++++ [TestEK_RemML] line: %d ~%s~\n",lineNum,remStr->c_str());
+}
+
 //------------------------------------------------------------------------------
 
 int main(int argc, char *argv[])
@@ -166,9 +176,11 @@ int main(int argc, char *argv[])
     return EXIT_FAILURE;
   }
 
-  ex_knobs::ek_command_f = std::bind(&TestEK_command,std::placeholders::_1);
-  ex_knobs::ek_object_f  = std::bind(&TestEK_object, std::placeholders::_1);
-  ex_knobs::ek_knob_f    = std::bind(&TestEK_knob,   std::placeholders::_1);
+  ex_knobs::ek_command_f    = std::bind(&TestEK_command,std::placeholders::_1);
+  ex_knobs::ek_object_f     = std::bind(&TestEK_object, std::placeholders::_1);
+  ex_knobs::ek_knob_f       = std::bind(&TestEK_knob,   std::placeholders::_1);
+  ex_knobs::ek_comment_sl_f = std::bind(&TestEK_RemSL,  std::placeholders::_1, std::placeholders::_2);
+  ex_knobs::ek_comment_ml_f = std::bind(&TestEK_RemML,  std::placeholders::_1, std::placeholders::_2);
 
   char* inpFN  = argv[1];
   int   retVal = ex_knobs::ek_readfile(inpFN,0);

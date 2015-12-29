@@ -163,6 +163,10 @@ xml_end             \<[\t \n]*\/[A-Za-z0-9_][A-Za-z0-9_\-\.\/\\]*[\t \n]*\>
 <OBJECT>{newLine}           { BEGIN INITIAL; ek_newLine(); return ENDL; }
 <OBJECT>.                   ek_yyerror("Unexpected token [inside OBJECT state]");
 
+  /* Caveat:
+     - LHS is not expected to start with a quote, but succeeding names can be quoted strings
+     - Comments and newline not allowed until after KNOB_EQ
+  */
 <KNOB_LHS>{quotStr_start}   {                 ek_knobQuote(yytext);  return KNOB_QSTR; }
 <KNOB_LHS>{identString}     {                 ek_knob_lhs(yytext);   return KNOB_NAME; }
 <KNOB_LHS>{equalsign}       { BEGIN KNOB_RHS; ek_knob_stRhs(yytext); return KNOB_EQ;   }
@@ -173,18 +177,22 @@ xml_end             \<[\t \n]*\/[A-Za-z0-9_][A-Za-z0-9_\-\.\/\\]*[\t \n]*\>
 <KNOB_LHS>{newLine}         { ek_yyerror("===> [KNOB_LHS] expecting '=', got newline '\n'"); yyterminate(); }
 <KNOB_LHS>.                 ek_yyerror("Unexpected token [inside KNOB_LHS state]");
 
+  /* NOTE:
+     - If nothing was defined in the RHS, checking done by Yacc
+  */
 <KNOB_RHS>{quotStr_start}   {                ek_knobQuote(yytext); return KNOB_QSTR; }
 <KNOB_RHS>{identString}     {                ek_knob_rhs(yytext);  return KNOB_NAME; }
 <KNOB_RHS>{colons}          {                ek_knob_rhs(yytext);  return KNOB_NAME; }
-<KNOB_RHS>{commentSl}       { BEGIN INITIAL;                    ek_comment_sl (yytext); return ENDL; } /* TODO: verify that something has been defined, otherwise error! */
+<KNOB_RHS>{commentSl}       { BEGIN INITIAL;                    ek_comment_sl (yytext); return ENDL; }
 <KNOB_RHS>{commentBl_start} { yy_push_state(IN_COMMENT_BL);     ek_comment_b0 (yytext);              }
 <KNOB_RHS>{backtick}        { yy_push_state(IN_BACKTICK_START); ek_btick_start(yytext);              }
 <KNOB_RHS>{whitespace}      ;
-<KNOB_RHS>{newLine}         { BEGIN INITIAL; ek_newLine();        return ENDL;      }
+<KNOB_RHS>{newLine}         { BEGIN INITIAL; ek_newLine();         return ENDL;      }
 <KNOB_RHS>.                 ek_yyerror("Unexpected token [inside KNOB_RHS state]");
 
 <IN_COMMENT_BL>{
-    "*/"        { if (ek_comment_b2(yytext)) { BEGIN INITIAL; return ENDL; } else yy_pop_state();  }   /* return ENDL; Rationale: succeeding statements should be considered as being in their own line */
+      /* NOTE: when coming from certain states, succeeding statements should be considered as being in their own line */
+    "*/"        { if (ek_comment_b2(yytext)) { BEGIN INITIAL; return ENDL; } else yy_pop_state();  }
     [^*\n]+     ek_comment_b1(yytext);
     "*"         ek_comment_b1(yytext);
       /* Newlines within comment blocks as delimiters to previous state:
@@ -199,15 +207,17 @@ xml_end             \<[\t \n]*\/[A-Za-z0-9_][A-Za-z0-9_\-\.\/\\]*[\t \n]*\>
     /* TODO: if string, then handle string */
     {commentBl_start}   { yy_push_state(IN_COMMENT_BL); ek_comment_b0(yytext); }
     ">"                 { BEGIN(IN_XML_BODY); return XML_TAGID; }
-    [\t ]+              // eat whitespaces
+    {whitespace}        ;
     \n                  ek_newLine();
     [^\t \n\>]+         printf("===> [IN_XML_START] eat xml option '%s' at line %d\n",yytext,ek_yyLineNum);
-    /* . --> TODO: error! supposedly unreachable state! */
+    <<EOF>>             { ek_yyerror("Unexpected EOF encountered while parsing XML start block"); yyterminate(); }
+    /* .   --->    unreachable state according to yacc, which is great! */
 }
 <IN_XML_BODY>{
     {xml_end}   { if (ek_xml_match(yytext)) { BEGIN INITIAL; return XML_BLOCKTEXT; } }  // TODO: else, collect
     \n          ek_newLine(); // TODO: pass into XML
     .+          printf("===> [IN_XML_BODY] eat xml body '%s' at line %d\n",yytext,ek_yyLineNum);
+    <<EOF>>     { ek_yyerror("Unexpected EOF encountered while parsing XML block"); yyterminate(); }
 }
 
 <IN_BACKTICK_START>{
@@ -264,12 +274,15 @@ void ek_newLine(void)
 void ek_comment_sl(const char* commStr)
 {
   E_DEBUG("* [ek_comment_sl] '%s'\n",commStr);
+  int oldLineNum = ek_yyLineNum;
   ek_newLine();
-  // TODO: push to external handler; pass in string and line number
+  // push to external handler; pass in string and line number
+  ek_commentSL(commStr,oldLineNum);
 }
 
         //----------------------------------------------------------------------
 
+static int                      commentMlLineSt = -1;
 static int                      commentMlPopped = 0;
 static std::vector<std::string> commentMlLines;
 static char                     commentMlAccum[MAX_STR_SIZE];
@@ -304,6 +317,7 @@ void ek_comment_b0(const char* commStr)
 {
   E_DEBUG("* [ek_comment_b0] '%s' -- started at line %d\n",commStr,ek_yyLineNum);
 
+  commentMlLineSt   = ek_yyLineNum;
   commentMlAccum[0] = 0;
   strcat(commentMlAccum,commStr);
 }
@@ -322,11 +336,8 @@ int ek_comment_b2(const char* commStr) // Returns 1 if a pop occurred
   commentMlLines.push_back(newCommLine);
   commentMlAccum[0] = 0;
 
-  // TODO: push to external handler; pass in vector and line number
-#ifdef EKDEBUG
-  for (auto it = commentMlLines.begin(); it != commentMlLines.end(); it++)
-    printf("* [EK COMMENT]         ----> '%s'\n",it->c_str());
-#endif
+  // push to external handler; pass in vector and line number
+  ek_commentML(&commentMlLines,commentMlLineSt);
 
   commentMlLines.clear();
 

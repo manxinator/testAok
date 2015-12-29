@@ -28,17 +28,23 @@
 #include <stdlib.h>
 #include "ekRead.h"
 #include "ekInternals.h"
+#include <sstream>
 using namespace std;
 using namespace ex_knobs;
 
 //------------------------------------------------------------------------------
 
+  // Lex/Yacc related
+extern int  ek_yyLineNum;
+extern void ek_yyerror(const char *s);
 
   // Delegate Interface
   //
-function<void(primCommand_c*)> ex_knobs::ek_command_f;  // TODO: make this <void(shared_ptr<...>)>
-function<void(primObject_c*)>  ex_knobs::ek_object_f;   // TODO: make this <void(shared_ptr<...>)>
-function<void(primKnob_c*)>    ex_knobs::ek_knob_f;     // TODO: make this <void(shared_ptr<...>)>
+function<void(shared_ptr<primCommand_c>)> ex_knobs::ek_command_f;
+function<void(shared_ptr<primObject_c>)>  ex_knobs::ek_object_f;
+function<void(shared_ptr<primKnob_c>)>    ex_knobs::ek_knob_f;
+function<void(shared_ptr<string>,int)>    ex_knobs::ek_comment_sl_f;
+function<void(shared_ptr<string>,int)>    ex_knobs::ek_comment_ml_f;
 
   // Globals
   //
@@ -85,9 +91,10 @@ void ek_commandIdent (const char* dbgStr, const char *cmdId)
 
   // Process command -- for now, just print
   //
-  //prim_command->print();
   if (ek_command_f)
-    ek_command_f(prim_command.get());
+    ek_command_f(prim_command);
+  else
+    prim_command->print();
 
   // After the command has been processed, renew
   //
@@ -144,7 +151,7 @@ void ek_objectDone (const char* dbgStr)
   // Process object -- for now, just print
   //
   if (ek_object_f)
-    ek_object_f(prim_object.get());
+    ek_object_f(prim_object);
   else
     prim_object->print();
 
@@ -195,6 +202,7 @@ void ek_objectBTick (const char* dbgStr)
 
 //==============================================================================
 
+
 void ek_knobDone (const char* dbgStr)
 {
   E_DEBUG("[%3d] + [%s] [ek_knobDone] \n",ek_yyLineNum,dbgStr);
@@ -202,7 +210,9 @@ void ek_knobDone (const char* dbgStr)
   // Process knob -- for now, just print
   //
   if (ek_knob_f)
-    ek_knob_f(prim_knob.get());
+    ek_knob_f(prim_knob);
+  else
+    prim_knob->print();
 
   // After the command has been processed, renew
   //
@@ -246,6 +256,43 @@ void ek_knobBTick (const char* dbgStr, int isRhs)
   prim_knob->setBTick(static_cast<int>(btType),btIdentStr,btParenStr,isRhs);
 
   E_DEBUG("[%3d] + [%s] [ek_knobBTick] ------> isRhs: %d, identStr: '%s', btType: %d\n",ek_yyLineNum,dbgStr,isRhs,btIdentStr.c_str(),btType);
+}
+
+
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+
+
+void ek_commentSL(const char* commentStr, int lineNum)
+{
+  shared_ptr<string> strObj = make_shared<string>(commentStr);
+  strObj->resize(strObj->length()-1);
+  if (ek_comment_sl_f)
+    ek_comment_sl_f(strObj,lineNum);
+}
+
+void ek_commentML(vector<string> *commLines, int lineNum)
+{
+  if (ek_comment_ml_f)
+  {
+    int strLen = 8;
+    for (auto it = commLines->begin(); it != commLines->end(); it++)
+      strLen += it->length() + 2;
+
+    shared_ptr<string> strObj = make_shared<string>();
+    string &workStr = *strObj.get();
+    workStr.reserve(strLen);
+
+    for (auto it = commLines->begin(); ; ) {
+      workStr += *it;
+      it++;
+      if (it != commLines->end())
+        workStr += "\n";
+      else
+        break;
+    }
+
+    ek_comment_ml_f(strObj,lineNum);
+  }
 }
 
 
