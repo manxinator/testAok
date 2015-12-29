@@ -61,11 +61,11 @@ void TestEK_command(ex_knobs::primCommand_c* cmdPrim)
   printf(" }\n");
 }
 
-void TestEK_object(ex_knobs::primObject_c* cmdPrim)
+void TestEK_object(ex_knobs::primObject_c* objPrim)
 {
-  printf("+++++ [TestEK_object] line: %d { ",cmdPrim->lineNum);
-  for (auto it = cmdPrim->argLst.begin(); it != cmdPrim->argLst.end(); it++) {
-    if (it != cmdPrim->argLst.begin())
+  printf("+++++ [TestEK_object] line: %d { ",objPrim->lineNum);
+  for (auto it = objPrim->argLst.begin(); it != objPrim->argLst.end(); it++) {
+    if (it != objPrim->argLst.begin())
       printf(", ");
     ex_knobs::element_c::elementType_e elem_type = (*it)->elemType;
     switch (elem_type)
@@ -94,6 +94,37 @@ void TestEK_object(ex_knobs::primObject_c* cmdPrim)
   printf(" }\n");
 }
 
+void TestEK_knob(ex_knobs::primKnob_c* knobPrim)
+{
+  printf("+++++ [TestEK_knob] LHS line: %d { ",knobPrim->lineNum);
+  for (auto it = knobPrim->lhsLst.begin(); it != knobPrim->lhsLst.end(); it++) {
+    if (it != knobPrim->lhsLst.begin())
+      printf(", ");
+    ex_knobs::element_c::elementType_e elem_type = (*it)->elemType;
+    switch (elem_type)
+    {
+    case ex_knobs::element_c::ELEM_STRING:   printf("%s",    static_cast<ex_knobs::elemStr_c*> (*it)->varStr.c_str()); break;
+    default:
+      printf("ELEM_TYPE:%d",static_cast<int>(elem_type)); break;
+    }
+  }
+  printf(" }\n");
+
+  printf("+++++ [TestEK_knob] RHS line: %d { ",knobPrim->lineNum);
+  for (auto it = knobPrim->rhsLst.begin(); it != knobPrim->rhsLst.end(); it++) {
+    if (it != knobPrim->rhsLst.begin())
+      printf(", ");
+    ex_knobs::element_c::elementType_e elem_type = (*it)->elemType;
+    switch (elem_type)
+    {
+    case ex_knobs::element_c::ELEM_STRING:   printf("%s",    static_cast<ex_knobs::elemStr_c*> (*it)->varStr.c_str()); break;
+    default:
+      printf("ELEM_TYPE:%d",static_cast<int>(elem_type)); break;
+    }
+  }
+  printf(" }\n");
+}
+
 //------------------------------------------------------------------------------
 
 int main(int argc, char *argv[])
@@ -104,7 +135,8 @@ int main(int argc, char *argv[])
   }
 
   ex_knobs::ek_command_f = std::bind(&TestEK_command,std::placeholders::_1);
-  ex_knobs::ek_object_f  = std::bind(&TestEK_object,std::placeholders::_1);
+  ex_knobs::ek_object_f  = std::bind(&TestEK_object, std::placeholders::_1);
+  ex_knobs::ek_knob_f    = std::bind(&TestEK_knob,   std::placeholders::_1);
 
   char* inpFN  = argv[1];
   int   retVal = ex_knobs::ek_readfile(inpFN,0);

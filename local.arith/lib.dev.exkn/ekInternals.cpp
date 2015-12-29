@@ -38,6 +38,7 @@ using namespace ex_knobs;
   //
 function<void(primCommand_c*)> ex_knobs::ek_command_f;  // TODO: make this <void(shared_ptr<...>)>
 function<void(primObject_c*)>  ex_knobs::ek_object_f;   // TODO: make this <void(shared_ptr<...>)>
+function<void(primKnob_c*)>    ex_knobs::ek_knob_f;     // TODO: make this <void(shared_ptr<...>)>
 
   // Globals
   //
@@ -51,6 +52,7 @@ extern void ek_lexCleanup(void);
   //
 shared_ptr<primCommand_c> prim_command;
 shared_ptr<primObject_c>  prim_object;
+shared_ptr<primKnob_c>    prim_knob;
 
 
 //------------------------------------------------------------------------------
@@ -59,6 +61,7 @@ void ek_parserInit(void)
 {
   prim_command = make_shared<primCommand_c>();
   prim_object  = make_shared<primObject_c>();
+  prim_knob    = make_shared<primKnob_c>();
 
   ek_lexInit();
 }
@@ -69,6 +72,7 @@ void ek_parserCleanup(void)
 
   prim_command.reset();
   prim_object.reset();
+  prim_knob.reset();
 }
 
 //------------------------------------------------------------------------------
@@ -152,7 +156,6 @@ void ek_objectDone (const char* dbgStr)
 void ek_objectStr (const char* dbgStr, const char *objStr)
 {
   E_DEBUG("[%3d] + [%s] [ek_objectStr] objStr: %s\n",ek_yyLineNum,dbgStr,objStr);
-
   prim_object->setStr(objStr,ek_yyLineNum,0);
 }
 
@@ -196,23 +199,25 @@ void ek_knobDone (const char* dbgStr)
 {
   E_DEBUG("[%3d] + [%s] [ek_knobDone] \n",ek_yyLineNum,dbgStr);
 
-  // Process object -- for now, just print
+  // Process knob -- for now, just print
   //
+  if (ek_knob_f)
+    ek_knob_f(prim_knob.get());
 
   // After the command has been processed, renew
   //
+  prim_knob = make_shared<primKnob_c>();
 }
 
-void ek_knobStr (const char* dbgStr, int isRhs, const char *objStr)
+void ek_knobStr (const char* dbgStr, int isRhs, const char *knobStr)
 {
-  E_DEBUG("[%3d] + [%s] [ek_knobStr] isRhs: %d, objStr: %s\n",ek_yyLineNum,dbgStr,isRhs,objStr);
-
-  //prim_object->setStr(objStr,ek_yyLineNum,0);
+  E_DEBUG("[%3d] + [%s] [ek_knobStr] isRhs: %d, knobStr: %s\n",ek_yyLineNum,dbgStr,isRhs,knobStr);
+  prim_knob->setStr(knobStr,ek_yyLineNum,0,isRhs);
 }
 
 void ek_knobQStr (const char* dbgStr, int isRhs, shared_ptr<vector<string> > quoteStr)
 {
-  E_DEBUG("[%3d] + [%s] [ek_knobQStr] quoteStr->size(): %d\n",ek_yyLineNum,dbgStr,quoteStr->size());
+  E_DEBUG("[%3d] + [%s] [ek_knobQStr] isRhs: %d, quoteStr->size(): %d\n",ek_yyLineNum,dbgStr,isRhs,quoteStr->size());
   int strLen = 8;
   for (auto it = quoteStr->begin(); it != quoteStr->end(); it++)
     strLen += it->length() + 2;
@@ -228,7 +233,7 @@ void ek_knobQStr (const char* dbgStr, int isRhs, shared_ptr<vector<string> > quo
       break;
   }
 
-  //prim_object->setStr(objStr,ek_yyLineNum,0);
+  prim_knob->setStr(workStr,ek_yyLineNum,0,isRhs);
 }
 
 void ek_knobBTick (const char* dbgStr, int isRhs)
@@ -238,9 +243,9 @@ void ek_knobBTick (const char* dbgStr, int isRhs)
   string      btParenStr;
 
   ek_collectBTInfo(btIdentStr,btParenStr,btType);
-  //prim_object->setBTick(static_cast<int>(btType),btIdentStr,btParenStr);
+  prim_knob->setBTick(static_cast<int>(btType),btIdentStr,btParenStr,isRhs);
 
-  E_DEBUG("[%3d] + [%s] [ek_knobBTick] ------> identStr: '%s', btType: %d\n",ek_yyLineNum,dbgStr,btIdentStr.c_str(),btType);
+  E_DEBUG("[%3d] + [%s] [ek_knobBTick] ------> isRhs: %d, identStr: '%s', btType: %d\n",ek_yyLineNum,dbgStr,isRhs,btIdentStr.c_str(),btType);
 }
 
 
@@ -345,6 +350,35 @@ void primObject_c::setBTick (int btType, const string& idStr, const string& pare
 }
 
 void primObject_c::print (void)
+{
+}
+//++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+void primKnob_c::setLineNum(int lNum)
+{
+  if (lineNum < 0)
+    lineNum = lNum;
+}
+
+void primKnob_c::setStr (const string& arStr, int l_lineNum, int isQ, int isRhs)
+{
+  setLineNum(l_lineNum);
+  element_c* l_elem = exkn_str2elem(arStr,isQ);
+  if (isRhs)
+    rhsLst.push_back(l_elem);
+  else
+    lhsLst.push_back(l_elem);
+}
+
+void primKnob_c::setBTick (int btType, const string& idStr, const string& parenStr, int isRhs)
+{
+  element_c* l_elem = backTickToElem(btType,idStr,parenStr);
+  if (isRhs)
+    lhsLst.push_back(l_elem);
+  else
+    rhsLst.push_back(l_elem);
+}
+
+void primKnob_c::print (void)
 {
 }
 //------------------------------------------------------------------------------

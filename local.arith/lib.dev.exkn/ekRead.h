@@ -108,7 +108,8 @@ namespace ex_knobs
     typedef enum _primitiveType_e_ {
       PRIM_UNDEF   = 0,
       PRIM_COMMAND = 1,
-      PRIM_OBJECT  = 2
+      PRIM_OBJECT  = 2,
+      PRIM_KNOB    = 3
     } primitiveType_e;
 
     primitiveType_e primType;
@@ -163,6 +164,26 @@ namespace ex_knobs
     void print (void);
   };
 
+  class primKnob_c : public primitive_c {
+  public:
+    std::vector<element_c*> lhsLst;
+    std::vector<element_c*> rhsLst;
+
+  public:
+             primKnob_c() : primitive_c(PRIM_KNOB) {}
+    virtual ~primKnob_c() {
+      for (auto it = lhsLst.begin(); it != lhsLst.end(); it++) delete *it;
+      for (auto it = rhsLst.begin(); it != rhsLst.end(); it++) delete *it;
+    }
+
+    virtual void setLineNum(int lNum);
+
+    void setStr  (const std::string& arStr, int l_lineNum, int isQ, int isRhs);
+    void setBTick(int btType, const std::string& idStr, const std::string& parenStr, int isRhs);
+
+    void print (void);
+  };
+
     // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     // Utility functions
     //
@@ -178,6 +199,7 @@ namespace ex_knobs
 
   extern std::function<void(primCommand_c*)> ek_command_f;
   extern std::function<void(primObject_c*)>  ek_object_f;
+  extern std::function<void(primKnob_c*)>    ek_knob_f;
 }
 
 //------------------------------------------------------------------------------
