@@ -62,6 +62,10 @@ extern void ek_commentML(std::vector<std::string> *commLines, int lineNum);
 
   // XML
 extern void ek_xmlLiNum(int lineNum);
+extern void ek_xmlStart(const char* dbgStr, const char *xmlId);
+extern void ek_xmlStr  (const char* dbgStr, const char *xmlStr);
+extern void ek_xmlQStr (const char* dbgStr, std::shared_ptr<std::vector<std::string> > quoteStr);
+extern void ek_xmlDone (const char* dbgStr);
 
 
 typedef enum _btickType_e_ {
@@ -75,7 +79,8 @@ typedef enum _btickType_e_ {
 
 
   // Collect functions
-extern std::shared_ptr<std::vector<std::string> > ek_collectQStr(void);
+extern std::shared_ptr<std::vector<std::string> > ek_collectQStr   (void);
+extern std::shared_ptr<std::vector<std::string> > ek_collectXmlBody(void);
 
 extern void ek_collectBTInfo (std::string &identStr, std::string &parenStr, btickType_e &btType);
 

@@ -49,8 +49,14 @@ static int  ek_comment_b2(const char* commStr);     // End of comment, Returns 1
 static int  ek_comment_nl(void);                    // Newline inside comment, Returns 1 to terminate previous state
 static void ek_command_id(const char* commStr);
 static void ek_command_ar(const char* commStr);
+
 static void ek_xml_start (const char* xmlStr);
 static int  ek_xml_match (const char* xmlStr);      // Returns 1 to terminate XML parsing
+static void ek_xml_arg   (const char* argStr);
+static void ek_xml_argQ  (const char* startStr);
+static void ek_xml_bodySt(void);
+static void ek_xml_acumm (const char* accStr);
+static void ek_xml_newl  (void);
 
 static void ek_quoteStr    (const char* startStr);
 static void ek_commandQuote(const char* startStr);
@@ -138,7 +144,7 @@ xml_end             \<[\t \n]*\/[A-Za-z0-9_][A-Za-z0-9_\-\.\/\\]*[\t \n]*\>
 <INITIAL>{commentSl}        {                               ek_comment_sl(yytext); return ENDL;         }
 <INITIAL>{commentBl_start}  { yy_push_state(IN_COMMENT_BL); ek_comment_b0(yytext);                      }
 <INITIAL>{commandId}        { BEGIN COMMAND;                ek_command_id(yytext); return COMMAND_ID;   }
-<INITIAL>{xml_start}        { BEGIN IN_XML_START;           ek_xml_start (yytext); return XML_START;    }
+<INITIAL>{xml_start}        { BEGIN IN_XML_START;           ek_xml_start (yytext); return XML_TAGID;    }
 <INITIAL>{identString}      { BEGIN KNOB_LHS;               ek_knob_lhs  (yytext); return KNOB_NAME;    }
 <INITIAL>{newLine}          {                               ek_newLine();          return ENDL;         }
 <INITIAL>.                  ek_yyerror("Unexpected token [inside INITIAL state]");
@@ -204,19 +210,19 @@ xml_end             \<[\t \n]*\/[A-Za-z0-9_][A-Za-z0-9_\-\.\/\\]*[\t \n]*\>
 } /* { ...; } -- NOTE: Suceeding code block has no effect, but I can't find where this is documented in the flex manual */
 
 <IN_XML_START>{
-    /* TODO: if string, then handle string */
-    {commentBl_start}   { yy_push_state(IN_COMMENT_BL); ek_comment_b0(yytext); }
-    ">"                 { BEGIN(IN_XML_BODY); return XML_TAGID; }
+    {quotStr_start}     { ek_xml_argQ(yytext); return XML_ARGQS; }
     {whitespace}        ;
     \n                  ek_newLine();
-    [^\t \n\>]+         printf("===> [IN_XML_START] eat xml option '%s' at line %d\n",yytext,ek_yyLineNum);
+    {commentBl_start}   { yy_push_state(IN_COMMENT_BL); ek_comment_b0(yytext); }
+    ">"                 { ek_xml_bodySt();    BEGIN(IN_XML_BODY); return XML_ENDTAG; }
+    [^\t \n\>\"]+       { ek_xml_arg(yytext);                     return XML_ARGID;  }
     <<EOF>>             { ek_yyerror("Unexpected EOF encountered while parsing XML start block"); yyterminate(); }
     /* .   --->    unreachable state according to yacc, which is great! */
 }
 <IN_XML_BODY>{
-    {xml_end}   { if (ek_xml_match(yytext)) { BEGIN INITIAL; return XML_BLOCKTEXT; } }  // TODO: else, collect
-    \n          ek_newLine(); // TODO: pass into XML
-    .+          printf("===> [IN_XML_BODY] eat xml body '%s' at line %d\n",yytext,ek_yyLineNum);
+    {xml_end}   { if (ek_xml_match(yytext)) { BEGIN INITIAL; return XML_BLOCKTEXT; } else ek_xml_acumm(yytext); }
+    \n          { ek_xml_newl(); ek_newLine(); }
+    [^\n\<]+    { ek_xml_arg(yytext); }
     <<EOF>>     { ek_yyerror("Unexpected EOF encountered while parsing XML block"); yyterminate(); }
 }
 
@@ -406,8 +412,8 @@ void ek_knob_rhs (const char* idStr)
   ek_yylval.knobNameStr = ek_static_str;
 }
         //----------------------------------------------------------------------
-//static std::vector<std::string> xmlLines;
-//static char                     xmlAccum[MAX_STR_SIZE];   // TODO: manage and cleanup memory
+static std::shared_ptr<std::vector<std::string> > xmlLines;
+static char  xmlAccum[MAX_STR_SIZE];   // TODO: manage and cleanup memory
 
 void ek_xml_start(const char* xmlStr)
 {
@@ -436,6 +442,12 @@ void ek_xml_start(const char* xmlStr)
 //ek_yo();
 }
 
+void ek_xml_bodySt(void)
+{
+  xmlAccum[0] = 0;
+  xmlLines = decltype(xmlLines)(new std::vector<std::string>);
+}
+
 int ek_xml_match(const char* xmlStr)  // returns 1 to terminate XML parsing
 {
 //debug_aaaa = 1;
@@ -456,7 +468,43 @@ int ek_xml_match(const char* xmlStr)  // returns 1 to terminate XML parsing
   const char* tagStart = &xmlStr[srcIdx];
   E_DEBUG("* [ek_xml_match] '%s' at line %d\n",tagStart,ek_yyLineNum);
 
-  return strstr(tagStart,ek_static_str) == tagStart ? 1 : 0;
+  // TODO: strstr will match partial -- need to do full exact string matching
+  return strstr(tagStart,ek_static_str) == tagStart ? 1 : 0;;
+}
+
+void ek_xml_arg (const char* argStr)
+{
+  strcpy(xmlAccum,argStr);
+  ek_yylval.xmlArg = xmlAccum;
+}
+
+void ek_xml_argQ (const char* startStr)
+{
+  E_DEBUG("* [ek_xml_argQ] '%s' line %d\n",startStr,ek_yyLineNum);
+  ek_quoteStr(startStr);
+}
+
+void ek_xml_acumm (const char* accStr)
+{
+  E_DEBUG("* [ek_xml_acumm] '%s' line %d\n",accStr,ek_yyLineNum);
+  strcat(xmlAccum,accStr);
+}
+
+void ek_xml_newl (void)
+{
+  xmlLines->push_back(xmlAccum);
+  xmlAccum[0] = 0;
+}
+
+std::shared_ptr<std::vector<std::string> > ek_collectXmlBody(void)
+{
+  if (0 != xmlAccum[0]) {
+    // if there is no newline at the end, save it up
+    ek_xml_newl();
+  }
+  auto temp = xmlLines;
+  xmlLines.reset();
+  return temp;
 }
 
         /*--------------------------------------------------------------------*/

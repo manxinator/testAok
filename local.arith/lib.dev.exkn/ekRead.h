@@ -110,7 +110,8 @@ namespace ex_knobs
       PRIM_UNDEF   = 0,
       PRIM_COMMAND = 1,
       PRIM_OBJECT  = 2,
-      PRIM_KNOB    = 3
+      PRIM_KNOB    = 3,
+      PRIM_XML     = 4
     } primitiveType_e;
 
     primitiveType_e primType;
@@ -139,7 +140,7 @@ namespace ex_knobs
     virtual void setLineNum(int lNum);
 
     void setIdent(const std::string& idStr, int l_lineNum);
-    void setArg  (const std::string& arStr, int l_lineNum, int isQ);
+    void setArg  (const std::string& arStr, int isQ);
 
     void setBTick(int btType, const std::string& idStr, const std::string& parenStr);
 
@@ -185,6 +186,27 @@ namespace ex_knobs
     void print (void);
   };
 
+  class primXml_c : public primitive_c {
+  public:
+    std::string             ident;
+    std::vector<element_c*> optLst;
+    std::vector<element_c*> lineLst;
+
+  public:
+             primXml_c() : primitive_c(PRIM_XML) {}
+    virtual ~primXml_c() {
+      for (auto it = optLst.begin();  it != optLst.end();  it++) delete *it;
+      for (auto it = lineLst.begin(); it != lineLst.end(); it++) delete *it;
+    }
+
+    virtual void setLineNum(int lNum);
+
+    void setStr (const std::string& arStr, int isQ);
+    void addBody(const std::string& bodStr);
+
+    void print (void);
+  };
+
     // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     // Utility functions
     //
@@ -203,6 +225,7 @@ namespace ex_knobs
   extern std::function<void(std::shared_ptr<primKnob_c>)>      ek_knob_f;
   extern std::function<void(std::shared_ptr<std::string>,int)> ek_comment_sl_f;
   extern std::function<void(std::shared_ptr<std::string>,int)> ek_comment_ml_f;
+  extern std::function<void(std::shared_ptr<primXml_c>)>       ek_xml_f;
 }
 
 //------------------------------------------------------------------------------

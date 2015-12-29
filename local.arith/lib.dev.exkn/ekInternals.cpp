@@ -45,6 +45,7 @@ function<void(shared_ptr<primObject_c>)>  ex_knobs::ek_object_f;
 function<void(shared_ptr<primKnob_c>)>    ex_knobs::ek_knob_f;
 function<void(shared_ptr<string>,int)>    ex_knobs::ek_comment_sl_f;
 function<void(shared_ptr<string>,int)>    ex_knobs::ek_comment_ml_f;
+function<void(shared_ptr<primXml_c>)>     ex_knobs::ek_xml_f;
 
 extern void ek_lexInit   (void);
 extern void ek_lexCleanup(void);
@@ -54,11 +55,12 @@ extern void ek_lexCleanup(void);
 shared_ptr<primCommand_c> prim_command;
 shared_ptr<primObject_c>  prim_object;
 shared_ptr<primKnob_c>    prim_knob;
+shared_ptr<primXml_c>     prim_xml;
 
   // Global Variables
   //
-int commandLineNum = -1;
-int xmlLineNum     = -1;
+int ekint_commandLineNum = -1;
+int ekint_xmlLineNum     = -1;
 
 
 //------------------------------------------------------------------------------
@@ -68,6 +70,7 @@ void ek_parserInit(void)
   prim_command = make_shared<primCommand_c>();
   prim_object  = make_shared<primObject_c>();
   prim_knob    = make_shared<primKnob_c>();
+  prim_xml     = make_shared<primXml_c>();
 
   ek_lexInit();
 }
@@ -79,6 +82,7 @@ void ek_parserCleanup(void)
   prim_command.reset();
   prim_object.reset();
   prim_knob.reset();
+  prim_xml.reset();
 }
 
 //------------------------------------------------------------------------------
@@ -87,7 +91,7 @@ void ek_parserCleanup(void)
 void ek_commandIdent (const char* dbgStr, const char *cmdId)
 {
   //E_DEBUG("[%3d]   +   [%s] [ek_commandIdent] %s\n",ek_yyLineNum,dbgStr,cmdId);
-  prim_command->setIdent(cmdId,commandLineNum);   // -- TODO: cleanup line numbers for command
+  prim_command->setIdent(cmdId,ekint_commandLineNum);
 
   // Process command -- for now, just print
   //
@@ -104,7 +108,7 @@ void ek_commandIdent (const char* dbgStr, const char *cmdId)
 void ek_commandArgs (const char* dbgStr, const char *cmdArgs)
 {
   //E_DEBUG("[%3d]   +   [%s] [ek_commandArgs]  %s\n",ek_yyLineNum,dbgStr,cmdArgs);
-  prim_command->setArg(cmdArgs,ek_yyLineNum,0);
+  prim_command->setArg(cmdArgs,0);
 }
 
 void ek_commandQStr (const char* dbgStr, shared_ptr<vector<string> > quoteStr)
@@ -125,7 +129,7 @@ void ek_commandQStr (const char* dbgStr, shared_ptr<vector<string> > quoteStr)
       break;
   }
 
-  prim_command->setArg(workStr,ek_yyLineNum,1);
+  prim_command->setArg(workStr,1);
 }
 
 void ek_commandBTick(const char* dbgStr)
@@ -142,7 +146,7 @@ void ek_commandBTick(const char* dbgStr)
 
 void ek_commandLiNum(int lineNum)
 {
-  commandLineNum = lineNum;
+  ekint_commandLineNum = lineNum;
 }
 
 
@@ -267,9 +271,86 @@ void ek_knobBTick (const char* dbgStr, int isRhs)
 //==============================================================================
 
 
+void ek_xmlDone (const char* dbgStr)
+{
+  E_DEBUG("[%3d] + [%s] [ek_xmlDone] \n",ek_yyLineNum,dbgStr);
+
+  auto xmlBody = ek_collectXmlBody();
+  {
+    int strLen = 8;
+    for (auto it = xmlBody->begin(); it != xmlBody->end(); it++)
+      strLen += it->length() + 2;
+
+    string workStr;
+    workStr.reserve(strLen);
+
+      // If first line is nothing but spaces, eliminate
+    auto it = xmlBody->begin();
+    string &firstStr = *it;
+    std::size_t charPos = firstStr.find_first_not_of(" \t\n");
+    if (charPos == std::string::npos)
+      it++;
+
+    for (; ; ) {
+      workStr += *it;
+      it++;
+      if (it != xmlBody->end())
+        workStr += "\n";
+      else
+        break;
+    }
+    prim_xml->addBody(workStr);
+  }
+
+  // Process XML -- for now, just print
+  //
+  if (ek_xml_f)
+    ek_xml_f(prim_xml);
+  else
+    prim_xml->print();
+
+  // After the command has been processed, renew
+  //
+  prim_xml = make_shared<primXml_c>();
+}
+
 void ek_xmlLiNum(int lineNum)
 {
-  xmlLineNum = lineNum;
+  ekint_xmlLineNum = lineNum;
+}
+
+void ek_xmlStart (const char* dbgStr, const char *xmlId)
+{
+  E_DEBUG("[%3d] + [%s] [ek_xmlStart] xmlId: %s\n",ek_yyLineNum,dbgStr,xmlId);
+  prim_xml->setLineNum(ekint_xmlLineNum);
+  prim_xml->ident.assign(xmlId);
+}
+
+void ek_xmlStr (const char* dbgStr, const char *argStr)
+{
+  E_DEBUG("[%3d] + [%s] [ek_xmlStr] argStr: %s\n",ek_yyLineNum,dbgStr,argStr);
+  prim_xml->setStr(argStr,0);
+}
+
+void ek_xmlQStr (const char* dbgStr, std::shared_ptr<std::vector<std::string> > quoteStr)
+{
+  E_DEBUG("[%3d] + [%s] [ek_xmlQStr] quoteStr->size(): %d\n",ek_yyLineNum,dbgStr,quoteStr->size());
+  int strLen = 8;
+  for (auto it = quoteStr->begin(); it != quoteStr->end(); it++)
+    strLen += it->length() + 2;
+
+  string workStr;
+  workStr.reserve(strLen);
+  for (auto it = quoteStr->begin(); ; ) {
+    workStr += *it;
+    it++;
+    if (it != quoteStr->end())
+      workStr += "\n";
+    else
+      break;
+  }
+
+  prim_xml->setStr(workStr,1);
 }
 
 
@@ -366,9 +447,8 @@ void primCommand_c::setIdent(const string& idStr, int l_lineNum)
   ident = idStr;
 }
 
-void primCommand_c::setArg (const string& arStr, int l_lineNum, int isQ)
+void primCommand_c::setArg (const string& arStr, int isQ)
 {
-  setLineNum(l_lineNum);
   argLst.push_back(exkn_str2elem(arStr,isQ));
 }
 
@@ -440,6 +520,29 @@ void primKnob_c::setBTick (int btType, const string& idStr, const string& parenS
 }
 
 void primKnob_c::print (void)
+{
+}
+//++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+void primXml_c::setLineNum(int lNum)
+{
+  if (lineNum < 0)
+    lineNum = lNum;
+}
+
+void primXml_c::setStr (const string& arStr, int isQ)
+{
+  element_c* l_elem = exkn_str2elem(arStr,isQ);
+  optLst.push_back(l_elem);
+}
+
+void primXml_c::addBody(const string& bodStr)
+{
+  elemStr_c *l_elemStr = new elemStr_c ();
+  l_elemStr->varStr = bodStr;
+  lineLst.push_back( static_cast<elemStr_c*>(l_elemStr) );
+}
+
+void primXml_c::print (void)
 {
 }
 //------------------------------------------------------------------------------

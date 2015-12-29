@@ -2,12 +2,14 @@
 
 #gun
 <
-  gandalf rank="istari"
+  gandalf rank="istari maiar"
     wizard=true
     "Mithrandir"
->
+>  
   He fought balrog
+  And became a white wizard
 < /gandalf >
+
 #bang
 
 

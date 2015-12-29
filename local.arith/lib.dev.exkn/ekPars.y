@@ -51,9 +51,10 @@ extern int  ek_yylex  (void);
 %token COMMAND_ARGS
 %token COMMAND_QSTR
 
-%token XML_START
 %token XML_TAGID
-%token XML_TAGQS
+%token XML_ARGID
+%token XML_ARGQS
+%token XML_ENDTAG
 %token XML_BLOCKTEXT
 
 %token BTICK_SEQ
@@ -75,12 +76,14 @@ extern int  ek_yylex  (void);
   const char *objNameStr;
   const char *knobNameStr;
   const char *xmlTagId;
+  const char *xmlArg;
 }
 %type <commandIdStr>      COMMAND_ID
 %type <commandArgStr>     COMMAND_ARGS
 %type <objNameStr>        OBJ_ID
 %type <knobNameStr>       KNOB_NAME
 %type <xmlTagId>          XML_TAGID
+%type <xmlArg>            XML_ARGID
 
 //------------------------------------------------------------------------------
 %%
@@ -151,18 +154,19 @@ knob_rhs:
   ;
 
 xml_stmt:
-    xml_tag_stmt XML_BLOCKTEXT    { E_DEBUG("[%3d]   +   [xml_stmt] done!\n",ek_yyLineNum); }
+    xml_tag_stmt XML_BLOCKTEXT    { ek_xmlDone("xml_stmt"); }
   ;
 
 xml_tag_stmt:
-    XML_START xml_tag_seq         { E_DEBUG("[%3d]   +   [xml_tag_stmt] tag completed\n",ek_yyLineNum); }
+    XML_TAGID             XML_ENDTAG  { ek_xmlStart("xml_tag_stmt 1",$1); }
+  | XML_TAGID xml_tag_seq XML_ENDTAG  { ek_xmlStart("xml_tag_stmt 2",$1); }
   ;
 
 xml_tag_seq:
-    xml_tag_seq XML_TAGID         { E_DEBUG("[%3d]   +   [xml_tag_seq] 1 xml_tag_seq XML_TAGID '%s'\n",ek_yyLineNum,$2); }
-  | xml_tag_seq XML_TAGQS         { E_DEBUG("[%3d]   +   [xml_tag_seq] 2 xml_tag_seq XML_TAGQS     \n",ek_yyLineNum); }
-  |             XML_TAGID         { E_DEBUG("[%3d]   +   [xml_tag_seq] 3             XML_TAGID '%s'\n",ek_yyLineNum,$1); }
-  |             XML_TAGQS         { E_DEBUG("[%3d]   +   [xml_tag_seq] 4             XML_TAGQS     \n",ek_yyLineNum); }
+    xml_tag_seq XML_ARGID         { ek_xmlStr ("xml_tag_seq 1",$2); }
+  | xml_tag_seq XML_ARGQS         { ek_xmlQStr("xml_tag_seq 2",ek_collectQStr()); }
+  |             XML_ARGID         { ek_xmlStr ("xml_tag_seq 3",$1); }
+  |             XML_ARGQS         { ek_xmlQStr("xml_tag_seq 4",ek_collectQStr()); }
   ;
 
 
