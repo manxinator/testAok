@@ -167,6 +167,36 @@ void TestEK_RemML(std::shared_ptr<std::string> remStr, int lineNum)
   printf("+++++ [TestEK_RemML] line: %d ~%s~\n",lineNum,remStr->c_str());
 }
 
+void TestEK_xml(std::shared_ptr<ex_knobs::primXml_c> xmlPrim)
+{
+  printf("+++++ [TestEK_xml] line: %d Ident: '%s'\n",xmlPrim->lineNum,xmlPrim->ident.c_str());
+  if (xmlPrim->optLst.size() > 0) {
+    printf("+++++ [TestEK_xml] options: { ");
+    for (auto it = xmlPrim->optLst.begin(); it != xmlPrim->optLst.end(); it++) {
+      if (it != xmlPrim->optLst.begin())
+        printf(", ");
+      ex_knobs::element_c::elementType_e elem_type = (*it)->elemType;
+      switch (elem_type)
+      {
+      case ex_knobs::element_c::ELEM_STRING:   printf("%s",    static_cast<ex_knobs::elemStr_c*> (*it)->varStr.c_str()); break;
+      case ex_knobs::element_c::ELEM_QSTRING:  printf("\'%s\'",static_cast<ex_knobs::elemQStr_c*>(*it)->varStr.c_str()); break;
+      default:
+        printf("ELEM_TYPE:%d",static_cast<int>(elem_type)); break;
+      }
+    }
+    printf(" }\n");
+  }
+  printf("+++++ [TestEK_xml] body:\n");
+  for (auto it = xmlPrim->lineLst.begin(); it != xmlPrim->lineLst.end(); it++) {
+    ex_knobs::element_c::elementType_e elem_type = (*it)->elemType;
+    if (elem_type == ex_knobs::element_c::ELEM_STRING)
+      printf("@@%s@@",static_cast<ex_knobs::elemStr_c*> (*it)->varStr.c_str());
+    else
+      printf("ELEM_TYPE:%d",static_cast<int>(elem_type));
+    printf("\n");
+  }
+}
+
 //------------------------------------------------------------------------------
 
 int main(int argc, char *argv[])
@@ -181,6 +211,7 @@ int main(int argc, char *argv[])
   ex_knobs::ek_knob_f       = std::bind(&TestEK_knob,   std::placeholders::_1);
   ex_knobs::ek_comment_sl_f = std::bind(&TestEK_RemSL,  std::placeholders::_1, std::placeholders::_2);
   ex_knobs::ek_comment_ml_f = std::bind(&TestEK_RemML,  std::placeholders::_1, std::placeholders::_2);
+  ex_knobs::ek_xml_f        = std::bind(&TestEK_xml,   std::placeholders::_1);
 
   char* inpFN  = argv[1];
   int   retVal = ex_knobs::ek_readfile(inpFN,0);
