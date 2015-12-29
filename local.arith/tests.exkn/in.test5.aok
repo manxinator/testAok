@@ -2,5 +2,7 @@
 
 %ticket`plane(airbus,"a380")boarding
   class = first
+  dest"stopover"`promo(food+drink) miles = sfo
+  origin = cancun`(all*inclusive) "vacation"
 
 

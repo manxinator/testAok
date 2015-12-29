@@ -233,7 +233,7 @@ void ek_knobQStr (const char* dbgStr, int isRhs, shared_ptr<vector<string> > quo
       break;
   }
 
-  prim_knob->setStr(workStr,ek_yyLineNum,0,isRhs);
+  prim_knob->setStr(workStr,ek_yyLineNum,1,isRhs);
 }
 
 void ek_knobBTick (const char* dbgStr, int isRhs)
@@ -373,9 +373,9 @@ void primKnob_c::setBTick (int btType, const string& idStr, const string& parenS
 {
   element_c* l_elem = backTickToElem(btType,idStr,parenStr);
   if (isRhs)
-    lhsLst.push_back(l_elem);
-  else
     rhsLst.push_back(l_elem);
+  else
+    lhsLst.push_back(l_elem);
 }
 
 void primKnob_c::print (void)

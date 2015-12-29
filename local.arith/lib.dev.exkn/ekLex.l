@@ -57,7 +57,8 @@ static void ek_commandQuote(const char* startStr);
 static void ek_objectQuote (const char* startStr);
 static void ek_objectString(const char* idStr   );
 
-static void ek_knob_start(const char* idStr);
+static void ek_knobQuote (const char* startStr);
+static void ek_knob_lhs  (const char* idStr);
 static void ek_knob_stRhs(const char* eqStr);
 static void ek_knob_rhs  (const char* idStr);
 
@@ -138,8 +139,8 @@ xml_end             \<[\t \n]*\/[A-Za-z0-9_][A-Za-z0-9_\-\.\/\\]*[\t \n]*\>
 <INITIAL>{commentBl_start}  { yy_push_state(IN_COMMENT_BL); ek_comment_b0(yytext);                      }
 <INITIAL>{commandId}        { BEGIN COMMAND;                ek_command_id(yytext); return COMMAND_ID;   }
 <INITIAL>{xml_start}        { BEGIN IN_XML_START;           ek_xml_start (yytext);                      }
+<INITIAL>{identString}      { BEGIN KNOB_LHS;               ek_knob_lhs  (yytext); return KNOB_NAME;    }
 <INITIAL>{newLine}          {                               ek_newLine();          return ENDL;         }
-<INITIAL>{identString}      { BEGIN KNOB_LHS;               ek_knob_start(yytext); return KNOB_NAME;    }
 <INITIAL>.                  ek_yyerror("Unexpected token [inside INITIAL state]");
 
   /* NOTE: CommandID is parsed even before entering the COMMAND state */
@@ -162,13 +163,24 @@ xml_end             \<[\t \n]*\/[A-Za-z0-9_][A-Za-z0-9_\-\.\/\\]*[\t \n]*\>
 <OBJECT>{newLine}           { BEGIN INITIAL; ek_newLine(); return ENDL; }
 <OBJECT>.                   ek_yyerror("Unexpected token [inside OBJECT state]");
 
-<KNOB_LHS>{equalsign}       { BEGIN KNOB_RHS; ek_knob_stRhs(yytext); return KNOB_EQ; }
+<KNOB_LHS>{quotStr_start}   {                 ek_knobQuote(yytext);  return KNOB_QSTR; }
+<KNOB_LHS>{identString}     {                 ek_knob_lhs(yytext);   return KNOB_NAME; }
+<KNOB_LHS>{equalsign}       { BEGIN KNOB_RHS; ek_knob_stRhs(yytext); return KNOB_EQ;   }
+<KNOB_LHS>{commentSl}       { ek_yyerror("===> [KNOB_LHS] expecting '=', got comment '//'"); yyterminate(); }
+<KNOB_LHS>{commentBl_start} { ek_yyerror("===> [KNOB_LHS] expecting '=', got comment '/*'"); yyterminate(); }
+<KNOB_LHS>{backtick}        { yy_push_state(IN_BACKTICK_START); ek_btick_start(yytext);              }
 <KNOB_LHS>{whitespace}      ;
+<KNOB_LHS>{newLine}         { ek_yyerror("===> [KNOB_LHS] expecting '=', got newline '\n'"); yyterminate(); }
 <KNOB_LHS>.                 ek_yyerror("Unexpected token [inside KNOB_LHS state]");
 
-<KNOB_RHS>{identString}     {                ek_knob_rhs(yytext); return KNOB_NAME; }
-<KNOB_RHS>{newLine}         { BEGIN INITIAL; ek_newLine();        return ENDL;      }
+<KNOB_RHS>{quotStr_start}   {                ek_knobQuote(yytext); return KNOB_QSTR; }
+<KNOB_RHS>{identString}     {                ek_knob_rhs(yytext);  return KNOB_NAME; }
+<KNOB_RHS>{colons}          {                ek_knob_rhs(yytext);  return KNOB_NAME; }
+<KNOB_RHS>{commentSl}       { BEGIN INITIAL;                    ek_comment_sl (yytext); return ENDL; } /* TODO: verify that something has been defined, otherwise error! */
+<KNOB_RHS>{commentBl_start} { yy_push_state(IN_COMMENT_BL);     ek_comment_b0 (yytext);              }
+<KNOB_RHS>{backtick}        { yy_push_state(IN_BACKTICK_START); ek_btick_start(yytext);              }
 <KNOB_RHS>{whitespace}      ;
+<KNOB_RHS>{newLine}         { BEGIN INITIAL; ek_newLine();        return ENDL;      }
 <KNOB_RHS>.                 ek_yyerror("Unexpected token [inside KNOB_RHS state]");
 
 <IN_COMMENT_BL>{
@@ -358,9 +370,15 @@ void ek_objectString(const char* idStr)
   ek_yylval.objNameStr = ek_static_str;
 }
         //----------------------------------------------------------------------
-void ek_knob_start (const char* idStr)
+void ek_knobQuote(const char* startStr)
 {
-  E_DEBUG("* [ek_knob_start] '%s' line %d\n",idStr,ek_yyLineNum);
+  E_DEBUG("* [ek_objectQuote] '%s' line %d\n",startStr,ek_yyLineNum);
+  ek_quoteStr(startStr);
+}
+
+void ek_knob_lhs (const char* idStr)
+{
+  E_DEBUG("* [ek_knob_lhs] '%s' line %d\n",idStr,ek_yyLineNum);
   sprintf(ek_static_str,"%s",idStr);
   ek_yylval.knobNameStr = ek_static_str;
 }
