@@ -38,6 +38,7 @@ extern void ek_parserInit   (void);
 extern void ek_parserCleanup(void);
 
   // Command
+extern void ek_commandLiNum(int lineNum);
 extern void ek_commandIdent(const char* dbgStr, const char *cmdId);
 extern void ek_commandArgs (const char* dbgStr, const char *cmdArgs);
 extern void ek_commandQStr (const char* dbgStr, std::shared_ptr<std::vector<std::string> > quoteStr);
@@ -58,6 +59,9 @@ extern void ek_knobBTick(const char* dbgStr, int isRhs);
   // Comments
 extern void ek_commentSL(const char* commentStr,              int lineNum);
 extern void ek_commentML(std::vector<std::string> *commLines, int lineNum);
+
+  // XML
+extern void ek_xmlLiNum(int lineNum);
 
 
 typedef enum _btickType_e_ {

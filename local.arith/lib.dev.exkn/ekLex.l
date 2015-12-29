@@ -138,7 +138,7 @@ xml_end             \<[\t \n]*\/[A-Za-z0-9_][A-Za-z0-9_\-\.\/\\]*[\t \n]*\>
 <INITIAL>{commentSl}        {                               ek_comment_sl(yytext); return ENDL;         }
 <INITIAL>{commentBl_start}  { yy_push_state(IN_COMMENT_BL); ek_comment_b0(yytext);                      }
 <INITIAL>{commandId}        { BEGIN COMMAND;                ek_command_id(yytext); return COMMAND_ID;   }
-<INITIAL>{xml_start}        { BEGIN IN_XML_START;           ek_xml_start (yytext);                      }
+<INITIAL>{xml_start}        { BEGIN IN_XML_START;           ek_xml_start (yytext); return XML_START;    }
 <INITIAL>{identString}      { BEGIN KNOB_LHS;               ek_knob_lhs  (yytext); return KNOB_NAME;    }
 <INITIAL>{newLine}          {                               ek_newLine();          return ENDL;         }
 <INITIAL>.                  ek_yyerror("Unexpected token [inside INITIAL state]");
@@ -285,7 +285,7 @@ void ek_comment_sl(const char* commStr)
 static int                      commentMlLineSt = -1;
 static int                      commentMlPopped = 0;
 static std::vector<std::string> commentMlLines;
-static char                     commentMlAccum[MAX_STR_SIZE];
+static char                     commentMlAccum[MAX_STR_SIZE];   // TODO: manage and cleanup memory
 
 int ek_comment_nl(void) // Returns 1 to terminate previous state
 {
@@ -349,8 +349,8 @@ int ek_comment_b2(const char* commStr) // Returns 1 if a pop occurred
 void ek_command_id(const char* commStr)
 {
   //E_DEBUG("* [ek_command_id] '%s' line %d\n",commStr,ek_yyLineNum);
-static int ek_command_id_iii = 0;
-  sprintf(ek_static_str,"%s[%d]",&commStr[1],ek_command_id_iii++);
+  ek_commandLiNum(ek_yyLineNum);
+  sprintf(ek_static_str,"%s",&commStr[1]);
   ek_yylval.commandIdStr = ek_static_str;
 }
 
@@ -406,11 +406,14 @@ void ek_knob_rhs (const char* idStr)
   ek_yylval.knobNameStr = ek_static_str;
 }
         //----------------------------------------------------------------------
+//static std::vector<std::string> xmlLines;
+//static char                     xmlAccum[MAX_STR_SIZE];   // TODO: manage and cleanup memory
+
 void ek_xml_start(const char* xmlStr)
 {
-  stringNewline2LineNum(xmlStr);
-
   E_DEBUG("* [ek_xml_start] '%s' line %d\n",xmlStr,ek_yyLineNum);
+  ek_xmlLiNum(ek_yyLineNum);
+  stringNewline2LineNum(xmlStr);
 
   // Eat '<' and whitespace, and ignore trailing whitespace
   int dstIdx=0, srcIdx=1;
@@ -430,10 +433,12 @@ void ek_xml_start(const char* xmlStr)
   ek_static_str[dstIdx] = 0;
 
   ek_yylval.xmlTagId = ek_static_str;
+//ek_yo();
 }
 
 int ek_xml_match(const char* xmlStr)  // returns 1 to terminate XML parsing
 {
+//debug_aaaa = 1;
   // Extract TAG in /TAG string
   int srcIdx=1;
   while(1) {

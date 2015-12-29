@@ -46,11 +46,6 @@ function<void(shared_ptr<primKnob_c>)>    ex_knobs::ek_knob_f;
 function<void(shared_ptr<string>,int)>    ex_knobs::ek_comment_sl_f;
 function<void(shared_ptr<string>,int)>    ex_knobs::ek_comment_ml_f;
 
-  // Globals
-  //
-extern int   ek_yyLineNum;
-extern char* ek_yytext;
-
 extern void ek_lexInit   (void);
 extern void ek_lexCleanup(void);
 
@@ -59,6 +54,11 @@ extern void ek_lexCleanup(void);
 shared_ptr<primCommand_c> prim_command;
 shared_ptr<primObject_c>  prim_object;
 shared_ptr<primKnob_c>    prim_knob;
+
+  // Global Variables
+  //
+int commandLineNum = -1;
+int xmlLineNum     = -1;
 
 
 //------------------------------------------------------------------------------
@@ -87,7 +87,7 @@ void ek_parserCleanup(void)
 void ek_commandIdent (const char* dbgStr, const char *cmdId)
 {
   //E_DEBUG("[%3d]   +   [%s] [ek_commandIdent] %s\n",ek_yyLineNum,dbgStr,cmdId);
-  prim_command->setIdent(cmdId,ek_yyLineNum);
+  prim_command->setIdent(cmdId,commandLineNum);   // -- TODO: cleanup line numbers for command
 
   // Process command -- for now, just print
   //
@@ -138,6 +138,11 @@ void ek_commandBTick(const char* dbgStr)
   prim_command->setBTick(static_cast<int>(btType),btIdentStr,btParenStr);
 
   E_DEBUG("[%3d]   +   [%s] [ek_commandBTick] ------> identStr: '%s', btType: %d\n",ek_yyLineNum,dbgStr,btIdentStr.c_str(),btType);
+}
+
+void ek_commandLiNum(int lineNum)
+{
+  commandLineNum = lineNum;
 }
 
 
@@ -256,6 +261,15 @@ void ek_knobBTick (const char* dbgStr, int isRhs)
   prim_knob->setBTick(static_cast<int>(btType),btIdentStr,btParenStr,isRhs);
 
   E_DEBUG("[%3d] + [%s] [ek_knobBTick] ------> isRhs: %d, identStr: '%s', btType: %d\n",ek_yyLineNum,dbgStr,isRhs,btIdentStr.c_str(),btType);
+}
+
+
+//==============================================================================
+
+
+void ek_xmlLiNum(int lineNum)
+{
+  xmlLineNum = lineNum;
 }
 
 

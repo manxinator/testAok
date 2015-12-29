@@ -51,7 +51,9 @@ extern int  ek_yylex  (void);
 %token COMMAND_ARGS
 %token COMMAND_QSTR
 
+%token XML_START
 %token XML_TAGID
+%token XML_TAGQS
 %token XML_BLOCKTEXT
 
 %token BTICK_SEQ
@@ -149,7 +151,18 @@ knob_rhs:
   ;
 
 xml_stmt:
-    XML_TAGID XML_BLOCKTEXT       { E_DEBUG("[%3d]   +   [xml_stmt] Tag: '%s'\n",ek_yyLineNum,$1); }
+    xml_tag_stmt XML_BLOCKTEXT    { E_DEBUG("[%3d]   +   [xml_stmt] done!\n",ek_yyLineNum); }
+  ;
+
+xml_tag_stmt:
+    XML_START xml_tag_seq         { E_DEBUG("[%3d]   +   [xml_tag_stmt] tag completed\n",ek_yyLineNum); }
+  ;
+
+xml_tag_seq:
+    xml_tag_seq XML_TAGID         { E_DEBUG("[%3d]   +   [xml_tag_seq] 1 xml_tag_seq XML_TAGID '%s'\n",ek_yyLineNum,$2); }
+  | xml_tag_seq XML_TAGQS         { E_DEBUG("[%3d]   +   [xml_tag_seq] 2 xml_tag_seq XML_TAGQS     \n",ek_yyLineNum); }
+  |             XML_TAGID         { E_DEBUG("[%3d]   +   [xml_tag_seq] 3             XML_TAGID '%s'\n",ek_yyLineNum,$1); }
+  |             XML_TAGQS         { E_DEBUG("[%3d]   +   [xml_tag_seq] 4             XML_TAGQS     \n",ek_yyLineNum); }
   ;
 
 

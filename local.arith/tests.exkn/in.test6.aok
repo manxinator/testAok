@@ -1,5 +1,6 @@
+ //
 
-
+#gun
 <
   gandalf rank="istari"
     wizard=true
@@ -7,5 +8,6 @@
 >
   He fought balrog
 < /gandalf >
+#bang
 
 
