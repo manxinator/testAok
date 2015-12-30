@@ -114,21 +114,8 @@ void ek_commandArgs (const char* dbgStr, const char *cmdArgs)
 void ek_commandQStr (const char* dbgStr, shared_ptr<vector<string> > quoteStr)
 {
   //E_DEBUG("[%3d]   +   [%s] [ek_commandQStr]  %s, vector.size(): %d\n",ek_yyLineNum,dbgStr,quoteStr->begin()->c_str(),quoteStr->size());
-  int strLen = 8;
-  for (auto it = quoteStr->begin(); it != quoteStr->end(); it++)
-    strLen += it->length() + 2;
-
   string workStr;
-  workStr.reserve(strLen);
-  for (auto it = quoteStr->begin(); ; ) {
-    workStr += *it;
-    it++;
-    if (it != quoteStr->end())
-      workStr += "\n";
-    else
-      break;
-  }
-
+  spQStrToStr(quoteStr,workStr);
   prim_command->setArg(workStr,1);
 }
 
@@ -178,21 +165,8 @@ void ek_objectStr (const char* dbgStr, const char *objStr)
 void ek_objectQStr (const char* dbgStr, shared_ptr<vector<string> > quoteStr)
 {
   E_DEBUG("[%3d] + [%s] [ek_objectQStr] quoteStr->size(): %d\n",ek_yyLineNum,dbgStr,quoteStr->size());
-  int strLen = 8;
-  for (auto it = quoteStr->begin(); it != quoteStr->end(); it++)
-    strLen += it->length() + 2;
-
   string workStr;
-  workStr.reserve(strLen);
-  for (auto it = quoteStr->begin(); ; ) {
-    workStr += *it;
-    it++;
-    if (it != quoteStr->end())
-      workStr += "\n";
-    else
-      break;
-  }
-
+  spQStrToStr(quoteStr,workStr);
   prim_object->setStr(workStr,ek_yyLineNum,1);
 }
 
@@ -237,21 +211,8 @@ void ek_knobStr (const char* dbgStr, int isRhs, const char *knobStr)
 void ek_knobQStr (const char* dbgStr, int isRhs, shared_ptr<vector<string> > quoteStr)
 {
   E_DEBUG("[%3d] + [%s] [ek_knobQStr] isRhs: %d, quoteStr->size(): %d\n",ek_yyLineNum,dbgStr,isRhs,quoteStr->size());
-  int strLen = 8;
-  for (auto it = quoteStr->begin(); it != quoteStr->end(); it++)
-    strLen += it->length() + 2;
-
   string workStr;
-  workStr.reserve(strLen);
-  for (auto it = quoteStr->begin(); ; ) {
-    workStr += *it;
-    it++;
-    if (it != quoteStr->end())
-      workStr += "\n";
-    else
-      break;
-  }
-
+  spQStrToStr(quoteStr,workStr);
   prim_knob->setStr(workStr,ek_yyLineNum,1,isRhs);
 }
 
@@ -335,21 +296,8 @@ void ek_xmlStr (const char* dbgStr, const char *argStr)
 void ek_xmlQStr (const char* dbgStr, std::shared_ptr<std::vector<std::string> > quoteStr)
 {
   E_DEBUG("[%3d] + [%s] [ek_xmlQStr] quoteStr->size(): %d\n",ek_yyLineNum,dbgStr,quoteStr->size());
-  int strLen = 8;
-  for (auto it = quoteStr->begin(); it != quoteStr->end(); it++)
-    strLen += it->length() + 2;
-
   string workStr;
-  workStr.reserve(strLen);
-  for (auto it = quoteStr->begin(); ; ) {
-    workStr += *it;
-    it++;
-    if (it != quoteStr->end())
-      workStr += "\n";
-    else
-      break;
-  }
-
+  spQStrToStr(quoteStr,workStr);
   prim_xml->setStr(workStr,1);
 }
 
@@ -433,6 +381,23 @@ element_c* ex_knobs::backTickToElem (int btType, const string& idStr, const stri
     break;
   }
   return static_cast<element_c*>(0);
+}
+
+void ex_knobs::spQStrToStr (shared_ptr<vector<string> > quoteStr, string &destPtr)
+{
+  int strLen = 8;
+  for (auto it = quoteStr->begin(); it != quoteStr->end(); it++)
+    strLen += it->length() + 2;
+
+  destPtr.reserve(strLen);
+  for (auto it = quoteStr->begin(); ; ) {
+    destPtr += *it;
+    it++;
+    if (it != quoteStr->end())
+      destPtr += "\n";
+    else
+      break;
+  }
 }
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 void primCommand_c::setLineNum(int lNum)

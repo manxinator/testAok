@@ -222,7 +222,8 @@ xml_end             \<[\t \n]*\/[A-Za-z0-9_][A-Za-z0-9_\-\.\/\\]*[\t \n]*\>
 <IN_XML_BODY>{
     {xml_end}   { if (ek_xml_match(yytext)) { BEGIN INITIAL; return XML_BLOCKTEXT; } else ek_xml_acumm(yytext); }
     \n          { ek_xml_newl(); ek_newLine(); }
-    [^\n\<]+    { ek_xml_arg(yytext); }
+    [^\n\<]+    { ek_xml_acumm(yytext); }
+    "<"         { ek_xml_acumm(yytext); }
     <<EOF>>     { ek_yyerror("Unexpected EOF encountered while parsing XML block"); yyterminate(); }
 }
 
@@ -465,11 +466,12 @@ int ek_xml_match(const char* xmlStr)  // returns 1 to terminate XML parsing
   if (xmlStr[srcIdx++] != '/')
     return 0;
 
-  const char* tagStart = &xmlStr[srcIdx];
-  E_DEBUG("* [ek_xml_match] '%s' at line %d\n",tagStart,ek_yyLineNum);
-
-  // TODO: strstr will match partial -- need to do full exact string matching
-  return strstr(tagStart,ek_static_str) == tagStart ? 1 : 0;;
+  std::string tagStr(&xmlStr[srcIdx]);
+  std::size_t spPos = tagStr.find_first_of(" \t\n>");
+  if (spPos != std::string::npos)
+    tagStr.resize(spPos);
+  E_DEBUG("* [ek_xml_match] '%s' resized! (check against '%s')\n",tagStr.c_str(),ek_static_str);
+  return tagStr == ek_static_str ? 1 : 0;
 }
 
 void ek_xml_arg (const char* argStr)

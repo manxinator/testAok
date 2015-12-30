@@ -213,6 +213,7 @@ namespace ex_knobs
 
   extern element_c* exkn_str2elem (const std::string& myStr, int isQ);
   extern element_c* backTickToElem(int btType, const std::string& idStr, const std::string& parenStr);
+  extern void       spQStrToStr   (std::shared_ptr<std::vector<std::string> > quoteStr, std::string &destPtr);
 
     // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     // Interface functions

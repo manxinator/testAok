@@ -8,6 +8,10 @@
 >  
   He fought balrog
   And became a white wizard
+  <inner>
+    more statements
+	< /inner>
+  one more line
 < /gandalf >
 
 #bang
