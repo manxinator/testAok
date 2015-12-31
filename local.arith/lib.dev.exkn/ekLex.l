@@ -290,8 +290,8 @@ void ekl_comment_sl(const char* commStr)
 static int                      commentMlLineSt = -1;
 static int                      commentMlPopped = 0;
 static std::vector<std::string> commentMlLines;
-static char                    *commentMlAccum = 0;
 static std::vector<char>        commentMlVector;
+static char                    *commentMlAccum = 0;
 
 int ekl_comment_nl(void) // Returns 1 to terminate previous state
 {
@@ -352,8 +352,8 @@ int ekl_comment_b2(const char* commStr) // Returns 1 if a pop occurred
   return retPop;
 }
         //----------------------------------------------------------------------
-static char              *commArgStr = 0;
 static std::vector<char>  commArgVec;
+static char              *commArgStr = 0;
 
 void ekl_command_id(const char* commStr)
 {
