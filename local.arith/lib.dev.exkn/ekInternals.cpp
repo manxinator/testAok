@@ -88,9 +88,9 @@ void ek_parserCleanup(void)
 //------------------------------------------------------------------------------
 
 
-void ek_commandIdent (const char* dbgStr, const char *cmdId)
+void eki_commandIdent (const char* dbgStr, const char *cmdId)
 {
-  //E_DEBUG("[%3d]   +   [%s] [ek_commandIdent] %s\n",ek_yyLineNum,dbgStr,cmdId);
+  E_DEBUG("[%3d]   +   [%s] [eki_commandIdent] %s\n",ek_yyLineNum,dbgStr,cmdId);
   prim_command->setIdent(cmdId,ekint_commandLineNum);
 
   // Process command -- for now, just print
@@ -105,33 +105,33 @@ void ek_commandIdent (const char* dbgStr, const char *cmdId)
   prim_command = make_shared<primCommand_c>();
 }
 
-void ek_commandArgs (const char* dbgStr, const char *cmdArgs)
+void eki_commandArgs (const char* dbgStr, const char *cmdArgs)
 {
-  //E_DEBUG("[%3d]   +   [%s] [ek_commandArgs]  %s\n",ek_yyLineNum,dbgStr,cmdArgs);
+  E_DEBUG("[%3d]   +   [%s] [eki_commandArgs]  %s\n",ek_yyLineNum,dbgStr,cmdArgs);
   prim_command->setArg(cmdArgs,0);
 }
 
-void ek_commandQStr (const char* dbgStr, shared_ptr<vector<string> > quoteStr)
+void eki_commandQStr (const char* dbgStr, shared_ptr<vector<string> > quoteStr)
 {
-  //E_DEBUG("[%3d]   +   [%s] [ek_commandQStr]  %s, vector.size(): %d\n",ek_yyLineNum,dbgStr,quoteStr->begin()->c_str(),quoteStr->size());
+  E_DEBUG("[%3d]   +   [%s] [eki_commandQStr]  %s, vector.size(): %d\n",ek_yyLineNum,dbgStr,quoteStr->begin()->c_str(),quoteStr->size());
   string workStr;
   spQStrToStr(quoteStr,workStr);
   prim_command->setArg(workStr,1);
 }
 
-void ek_commandBTick(const char* dbgStr)
+void eki_commandBTick(const char* dbgStr)
 {
   btickType_e btType = BTICK_UNDEF;
   string      btIdentStr;
   string      btParenStr;
 
-  ek_collectBTInfo(btIdentStr,btParenStr,btType);
+  ekl_collectBTInfo(btIdentStr,btParenStr,btType);
   prim_command->setBTick(static_cast<int>(btType),btIdentStr,btParenStr);
 
-  E_DEBUG("[%3d]   +   [%s] [ek_commandBTick] ------> identStr: '%s', btType: %d\n",ek_yyLineNum,dbgStr,btIdentStr.c_str(),btType);
+  E_DEBUG("[%3d]   +   [%s] [eki_commandBTick] ------> identStr: '%s', btType: %d\n",ek_yyLineNum,dbgStr,btIdentStr.c_str(),btType);
 }
 
-void ek_commandLiNum(int lineNum)
+void eki_commandLiNum(int lineNum)
 {
   ekint_commandLineNum = lineNum;
 }
@@ -140,9 +140,9 @@ void ek_commandLiNum(int lineNum)
 //==============================================================================
 
 
-void ek_objectDone (const char* dbgStr)
+void eki_objectDone (const char* dbgStr)
 {
-  E_DEBUG("[%3d] + [%s] [ek_objectDone] \n",ek_yyLineNum,dbgStr);
+  E_DEBUG("[%3d] + [%s] [eki_objectDone] \n",ek_yyLineNum,dbgStr);
 
   // Process object -- for now, just print
   //
@@ -156,39 +156,39 @@ void ek_objectDone (const char* dbgStr)
   prim_object = make_shared<primObject_c>();
 }
 
-void ek_objectStr (const char* dbgStr, const char *objStr)
+void eki_objectStr (const char* dbgStr, const char *objStr)
 {
-  E_DEBUG("[%3d] + [%s] [ek_objectStr] objStr: %s\n",ek_yyLineNum,dbgStr,objStr);
+  E_DEBUG("[%3d] + [%s] [eki_objectStr] objStr: %s\n",ek_yyLineNum,dbgStr,objStr);
   prim_object->setStr(objStr,ek_yyLineNum,0);
 }
 
-void ek_objectQStr (const char* dbgStr, shared_ptr<vector<string> > quoteStr)
+void eki_objectQStr (const char* dbgStr, shared_ptr<vector<string> > quoteStr)
 {
-  E_DEBUG("[%3d] + [%s] [ek_objectQStr] quoteStr->size(): %d\n",ek_yyLineNum,dbgStr,quoteStr->size());
+  E_DEBUG("[%3d] + [%s] [eki_objectQStr] quoteStr->size(): %d\n",ek_yyLineNum,dbgStr,quoteStr->size());
   string workStr;
   spQStrToStr(quoteStr,workStr);
   prim_object->setStr(workStr,ek_yyLineNum,1);
 }
 
-void ek_objectBTick (const char* dbgStr)
+void eki_objectBTick (const char* dbgStr)
 {
   btickType_e btType = BTICK_UNDEF;
   string      btIdentStr;
   string      btParenStr;
 
-  ek_collectBTInfo(btIdentStr,btParenStr,btType);
+  ekl_collectBTInfo(btIdentStr,btParenStr,btType);
   prim_object->setBTick(static_cast<int>(btType),btIdentStr,btParenStr);
 
-  E_DEBUG("[%3d] + [%s] [ek_objectBTick] ------> identStr: '%s', btType: %d\n",ek_yyLineNum,dbgStr,btIdentStr.c_str(),btType);
+  E_DEBUG("[%3d] + [%s] [eki_objectBTick] ------> identStr: '%s', btType: %d\n",ek_yyLineNum,dbgStr,btIdentStr.c_str(),btType);
 }
 
 
 //==============================================================================
 
 
-void ek_knobDone (const char* dbgStr)
+void eki_knobDone (const char* dbgStr)
 {
-  E_DEBUG("[%3d] + [%s] [ek_knobDone] \n",ek_yyLineNum,dbgStr);
+  E_DEBUG("[%3d] + [%s] [eki_knobDone] \n",ek_yyLineNum,dbgStr);
 
   // Process knob -- for now, just print
   //
@@ -202,41 +202,41 @@ void ek_knobDone (const char* dbgStr)
   prim_knob = make_shared<primKnob_c>();
 }
 
-void ek_knobStr (const char* dbgStr, int isRhs, const char *knobStr)
+void eki_knobStr (const char* dbgStr, int isRhs, const char *knobStr)
 {
-  E_DEBUG("[%3d] + [%s] [ek_knobStr] isRhs: %d, knobStr: %s\n",ek_yyLineNum,dbgStr,isRhs,knobStr);
+  E_DEBUG("[%3d] + [%s] [eki_knobStr] isRhs: %d, knobStr: %s\n",ek_yyLineNum,dbgStr,isRhs,knobStr);
   prim_knob->setStr(knobStr,ek_yyLineNum,0,isRhs);
 }
 
-void ek_knobQStr (const char* dbgStr, int isRhs, shared_ptr<vector<string> > quoteStr)
+void eki_knobQStr (const char* dbgStr, int isRhs, shared_ptr<vector<string> > quoteStr)
 {
-  E_DEBUG("[%3d] + [%s] [ek_knobQStr] isRhs: %d, quoteStr->size(): %d\n",ek_yyLineNum,dbgStr,isRhs,quoteStr->size());
+  E_DEBUG("[%3d] + [%s] [eki_knobQStr] isRhs: %d, quoteStr->size(): %d\n",ek_yyLineNum,dbgStr,isRhs,quoteStr->size());
   string workStr;
   spQStrToStr(quoteStr,workStr);
   prim_knob->setStr(workStr,ek_yyLineNum,1,isRhs);
 }
 
-void ek_knobBTick (const char* dbgStr, int isRhs)
+void eki_knobBTick (const char* dbgStr, int isRhs)
 {
   btickType_e btType = BTICK_UNDEF;
   string      btIdentStr;
   string      btParenStr;
 
-  ek_collectBTInfo(btIdentStr,btParenStr,btType);
+  ekl_collectBTInfo(btIdentStr,btParenStr,btType);
   prim_knob->setBTick(static_cast<int>(btType),btIdentStr,btParenStr,isRhs);
 
-  E_DEBUG("[%3d] + [%s] [ek_knobBTick] ------> isRhs: %d, identStr: '%s', btType: %d\n",ek_yyLineNum,dbgStr,isRhs,btIdentStr.c_str(),btType);
+  E_DEBUG("[%3d] + [%s] [eki_knobBTick] ------> isRhs: %d, identStr: '%s', btType: %d\n",ek_yyLineNum,dbgStr,isRhs,btIdentStr.c_str(),btType);
 }
 
 
 //==============================================================================
 
 
-void ek_xmlDone (const char* dbgStr)
+void eki_xmlDone (const char* dbgStr)
 {
-  E_DEBUG("[%3d] + [%s] [ek_xmlDone] \n",ek_yyLineNum,dbgStr);
+  E_DEBUG("[%3d] + [%s] [eki_xmlDone] \n",ek_yyLineNum,dbgStr);
 
-  auto xmlBody = ek_collectXmlBody();
+  auto xmlBody = ekl_collectXmlBody();
   {
     int strLen = 8;
     for (auto it = xmlBody->begin(); it != xmlBody->end(); it++)
@@ -275,27 +275,27 @@ void ek_xmlDone (const char* dbgStr)
   prim_xml = make_shared<primXml_c>();
 }
 
-void ek_xmlLiNum(int lineNum)
+void eki_xmlLiNum(int lineNum)
 {
   ekint_xmlLineNum = lineNum;
 }
 
-void ek_xmlStart (const char* dbgStr, const char *xmlId)
+void eki_xmlStart (const char* dbgStr, const char *xmlId)
 {
-  E_DEBUG("[%3d] + [%s] [ek_xmlStart] xmlId: %s\n",ek_yyLineNum,dbgStr,xmlId);
+  E_DEBUG("[%3d] + [%s] [eki_xmlStart] xmlId: %s\n",ek_yyLineNum,dbgStr,xmlId);
   prim_xml->setLineNum(ekint_xmlLineNum);
   prim_xml->ident.assign(xmlId);
 }
 
-void ek_xmlStr (const char* dbgStr, const char *argStr)
+void eki_xmlStr (const char* dbgStr, const char *argStr)
 {
-  E_DEBUG("[%3d] + [%s] [ek_xmlStr] argStr: %s\n",ek_yyLineNum,dbgStr,argStr);
+  E_DEBUG("[%3d] + [%s] [eki_xmlStr] argStr: %s\n",ek_yyLineNum,dbgStr,argStr);
   prim_xml->setStr(argStr,0);
 }
 
-void ek_xmlQStr (const char* dbgStr, std::shared_ptr<std::vector<std::string> > quoteStr)
+void eki_xmlQStr (const char* dbgStr, std::shared_ptr<std::vector<std::string> > quoteStr)
 {
-  E_DEBUG("[%3d] + [%s] [ek_xmlQStr] quoteStr->size(): %d\n",ek_yyLineNum,dbgStr,quoteStr->size());
+  E_DEBUG("[%3d] + [%s] [eki_xmlQStr] quoteStr->size(): %d\n",ek_yyLineNum,dbgStr,quoteStr->size());
   string workStr;
   spQStrToStr(quoteStr,workStr);
   prim_xml->setStr(workStr,1);
@@ -305,7 +305,7 @@ void ek_xmlQStr (const char* dbgStr, std::shared_ptr<std::vector<std::string> > 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
 
 
-void ek_commentSL(const char* commentStr, int lineNum)
+void eki_commentSL(const char* commentStr, int lineNum)
 {
   shared_ptr<string> strObj = make_shared<string>(commentStr);
   strObj->resize(strObj->length()-1);
@@ -313,7 +313,7 @@ void ek_commentSL(const char* commentStr, int lineNum)
     ek_comment_sl_f(strObj,lineNum);
 }
 
-void ek_commentML(vector<string> *commLines, int lineNum)
+void eki_commentML(vector<string> *commLines, int lineNum)
 {
   if (ek_comment_ml_f)
   {
@@ -457,6 +457,7 @@ void primObject_c::setBTick (int btType, const string& idStr, const string& pare
 
 void primObject_c::print (void)
 {
+  printf("[primObject_c::print] line: %d, argLst.size(): %d",lineNum,argLst.size());
 }
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 void primKnob_c::setLineNum(int lNum)
@@ -486,6 +487,7 @@ void primKnob_c::setBTick (int btType, const string& idStr, const string& parenS
 
 void primKnob_c::print (void)
 {
+  printf("[primKnob_c::print] line: %d, lhsLst.size(): %d, rhsLst.size(): %d",lineNum,lhsLst.size(),rhsLst.size());
 }
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 void primXml_c::setLineNum(int lNum)
@@ -509,6 +511,7 @@ void primXml_c::addBody(const string& bodStr)
 
 void primXml_c::print (void)
 {
+  printf("[primXml_c::print] line: %d, ident: %s, optLst.size(): %d",lineNum,ident.c_str(),optLst.size());
 }
 //------------------------------------------------------------------------------
 

@@ -104,69 +104,69 @@ ekline:
   ;
 
 command_stmt:
-    COMMAND_ID command_args       { ek_commandIdent("command_stmt 1",$1); }
-  | COMMAND_ID                    { ek_commandIdent("command_stmt 2",$1); }
+    COMMAND_ID command_args       { eki_commandIdent("command_stmt 1",$1); }
+  | COMMAND_ID                    { eki_commandIdent("command_stmt 2",$1); }
   ;
 
 command_args:
-    command_args COMMAND_ARGS     { ek_commandArgs ("command_args 1",$2); }
-  | command_args COMMAND_QSTR     { ek_commandQStr ("command_args 2",ek_collectQStr());  }
-  | command_args BTICK_SEQ        { ek_commandBTick("command_args 3"); }
-  |              COMMAND_ARGS     { ek_commandArgs ("command_args 4",$1); }
-  |              COMMAND_QSTR     { ek_commandQStr ("command_args 5",ek_collectQStr());  }
-  |              BTICK_SEQ        { ek_commandBTick("command_args 6"); }
+    command_args COMMAND_ARGS     { eki_commandArgs ("command_args 1",$2); }
+  | command_args COMMAND_QSTR     { eki_commandQStr ("command_args 2",ekl_collectQStr());  }
+  | command_args BTICK_SEQ        { eki_commandBTick("command_args 3"); }
+  |              COMMAND_ARGS     { eki_commandArgs ("command_args 4",$1); }
+  |              COMMAND_QSTR     { eki_commandQStr ("command_args 5",ekl_collectQStr());  }
+  |              BTICK_SEQ        { eki_commandBTick("command_args 6"); }
   ;
 
 obj_stmt_aux:
-    OBJ_START obj_stmt            { ek_objectDone("obj_stmt_aux 1"); }
+    OBJ_START obj_stmt            { eki_objectDone("obj_stmt_aux 1"); }
   ;
 
 obj_stmt:
-    obj_stmt OBJ_ID               { ek_objectStr  ("obj_stmt 1",$2); }
-  | obj_stmt OBJ_QSTR             { ek_objectQStr ("obj_stmt 2",ek_collectQStr()); }
-  | obj_stmt BTICK_SEQ            { ek_objectBTick("obj_stmt 3"); }
-  |          OBJ_ID               { ek_objectStr  ("obj_stmt 4",$1); }
-  |          OBJ_QSTR             { ek_objectQStr ("obj_stmt 5",ek_collectQStr()); }
-  |          BTICK_SEQ            { ek_objectBTick("obj_stmt 6"); }
+    obj_stmt OBJ_ID               { eki_objectStr  ("obj_stmt 1",$2); }
+  | obj_stmt OBJ_QSTR             { eki_objectQStr ("obj_stmt 2",ekl_collectQStr()); }
+  | obj_stmt BTICK_SEQ            { eki_objectBTick("obj_stmt 3"); }
+  |          OBJ_ID               { eki_objectStr  ("obj_stmt 4",$1); }
+  |          OBJ_QSTR             { eki_objectQStr ("obj_stmt 5",ekl_collectQStr()); }
+  |          BTICK_SEQ            { eki_objectBTick("obj_stmt 6"); }
   ;
 
 
 knob_eqn:
-    knob_lhs KNOB_EQ knob_rhs     { ek_knobDone("knob_eqn"); }
+    knob_lhs KNOB_EQ knob_rhs     { eki_knobDone("knob_eqn"); }
   ;
 
 knob_lhs:
-    knob_lhs KNOB_NAME            { ek_knobStr  ("knob_lhs 1",0,$2); }
-  | knob_lhs KNOB_QSTR            { ek_knobQStr ("knob_lhs 2",0,ek_collectQStr()); }
-  | knob_lhs BTICK_SEQ            { ek_knobBTick("knob_lhs 3",0); }
-  |          KNOB_NAME            { ek_knobStr  ("knob_lhs 4",0,$1); }
-  |          KNOB_QSTR            { ek_knobQStr ("knob_lhs 5",0,ek_collectQStr()); }
-  |          BTICK_SEQ            { ek_knobBTick("knob_lhs 6",0); }
+    knob_lhs KNOB_NAME            { eki_knobStr  ("knob_lhs 1",0,$2); }
+  | knob_lhs KNOB_QSTR            { eki_knobQStr ("knob_lhs 2",0,ekl_collectQStr()); }
+  | knob_lhs BTICK_SEQ            { eki_knobBTick("knob_lhs 3",0); }
+  |          KNOB_NAME            { eki_knobStr  ("knob_lhs 4",0,$1); }
+  |          KNOB_QSTR            { eki_knobQStr ("knob_lhs 5",0,ekl_collectQStr()); }
+  |          BTICK_SEQ            { eki_knobBTick("knob_lhs 6",0); }
   ;
 
 knob_rhs:
-    knob_rhs KNOB_NAME            { ek_knobStr  ("knob_rhs 1",1,$2); }
-  | knob_rhs KNOB_QSTR            { ek_knobQStr ("knob_rhs 2",1,ek_collectQStr()); }
-  | knob_rhs BTICK_SEQ            { ek_knobBTick("knob_rhs 3",1); }
-  |          KNOB_NAME            { ek_knobStr  ("knob_rhs 4",1,$1); }
-  |          KNOB_QSTR            { ek_knobQStr ("knob_rhs 5",1,ek_collectQStr()); }
-  |          BTICK_SEQ            { ek_knobBTick("knob_rhs 6",1); }
+    knob_rhs KNOB_NAME            { eki_knobStr  ("knob_rhs 1",1,$2); }
+  | knob_rhs KNOB_QSTR            { eki_knobQStr ("knob_rhs 2",1,ekl_collectQStr()); }
+  | knob_rhs BTICK_SEQ            { eki_knobBTick("knob_rhs 3",1); }
+  |          KNOB_NAME            { eki_knobStr  ("knob_rhs 4",1,$1); }
+  |          KNOB_QSTR            { eki_knobQStr ("knob_rhs 5",1,ekl_collectQStr()); }
+  |          BTICK_SEQ            { eki_knobBTick("knob_rhs 6",1); }
   ;
 
 xml_stmt:
-    xml_tag_stmt XML_BLOCKTEXT    { ek_xmlDone("xml_stmt"); }
+    xml_tag_stmt XML_BLOCKTEXT    { eki_xmlDone("xml_stmt"); }
   ;
 
 xml_tag_stmt:
-    XML_TAGID             XML_ENDTAG  { ek_xmlStart("xml_tag_stmt 1",$1); }
-  | XML_TAGID xml_tag_seq XML_ENDTAG  { ek_xmlStart("xml_tag_stmt 2",$1); }
+    XML_TAGID             XML_ENDTAG  { eki_xmlStart("xml_tag_stmt 1",$1); }
+  | XML_TAGID xml_tag_seq XML_ENDTAG  { eki_xmlStart("xml_tag_stmt 2",$1); }
   ;
 
 xml_tag_seq:
-    xml_tag_seq XML_ARGID         { ek_xmlStr ("xml_tag_seq 1",$2); }
-  | xml_tag_seq XML_ARGQS         { ek_xmlQStr("xml_tag_seq 2",ek_collectQStr()); }
-  |             XML_ARGID         { ek_xmlStr ("xml_tag_seq 3",$1); }
-  |             XML_ARGQS         { ek_xmlQStr("xml_tag_seq 4",ek_collectQStr()); }
+    xml_tag_seq XML_ARGID         { eki_xmlStr ("xml_tag_seq 1",$2); }
+  | xml_tag_seq XML_ARGQS         { eki_xmlQStr("xml_tag_seq 2",ekl_collectQStr()); }
+  |             XML_ARGID         { eki_xmlStr ("xml_tag_seq 3",$1); }
+  |             XML_ARGQS         { eki_xmlQStr("xml_tag_seq 4",ekl_collectQStr()); }
   ;
 
 
@@ -220,7 +220,7 @@ int ex_knobs::ek_readfile(const char* inFN, int exitOnErr)
 
   // parsing loop
   while (!feof(ek_yyin)) {
-    printf("--- calling ek_yyparse()!\n");
+    E_DEBUG("--- calling ek_yyparse()!\n");
     ek_yyparse();
   }
   fclose(inFH);

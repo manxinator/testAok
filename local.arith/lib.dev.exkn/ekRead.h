@@ -149,7 +149,7 @@ namespace ex_knobs
 
   class primObject_c : public primitive_c {
   public:
-    std::vector<element_c*> argLst; // TODO: change name from argLst into something appropriate
+    std::vector<element_c*> argLst;
 
   public:
              primObject_c() : primitive_c(PRIM_OBJECT) {}
