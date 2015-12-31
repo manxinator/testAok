@@ -261,9 +261,13 @@ xml_end             \<[\t \n]*\/[A-Za-z0-9_][A-Za-z0-9_\-\.\/\\]*[\t \n]*\>
 
 %%
 /*----------------------------------------------------------------------------*/
-#define MAX_STR_SIZE    4096
+#define MAX_STR_SIZE        4096
 
-static char ekl_static_str[MAX_STR_SIZE]; // CommandID, XmlTag, Object, Knob
+  /* NOTE: ekl_static_str is used by the following:
+     - CommandID, XmlTag, Object, Knob
+     - They are all orthogonal */
+static std::vector<char> ekl_static_vec;
+static char             *ekl_static_str = 0;
 
 void ekl_newLine(void)
 {
@@ -275,7 +279,9 @@ void ekl_comment_sl(const char* commStr)
   E_DEBUG("* [ekl_comment_sl] '%s'\n",commStr);
   int oldLineNum = ek_yyLineNum;
   ekl_newLine();
+
   // push to external handler; pass in string and line number
+  //
   eki_commentSL(commStr,oldLineNum);
 }
 
@@ -284,7 +290,8 @@ void ekl_comment_sl(const char* commStr)
 static int                      commentMlLineSt = -1;
 static int                      commentMlPopped = 0;
 static std::vector<std::string> commentMlLines;
-static char                     commentMlAccum[MAX_STR_SIZE];   // TODO: manage and cleanup memory
+static char                    *commentMlAccum = 0;
+static std::vector<char>        commentMlVector;
 
 int ekl_comment_nl(void) // Returns 1 to terminate previous state
 {
@@ -345,6 +352,9 @@ int ekl_comment_b2(const char* commStr) // Returns 1 if a pop occurred
   return retPop;
 }
         //----------------------------------------------------------------------
+static char              *commArgStr = 0;
+static std::vector<char>  commArgVec;
+
 void ekl_command_id(const char* commStr)
 {
   E_DEBUG("* [ekl_command_id] '%s' line %d\n",commStr,ek_yyLineNum);
@@ -356,7 +366,6 @@ void ekl_command_id(const char* commStr)
 void ekl_command_ar(const char* commStr)
 {
   E_DEBUG("* [ekl_command_ar] '%s' line %d\n",commStr,ek_yyLineNum);
-static char commArgStr[MAX_STR_SIZE];
   strcpy(commArgStr,commStr);
   ek_yylval.commandArgStr = commArgStr;
 }
@@ -406,7 +415,8 @@ void ekl_knob_rhs (const char* idStr)
 }
         //----------------------------------------------------------------------
 static std::shared_ptr<std::vector<std::string> > xmlLines;
-static char  xmlAccum[MAX_STR_SIZE];   // TODO: manage and cleanup memory
+static std::vector<char> xmlStrVector;
+static char             *xmlStrAccum = 0;
 
 void ekl_xml_start(const char* xmlStr)
 {
@@ -436,7 +446,7 @@ void ekl_xml_start(const char* xmlStr)
 
 void ekl_xml_bodySt(void)
 {
-  xmlAccum[0] = 0;
+  xmlStrAccum[0] = 0;
   xmlLines = decltype(xmlLines)(new std::vector<std::string>);
 }
 
@@ -466,8 +476,8 @@ int ekl_xml_match(const char* xmlStr)  // Returns 1 to terminate XML parsing
 
 void ekl_xml_arg (const char* argStr)
 {
-  strcpy(xmlAccum,argStr);
-  ek_yylval.xmlArg = xmlAccum;
+  strcpy(xmlStrAccum,argStr);
+  ek_yylval.xmlArg = xmlStrAccum;
 }
 
 void ekl_xml_argQ (const char* startStr)
@@ -479,18 +489,18 @@ void ekl_xml_argQ (const char* startStr)
 void ekl_xml_acumm (const char* accStr)
 {
   E_DEBUG("* [ekl_xml_acumm] '%s' line %d\n",accStr,ek_yyLineNum);
-  strcat(xmlAccum,accStr);
+  strcat(xmlStrAccum,accStr);
 }
 
 void ekl_xml_newl (void)
 {
-  xmlLines->push_back(xmlAccum);
-  xmlAccum[0] = 0;
+  xmlLines->push_back(xmlStrAccum);
+  xmlStrAccum[0] = 0;
 }
 
 std::shared_ptr<std::vector<std::string> > ekl_collectXmlBody(void)
 {
-  if (0 != xmlAccum[0]) {
+  if (0 != xmlStrAccum[0]) {
     // if there is no newline at the end, save it up
     ekl_xml_newl();
   }
@@ -509,7 +519,7 @@ void ekl_quoteStr(const char* startStr)
   std::string curLineStr;
 
   // Quote string handler
-  char curLine[4096];
+  char curLine[MAX_STR_SIZE];
   int  curIdx = 0, c = '.', prevC;
 
   for ( ; ; )
@@ -681,13 +691,40 @@ void ekl_collectBTInfo (std::string &identStr, std::string &parenStr, btickType_
         /*--------------------------------------------------------------------*/
 void ek_lexInit(void)
 {
-  ekBTickIdentStr.reserve(4096);
-  ekBTickParenStr.reserve(4096);
+  ekl_static_vec.resize(MAX_STR_SIZE);
+  ekl_static_str = &ekl_static_vec[0];
+
+  commentMlVector.resize(MAX_STR_SIZE);
+  commentMlAccum = &commentMlVector[0];
+
+  commArgVec.resize(MAX_STR_SIZE);
+  commArgStr = &commArgVec[0];
+
+  xmlStrVector.resize(MAX_STR_SIZE);
+  xmlStrAccum = &xmlStrVector[0];
+
+  ekBTickIdentStr.reserve(MAX_STR_SIZE);
+  ekBTickParenStr.reserve(MAX_STR_SIZE);
 }
 
 void ek_lexCleanup(void)
 {
   ekl_quoteAccum.reset();
+
+  ekl_static_str = 0;
+  ekl_static_vec.resize(0);
+
+  commentMlAccum = 0;
+  commentMlVector.resize(0);
+  commentMlLines.resize(0);
+
+  commArgStr = 0;
+  commArgVec.resize(0);
+
+  xmlStrAccum = 0;
+  xmlStrVector.resize(0);
+
+  ekl_static_str = 0;
 }
 
         /*--------------------------------------------------------------------*/
