@@ -37,16 +37,26 @@
 
 namespace ex_knobs
 {
+  typedef enum _elementType_e_ {
+    ELEM_UNDEF     = 0,
+    ELEM_STRING    = 1,
+    ELEM_QSTRING   = 2,
+    ELEM_EQUATION  = 3,
+    ELEM_FUNCTION  = 4,
+    ELEM_EXPANSION = 5
+  } elementType_e;
+
+  typedef enum _primitiveType_e_ {
+    PRIM_UNDEF   = 0,
+    PRIM_COMMAND = 1,
+    PRIM_OBJECT  = 2,
+    PRIM_KNOB    = 3,
+    PRIM_XML     = 4
+  } primitiveType_e;
+
+    // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
   class element_c {
-  public:
-    typedef enum _elementType_e_ {
-      ELEM_UNDEF     = 0,
-      ELEM_STRING    = 1,
-      ELEM_QSTRING   = 2,
-      ELEM_EQUATION  = 3,
-      ELEM_FUNCTION  = 4,
-      ELEM_EXPANSION = 5
-    } elementType_e;
   public:
              element_c(elementType_e eType) { elemType = eType; }
     virtual ~element_c() {}
@@ -108,15 +118,6 @@ namespace ex_knobs
     // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
   class primitive_c {
-  public:
-    typedef enum _primitiveType_e_ {
-      PRIM_UNDEF   = 0,
-      PRIM_COMMAND = 1,
-      PRIM_OBJECT  = 2,
-      PRIM_KNOB    = 3,
-      PRIM_XML     = 4
-    } primitiveType_e;
-
   public:
              primitive_c(primitiveType_e pType) { primType = pType; lineNum = -1; }
     virtual ~primitive_c() { }

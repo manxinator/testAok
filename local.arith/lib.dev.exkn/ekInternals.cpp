@@ -416,7 +416,7 @@ void primitive_c::virt_setLineNum(int lNum)
     lineNum = lNum;
 }
 
-primitive_c::primitiveType_e primitive_c::getPrimitiveType(void)
+primitiveType_e primitive_c::getPrimitiveType(void)
 {
   return primType;
 }
@@ -445,18 +445,7 @@ void primCommand_c::setBTick(int btType, const string& idStr, const string& pare
 
 void primCommand_c::print (void)
 {
-  printf("[primCommand_c::print] line: %d { %s",lineNum,ident.c_str());
-  for (auto it = argLst.begin(); it != argLst.end(); it++) {
-    element_c::elementType_e elem_type = (*it)->getElemType();
-    switch (elem_type)
-    {
-    case element_c::ELEM_STRING:  printf(", %s",    static_cast<elemStr_c*> (*it)->varStr.c_str()); break;
-    case element_c::ELEM_QSTRING: printf(", \'%s\'",static_cast<elemQStr_c*>(*it)->varStr.c_str()); break;
-    default:
-      printf(", ELEM_TYPE:%d",static_cast<int>(elem_type)); break;
-    }
-  }
-  printf(" }\n");
+  printf("[primCommand_c::print] line: %d %s\n",lineNum,ident.c_str());
 }
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 void primObject_c::setStr (const string& arStr, int l_lineNum, int isQ)

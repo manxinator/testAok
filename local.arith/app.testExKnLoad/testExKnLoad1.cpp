@@ -34,22 +34,22 @@ void TestEK_command(std::shared_ptr<ex_knobs::primCommand_c> cmdPrim)
 {
   printf("+++++ [TestEK_command] line: %d { %s",cmdPrim->getLineNum(),cmdPrim->ident.c_str());
   for (auto it = cmdPrim->argLst.begin(); it != cmdPrim->argLst.end(); it++) {
-    ex_knobs::element_c::elementType_e elem_type = (*it)->getElemType();
+    ex_knobs::elementType_e elem_type = (*it)->getElemType();
     switch (elem_type)
     {
-    case ex_knobs::element_c::ELEM_STRING:   printf(", %s",    static_cast<ex_knobs::elemStr_c*> (*it)->varStr.c_str()); break;
-    case ex_knobs::element_c::ELEM_QSTRING:  printf(", \'%s\'",static_cast<ex_knobs::elemQStr_c*>(*it)->varStr.c_str()); break;
-    case ex_knobs::element_c::ELEM_FUNCTION: {
+    case ex_knobs::ELEM_STRING:   printf(", %s",    static_cast<ex_knobs::elemStr_c*> (*it)->varStr.c_str()); break;
+    case ex_knobs::ELEM_QSTRING:  printf(", \'%s\'",static_cast<ex_knobs::elemQStr_c*>(*it)->varStr.c_str()); break;
+    case ex_knobs::ELEM_FUNCTION: {
         ex_knobs::elemFunc_c *eBtFn = dynamic_cast<ex_knobs::elemFunc_c*>(*it);
         printf(", elemFunc_c{%s,%s}",eBtFn->identStr.c_str(),eBtFn->parenStr.c_str());
         break;
       }
-    case ex_knobs::element_c::ELEM_EQUATION: {
+    case ex_knobs::ELEM_EQUATION: {
         ex_knobs::elemEqn_c *eBtFn = dynamic_cast<ex_knobs::elemEqn_c*>(*it);
         printf(", elemEqn_c{%s}",eBtFn->parenStr.c_str());
         break;
       }
-    case ex_knobs::element_c::ELEM_EXPANSION: {
+    case ex_knobs::ELEM_EXPANSION: {
         ex_knobs::elemExp_c *eBtEx = dynamic_cast<ex_knobs::elemExp_c*>(*it);
         printf(", elemExp_c{%s,%s}",eBtEx->identStr.c_str(),eBtEx->parenStr.c_str());
         break;
@@ -67,22 +67,22 @@ void TestEK_object(std::shared_ptr<ex_knobs::primObject_c> objPrim)
   for (auto it = objPrim->argLst.begin(); it != objPrim->argLst.end(); it++) {
     if (it != objPrim->argLst.begin())
       printf(", ");
-    ex_knobs::element_c::elementType_e elem_type = (*it)->getElemType();
+    ex_knobs::elementType_e elem_type = (*it)->getElemType();
     switch (elem_type)
     {
-    case ex_knobs::element_c::ELEM_STRING:   printf("%s",    static_cast<ex_knobs::elemStr_c*> (*it)->varStr.c_str()); break;
-    case ex_knobs::element_c::ELEM_QSTRING:  printf("\'%s\'",static_cast<ex_knobs::elemQStr_c*>(*it)->varStr.c_str()); break;
-    case ex_knobs::element_c::ELEM_FUNCTION: {
+    case ex_knobs::ELEM_STRING:   printf("%s",    static_cast<ex_knobs::elemStr_c*> (*it)->varStr.c_str()); break;
+    case ex_knobs::ELEM_QSTRING:  printf("\'%s\'",static_cast<ex_knobs::elemQStr_c*>(*it)->varStr.c_str()); break;
+    case ex_knobs::ELEM_FUNCTION: {
         ex_knobs::elemFunc_c *eBtFn = dynamic_cast<ex_knobs::elemFunc_c*>(*it);
         printf("elemFunc_c{%s,%s}",eBtFn->identStr.c_str(),eBtFn->parenStr.c_str());
         break;
       }
-    case ex_knobs::element_c::ELEM_EQUATION: {
+    case ex_knobs::ELEM_EQUATION: {
         ex_knobs::elemEqn_c *eBtFn = dynamic_cast<ex_knobs::elemEqn_c*>(*it);
         printf("elemEqn_c{%s}",eBtFn->parenStr.c_str());
         break;
       }
-    case ex_knobs::element_c::ELEM_EXPANSION: {
+    case ex_knobs::ELEM_EXPANSION: {
         ex_knobs::elemExp_c *eBtEx = dynamic_cast<ex_knobs::elemExp_c*>(*it);
         printf("elemExp_c{%s,%s}",eBtEx->identStr.c_str(),eBtEx->parenStr.c_str());
         break;
@@ -100,22 +100,22 @@ void TestEK_knob(std::shared_ptr<ex_knobs::primKnob_c> knobPrim)
   for (auto it = knobPrim->lhsLst.begin(); it != knobPrim->lhsLst.end(); it++) {
     if (it != knobPrim->lhsLst.begin())
       printf(", ");
-    ex_knobs::element_c::elementType_e elem_type = (*it)->getElemType();
+    ex_knobs::elementType_e elem_type = (*it)->getElemType();
     switch (elem_type)
     {
-    case ex_knobs::element_c::ELEM_STRING:   printf("%s",    static_cast<ex_knobs::elemStr_c*> (*it)->varStr.c_str()); break;
-    case ex_knobs::element_c::ELEM_QSTRING:  printf("\'%s\'",static_cast<ex_knobs::elemQStr_c*>(*it)->varStr.c_str()); break;
-    case ex_knobs::element_c::ELEM_FUNCTION: {
+    case ex_knobs::ELEM_STRING:   printf("%s",    static_cast<ex_knobs::elemStr_c*> (*it)->varStr.c_str()); break;
+    case ex_knobs::ELEM_QSTRING:  printf("\'%s\'",static_cast<ex_knobs::elemQStr_c*>(*it)->varStr.c_str()); break;
+    case ex_knobs::ELEM_FUNCTION: {
         ex_knobs::elemFunc_c *eBtFn = dynamic_cast<ex_knobs::elemFunc_c*>(*it);
         printf("elemFunc_c{%s,%s}",eBtFn->identStr.c_str(),eBtFn->parenStr.c_str());
         break;
       }
-    case ex_knobs::element_c::ELEM_EQUATION: {
+    case ex_knobs::ELEM_EQUATION: {
         ex_knobs::elemEqn_c *eBtFn = dynamic_cast<ex_knobs::elemEqn_c*>(*it);
         printf("elemEqn_c{%s}",eBtFn->parenStr.c_str());
         break;
       }
-    case ex_knobs::element_c::ELEM_EXPANSION: {
+    case ex_knobs::ELEM_EXPANSION: {
         ex_knobs::elemExp_c *eBtEx = dynamic_cast<ex_knobs::elemExp_c*>(*it);
         printf("elemExp_c{%s,%s}",eBtEx->identStr.c_str(),eBtEx->parenStr.c_str());
         break;
@@ -130,22 +130,22 @@ void TestEK_knob(std::shared_ptr<ex_knobs::primKnob_c> knobPrim)
   for (auto it = knobPrim->rhsLst.begin(); it != knobPrim->rhsLst.end(); it++) {
     if (it != knobPrim->rhsLst.begin())
       printf(", ");
-    ex_knobs::element_c::elementType_e elem_type = (*it)->getElemType();
+    ex_knobs::elementType_e elem_type = (*it)->getElemType();
     switch (elem_type)
     {
-    case ex_knobs::element_c::ELEM_STRING:   printf("%s",    static_cast<ex_knobs::elemStr_c*> (*it)->varStr.c_str()); break;
-    case ex_knobs::element_c::ELEM_QSTRING:  printf("\'%s\'",static_cast<ex_knobs::elemQStr_c*>(*it)->varStr.c_str()); break;
-    case ex_knobs::element_c::ELEM_FUNCTION: {
+    case ex_knobs::ELEM_STRING:   printf("%s",    static_cast<ex_knobs::elemStr_c*> (*it)->varStr.c_str()); break;
+    case ex_knobs::ELEM_QSTRING:  printf("\'%s\'",static_cast<ex_knobs::elemQStr_c*>(*it)->varStr.c_str()); break;
+    case ex_knobs::ELEM_FUNCTION: {
         ex_knobs::elemFunc_c *eBtFn = dynamic_cast<ex_knobs::elemFunc_c*>(*it);
         printf("elemFunc_c{%s,%s}",eBtFn->identStr.c_str(),eBtFn->parenStr.c_str());
         break;
       }
-    case ex_knobs::element_c::ELEM_EQUATION: {
+    case ex_knobs::ELEM_EQUATION: {
         ex_knobs::elemEqn_c *eBtFn = dynamic_cast<ex_knobs::elemEqn_c*>(*it);
         printf("elemEqn_c{%s}",eBtFn->parenStr.c_str());
         break;
       }
-    case ex_knobs::element_c::ELEM_EXPANSION: {
+    case ex_knobs::ELEM_EXPANSION: {
         ex_knobs::elemExp_c *eBtEx = dynamic_cast<ex_knobs::elemExp_c*>(*it);
         printf("elemExp_c{%s,%s}",eBtEx->identStr.c_str(),eBtEx->parenStr.c_str());
         break;
@@ -175,11 +175,11 @@ void TestEK_xml(std::shared_ptr<ex_knobs::primXml_c> xmlPrim)
     for (auto it = xmlPrim->optLst.begin(); it != xmlPrim->optLst.end(); it++) {
       if (it != xmlPrim->optLst.begin())
         printf(", ");
-      ex_knobs::element_c::elementType_e elem_type = (*it)->getElemType();
+      ex_knobs::elementType_e elem_type = (*it)->getElemType();
       switch (elem_type)
       {
-      case ex_knobs::element_c::ELEM_STRING:   printf("%s",    static_cast<ex_knobs::elemStr_c*> (*it)->varStr.c_str()); break;
-      case ex_knobs::element_c::ELEM_QSTRING:  printf("\'%s\'",static_cast<ex_knobs::elemQStr_c*>(*it)->varStr.c_str()); break;
+      case ex_knobs::ELEM_STRING:   printf("%s",    static_cast<ex_knobs::elemStr_c*> (*it)->varStr.c_str()); break;
+      case ex_knobs::ELEM_QSTRING:  printf("\'%s\'",static_cast<ex_knobs::elemQStr_c*>(*it)->varStr.c_str()); break;
       default:
         printf("ELEM_TYPE:%d",static_cast<int>(elem_type)); break;
       }
@@ -188,8 +188,8 @@ void TestEK_xml(std::shared_ptr<ex_knobs::primXml_c> xmlPrim)
   }
   printf("+++++ [TestEK_xml] body:\n");
   for (auto it = xmlPrim->lineLst.begin(); it != xmlPrim->lineLst.end(); it++) {
-    ex_knobs::element_c::elementType_e elem_type = (*it)->getElemType();
-    if (elem_type == ex_knobs::element_c::ELEM_STRING)
+    ex_knobs::elementType_e elem_type = (*it)->getElemType();
+    if (elem_type == ex_knobs::ELEM_STRING)
       printf("@@%s@@",static_cast<ex_knobs::elemStr_c*> (*it)->varStr.c_str());
     else
       printf("ELEM_TYPE:%d",static_cast<int>(elem_type));
@@ -211,7 +211,7 @@ int main(int argc, char *argv[])
   ex_knobs::ek_knob_f       = std::bind(&TestEK_knob,   std::placeholders::_1);
   ex_knobs::ek_comment_sl_f = std::bind(&TestEK_RemSL,  std::placeholders::_1, std::placeholders::_2);
   ex_knobs::ek_comment_ml_f = std::bind(&TestEK_RemML,  std::placeholders::_1, std::placeholders::_2);
-  ex_knobs::ek_xml_f        = std::bind(&TestEK_xml,   std::placeholders::_1);
+  ex_knobs::ek_xml_f        = std::bind(&TestEK_xml,    std::placeholders::_1);
 
   char* inpFN  = argv[1];
   int   retVal = ex_knobs::ek_readfile(inpFN,0);
