@@ -47,11 +47,14 @@ namespace ex_knobs
       ELEM_FUNCTION  = 4,
       ELEM_EXPANSION = 5
     } elementType_e;
-    elementType_e elemType;
-
   public:
              element_c(elementType_e eType) { elemType = eType; }
     virtual ~element_c() {}
+
+    elementType_e getElemType(void) { return elemType; }
+
+  private:
+    elementType_e elemType;
   };
 
   class elemStr_c : public element_c {
@@ -114,14 +117,20 @@ namespace ex_knobs
       PRIM_XML     = 4
     } primitiveType_e;
 
-    primitiveType_e primType;
-    int             lineNum;
-
   public:
              primitive_c(primitiveType_e pType) { primType = pType; lineNum = -1; }
     virtual ~primitive_c() { }
 
-    virtual void setLineNum(int) = 0;
+    void setLineNum(int);
+    int  getLineNum(void);
+
+    primitiveType_e getPrimitiveType(void);
+
+  protected:
+    primitiveType_e primType;
+    int             lineNum;
+
+    virtual void virt_setLineNum(int);
   };
 
   class primCommand_c : public primitive_c {
@@ -137,14 +146,15 @@ namespace ex_knobs
         delete *it;
     }
 
-    virtual void setLineNum(int lNum);
-
     void setIdent(const std::string& idStr, int l_lineNum);
     void setArg  (const std::string& arStr, int isQ);
 
     void setBTick(int btType, const std::string& idStr, const std::string& parenStr);
 
     void print (void);
+
+  private:
+    virtual void virt_setLineNum(int);
   };
 
   class primObject_c : public primitive_c {
@@ -157,8 +167,6 @@ namespace ex_knobs
       for (auto it = argLst.begin(); it != argLst.end(); it++)
         delete *it;
     }
-
-    virtual void setLineNum(int lNum);
 
     void setStr  (const std::string& arStr, int l_lineNum, int isQ);
     void setBTick(int btType, const std::string& idStr, const std::string& parenStr);
@@ -178,8 +186,6 @@ namespace ex_knobs
       for (auto it = rhsLst.begin(); it != rhsLst.end(); it++) delete *it;
     }
 
-    virtual void setLineNum(int lNum);
-
     void setStr  (const std::string& arStr, int l_lineNum, int isQ, int isRhs);
     void setBTick(int btType, const std::string& idStr, const std::string& parenStr, int isRhs);
 
@@ -198,8 +204,6 @@ namespace ex_knobs
       for (auto it = optLst.begin();  it != optLst.end();  it++) delete *it;
       for (auto it = lineLst.begin(); it != lineLst.end(); it++) delete *it;
     }
-
-    virtual void setLineNum(int lNum);
 
     void setStr (const std::string& arStr, int isQ);
     void addBody(const std::string& bodStr);

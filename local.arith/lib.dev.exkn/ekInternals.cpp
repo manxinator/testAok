@@ -400,7 +400,28 @@ void ex_knobs::spQStrToStr (shared_ptr<vector<string> > quoteStr, string &destPt
   }
 }
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-void primCommand_c::setLineNum(int lNum)
+void primitive_c::setLineNum(int lNum)
+{
+  virt_setLineNum(lNum);
+}
+
+int primitive_c::getLineNum(void)
+{
+  return lineNum;
+}
+
+void primitive_c::virt_setLineNum(int lNum)
+{
+  if (lineNum < 0)
+    lineNum = lNum;
+}
+
+primitive_c::primitiveType_e primitive_c::getPrimitiveType(void)
+{
+  return primType;
+}
+//++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+void primCommand_c::virt_setLineNum(int lNum)
 {
   if      (lineNum < 0)    lineNum = lNum;
   else if (lineNum > lNum) lineNum = lNum;
@@ -426,7 +447,7 @@ void primCommand_c::print (void)
 {
   printf("[primCommand_c::print] line: %d { %s",lineNum,ident.c_str());
   for (auto it = argLst.begin(); it != argLst.end(); it++) {
-    element_c::elementType_e elem_type = (*it)->elemType;
+    element_c::elementType_e elem_type = (*it)->getElemType();
     switch (elem_type)
     {
     case element_c::ELEM_STRING:  printf(", %s",    static_cast<elemStr_c*> (*it)->varStr.c_str()); break;
@@ -438,12 +459,6 @@ void primCommand_c::print (void)
   printf(" }\n");
 }
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-void primObject_c::setLineNum(int lNum)
-{
-  if (lineNum < 0)
-    lineNum = lNum;
-}
-
 void primObject_c::setStr (const string& arStr, int l_lineNum, int isQ)
 {
   setLineNum(l_lineNum);
@@ -460,12 +475,6 @@ void primObject_c::print (void)
   printf("[primObject_c::print] line: %d, argLst.size(): %d",lineNum,argLst.size());
 }
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-void primKnob_c::setLineNum(int lNum)
-{
-  if (lineNum < 0)
-    lineNum = lNum;
-}
-
 void primKnob_c::setStr (const string& arStr, int l_lineNum, int isQ, int isRhs)
 {
   setLineNum(l_lineNum);
@@ -490,12 +499,6 @@ void primKnob_c::print (void)
   printf("[primKnob_c::print] line: %d, lhsLst.size(): %d, rhsLst.size(): %d",lineNum,lhsLst.size(),rhsLst.size());
 }
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-void primXml_c::setLineNum(int lNum)
-{
-  if (lineNum < 0)
-    lineNum = lNum;
-}
-
 void primXml_c::setStr (const string& arStr, int isQ)
 {
   element_c* l_elem = exkn_str2elem(arStr,isQ);

@@ -32,9 +32,9 @@
 
 void TestEK_command(std::shared_ptr<ex_knobs::primCommand_c> cmdPrim)
 {
-  printf("+++++ [TestEK_command] line: %d { %s",cmdPrim->lineNum,cmdPrim->ident.c_str());
+  printf("+++++ [TestEK_command] line: %d { %s",cmdPrim->getLineNum(),cmdPrim->ident.c_str());
   for (auto it = cmdPrim->argLst.begin(); it != cmdPrim->argLst.end(); it++) {
-    ex_knobs::element_c::elementType_e elem_type = (*it)->elemType;
+    ex_knobs::element_c::elementType_e elem_type = (*it)->getElemType();
     switch (elem_type)
     {
     case ex_knobs::element_c::ELEM_STRING:   printf(", %s",    static_cast<ex_knobs::elemStr_c*> (*it)->varStr.c_str()); break;
@@ -63,11 +63,11 @@ void TestEK_command(std::shared_ptr<ex_knobs::primCommand_c> cmdPrim)
 
 void TestEK_object(std::shared_ptr<ex_knobs::primObject_c> objPrim)
 {
-  printf("+++++ [TestEK_object] line: %d { ",objPrim->lineNum);
+  printf("+++++ [TestEK_object] line: %d { ",objPrim->getLineNum());
   for (auto it = objPrim->argLst.begin(); it != objPrim->argLst.end(); it++) {
     if (it != objPrim->argLst.begin())
       printf(", ");
-    ex_knobs::element_c::elementType_e elem_type = (*it)->elemType;
+    ex_knobs::element_c::elementType_e elem_type = (*it)->getElemType();
     switch (elem_type)
     {
     case ex_knobs::element_c::ELEM_STRING:   printf("%s",    static_cast<ex_knobs::elemStr_c*> (*it)->varStr.c_str()); break;
@@ -96,11 +96,11 @@ void TestEK_object(std::shared_ptr<ex_knobs::primObject_c> objPrim)
 
 void TestEK_knob(std::shared_ptr<ex_knobs::primKnob_c> knobPrim)
 {
-  printf("+++++ [TestEK_knob] LHS line: %d { ",knobPrim->lineNum);
+  printf("+++++ [TestEK_knob] LHS line: %d { ",knobPrim->getLineNum());
   for (auto it = knobPrim->lhsLst.begin(); it != knobPrim->lhsLst.end(); it++) {
     if (it != knobPrim->lhsLst.begin())
       printf(", ");
-    ex_knobs::element_c::elementType_e elem_type = (*it)->elemType;
+    ex_knobs::element_c::elementType_e elem_type = (*it)->getElemType();
     switch (elem_type)
     {
     case ex_knobs::element_c::ELEM_STRING:   printf("%s",    static_cast<ex_knobs::elemStr_c*> (*it)->varStr.c_str()); break;
@@ -126,11 +126,11 @@ void TestEK_knob(std::shared_ptr<ex_knobs::primKnob_c> knobPrim)
   }
   printf(" }\n");
 
-  printf("+++++ [TestEK_knob] RHS line: %d { ",knobPrim->lineNum);
+  printf("+++++ [TestEK_knob] RHS line: %d { ",knobPrim->getLineNum());
   for (auto it = knobPrim->rhsLst.begin(); it != knobPrim->rhsLst.end(); it++) {
     if (it != knobPrim->rhsLst.begin())
       printf(", ");
-    ex_knobs::element_c::elementType_e elem_type = (*it)->elemType;
+    ex_knobs::element_c::elementType_e elem_type = (*it)->getElemType();
     switch (elem_type)
     {
     case ex_knobs::element_c::ELEM_STRING:   printf("%s",    static_cast<ex_knobs::elemStr_c*> (*it)->varStr.c_str()); break;
@@ -169,13 +169,13 @@ void TestEK_RemML(std::shared_ptr<std::string> remStr, int lineNum)
 
 void TestEK_xml(std::shared_ptr<ex_knobs::primXml_c> xmlPrim)
 {
-  printf("+++++ [TestEK_xml] line: %d Ident: '%s'\n",xmlPrim->lineNum,xmlPrim->ident.c_str());
+  printf("+++++ [TestEK_xml] line: %d Ident: '%s'\n",xmlPrim->getLineNum(),xmlPrim->ident.c_str());
   if (xmlPrim->optLst.size() > 0) {
     printf("+++++ [TestEK_xml] options: { ");
     for (auto it = xmlPrim->optLst.begin(); it != xmlPrim->optLst.end(); it++) {
       if (it != xmlPrim->optLst.begin())
         printf(", ");
-      ex_knobs::element_c::elementType_e elem_type = (*it)->elemType;
+      ex_knobs::element_c::elementType_e elem_type = (*it)->getElemType();
       switch (elem_type)
       {
       case ex_knobs::element_c::ELEM_STRING:   printf("%s",    static_cast<ex_knobs::elemStr_c*> (*it)->varStr.c_str()); break;
@@ -188,7 +188,7 @@ void TestEK_xml(std::shared_ptr<ex_knobs::primXml_c> xmlPrim)
   }
   printf("+++++ [TestEK_xml] body:\n");
   for (auto it = xmlPrim->lineLst.begin(); it != xmlPrim->lineLst.end(); it++) {
-    ex_knobs::element_c::elementType_e elem_type = (*it)->elemType;
+    ex_knobs::element_c::elementType_e elem_type = (*it)->getElemType();
     if (elem_type == ex_knobs::element_c::ELEM_STRING)
       printf("@@%s@@",static_cast<ex_knobs::elemStr_c*> (*it)->varStr.c_str());
     else
