@@ -55,11 +55,13 @@ endif
 #---------------------------------------------------------------------
 
 CXX_FILES+=testArith1.cpp
+#CXX_FILES+=dev.testArith1.cpp
 INCPATH+=  ${LOCAL_WS_DIR}/app.testArith/
 vpath %c   ${LOCAL_WS_DIR}/app.testArith/
 vpath %cpp ${LOCAL_WS_DIR}/app.testArith/
 
 include ${LOCAL_WS_DIR}/lib.dev.arithAnal/make.arithAnal.mk
+#include ${LOCAL_WS_DIR}/lib.stage.arithAnal/make.arithAnal.mk
 
         #-------------------------------------------------------------
 

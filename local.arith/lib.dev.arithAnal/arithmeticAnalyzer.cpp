@@ -587,7 +587,6 @@ void arithParser_c::BuildSubEqn(
           }
         case OP_LEFTPAR:
           {
-            int curPreced = elemListRef[betIdx]->opPreced;
             if (curElOp == OP_LEFTPAR) {
               l_leftParDet = 1;
               betIdx++;
