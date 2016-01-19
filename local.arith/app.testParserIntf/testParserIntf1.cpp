@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright (c) 2015 manxinator
+* Copyright (c) 2016 manxinator
 *
 * Permission is hereby granted, free of charge, to any person obtaining a copy
 * of this software and associated documentation files (the "Software"), to deal
@@ -24,19 +24,89 @@
 * Created: Sat Jan 16 02:18:40 PST 2016
 *******************************************************************************/
 
-#include "arithmeticAnalyzer.h"
+#include "aokParserIntf.h"
 
 #include <stdio.h>
 #include <stdlib.h>
-
 using namespace std;
-
 
 //--------------------------------------------------------------------
 
-int main(int ac, char *av[])
+class parseIntfTester {
+public:
+           parseIntfTester() { configure(); }
+  virtual ~parseIntfTester() { }
+
+private:
+  shared_ptr<aokParserIntf_c> parserIntf;
+
+    // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+  void my_err_func (const string& eStr)
+  {
+    fprintf(stderr,"%s\n",eStr.c_str());
+  }
+
+  void my_exit_func (const string& eStr)
+  {
+    if (eStr.length() > 0)
+      fprintf(stderr,"%s\n",eStr.c_str());
+    printf("ERROR!\nERROR!\nERROR!\n");
+    printf("ERROR! %s\n",eStr.c_str());
+    printf("ERROR!\nERROR!\nERROR!\n");
+    exit(EXIT_FAILURE);
+  }
+    // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+public:
+  void configure(void)
+  {
+    /*
+      Parser Intf:
+      - Instantiate aokParserIntf_c
+      - AOK functions: get, set, err, exit, etc
+      * debug command insertion
+    */
+
+    parserIntf = make_shared<aokParserIntf_c>();
+    parserIntf->setErrFunc ( std::bind(&parseIntfTester::my_err_func,  this, std::placeholders::_1) );
+    parserIntf->setExitFunc( std::bind(&parseIntfTester::my_exit_func, this, std::placeholders::_1) );
+
+    /*
+      TODO: debug command insertion
+    */
+  }
+
+  void loadFile(const string& fnStr)
+  {
+    int loadRslt = parserIntf->loadFile(fnStr);
+    printf("\n  ***\n");
+    if (loadRslt)
+      printf("  *** File %s loaded!\n",fnStr.c_str());
+    else
+      printf("  *** ERROR: Failed to load '%s'\n",fnStr.c_str());
+    printf("  ***\n");
+  }
+
+  void cleanup(void)
+  {
+    parserIntf.reset();
+  }
+};
+
+//--------------------------------------------------------------------
+
+int main(int ac, const char *av[])
 {
+  if (ac < 2) {
+    printf("ERROR: %s requires argument <INPUT_FILENAME>\n",av[0]);
+    return EXIT_FAILURE;
+  }
+
   printf("---------------- testParserIntf1 start!!\n\n");
+
+  parseIntfTester piTest;
+  piTest.loadFile(av[1]);
+  piTest.cleanup();
 
   printf("\n---------------- testParserIntf1 done!!\n");
   return EXIT_SUCCESS;

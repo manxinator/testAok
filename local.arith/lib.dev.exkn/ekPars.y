@@ -209,7 +209,7 @@ int ex_knobs::ek_readfile(const char* inFN, int exitOnErr)
   // Open specified filename, and check handle
   FILE *inFH = fopen(inFN, "r");
   if (!inFH) {
-    std::cout << "I can't open " << inFN << "!\n";
+    std::cout << "[ex_knobs::ek_readfile] ERROR: can't open " << inFN << "!\n";
     return -1;
   }
   // set to parser's file handle... default is STDIN

@@ -29,8 +29,8 @@ _MK_PARSER_INTF_=1
 
         #-------------------------------------------------------------
 
-#CXX_FILES+=\
-#  <FILE>.cpp \
+CXX_FILES+=\
+  aokParserIntf.cpp \
 
 INCPATH+=\
   ${LOCAL_WS_DIR}/lib.dev.parserIntf \
