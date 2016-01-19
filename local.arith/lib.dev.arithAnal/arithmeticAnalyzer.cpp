@@ -74,8 +74,8 @@ static std::string aa_util_entListDbg(const std::vector<std::shared_ptr<arithEle
 
 class arithElem_c {
 private:
-  int auxTraverseInt(std::shared_ptr<arithParser_c> pp_parent, int &travAbrt);
-  int performAsInt  (std::shared_ptr<arithParser_c> pp_parent, const std::string &varId, int opId, int rhsVal);
+  int auxTraverseInt(std::shared_ptr<arithParser_c::arithEqn_c> pp_parent, int &travAbrt);
+  int performAsInt  (std::shared_ptr<arithParser_c::arithEqn_c> pp_parent, const std::string &varId, int opId, int rhsVal);
   int performOpInt  (int opId, int A, int B, int &errFlag);
   int isAssignOp    (int opId);
   int isLhsUnaryOp  (int opId);
@@ -270,67 +270,38 @@ void arithParser_c::exitCall(const std::string &eStr)
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 void arithParser_c::arithEqn_c::setParent(std::shared_ptr<arithParser_c> parenObj)
 {
-  p_parent = std::weak_ptr<arithParser_c>(parenObj);
-}
-
-int arithParser_c::arithEqn_c::get_int(const std::string &varName)
-{
-  if (auto o_parent = p_parent.lock())
-    return o_parent->getVarInt(varName);
-  else
-    doExit("[arithParser_c::arithEqn_c::get_int()] unable to get lock on parent!");
-  return 0;
-}
-
-void arithParser_c::arithEqn_c::set_int(const std::string &varName, int newVal)
-{
-  if (auto o_parent = p_parent.lock())
-    return o_parent->setVarInt(varName,newVal);
-  else
-    doExit("[arithParser_c::arithEqn_c::set_int()] unable to get lock on parent!");
-}
-
-void arithParser_c::arithEqn_c::doErr (const std::string &eStr)
-{
-  if (auto o_parent = p_parent.lock())
-    o_parent->errCall(eStr);
-#ifndef AA_NO_DEFAULT_ERR
-  else
-    fprintf(stderr,"[ARITHMETIC ANALYZER] %s",eStr.c_str());
-#endif
-}
-
-void arithParser_c::arithEqn_c::doExit(const std::string &eStr)
-{
-  if (auto o_parent = p_parent.lock())
-    o_parent->exitCall(eStr);
-#ifndef AA_NO_DEFAULT_ERR
-  else {
-    fprintf(stderr,"[ARITHMETIC ANALYZER] %s",eStr.c_str());
-    exit(EXIT_FAILURE);
-  }
-#endif
+  get_int = parenObj->f_getIntVar;
+  set_int = parenObj->f_setIntVar;
+  do_err  = parenObj->f_errFunc;
+  do_exit = parenObj->f_exitFunc;
 }
 
 std::shared_ptr<arithElem_c> arithParser_c::arithEqn_c::compute(void)
 {
-  auto o_parent = p_parent.lock();
-
   auto retElem = std::make_shared<arithElem_c>();
   retElem->dataType = topNode->dataType;
+
+  int incomplDelegSet = !get_int || !set_int ? 1 : 0;
+#ifdef AA_NO_DEFAULT_ERR
+  incomplDelegSet |= !do_err || !do_exit ? 1 : 0;
+#endif
+  if (incomplDelegSet) {
+    do_exit( "[arithEqn_c::compute] Not all delegates have been set!" );
+    return retElem;
+  }
 
   int travErr = 0;
   switch (retElem->dataType)
   {
   case arithElem_c::ADT_INT:
-    retElem->dat_int = topNode->auxTraverseInt(o_parent,travErr);
+    retElem->dat_int = topNode->auxTraverseInt(shared_from_this(),travErr);
     if (travErr)
-      doErr( "[arithElem_c::compute] topNode->auxTraverseInt() had an error!" );    // not doExit, since that should've been called in auxTraverseInt()
+      do_err( "[arithEqn_c::compute] topNode->auxTraverseInt() had an error!" );    // not do_exit, since that should've been called in auxTraverseInt()
     break;
   case arithElem_c::ADT_UINT32:
   case arithElem_c::ADT_UINT64:
   case arithElem_c::ADT_FLOAT:
-    doExit( "[arithElem_c::compute] ADT_UINT32 not implemented!" );
+    do_exit( "[arithEqn_c::compute] ADT_UINT32 not implemented!" );
     break;
   }
   // When returning, the only valid members of arithElem_c are:
@@ -348,18 +319,40 @@ int arithParser_c::arithEqn_c::computeInt(void)
   default:
     break;
   }
-  doExit("[arithElem_c::computeInt] This state suppoed to be unreachable!!!");
+  do_exit("[arithElem_c::computeInt] This state suppoed to be unreachable!!!");
   return -1;
 }
 
-std::string arithParser_c::arithEqn_c::getStr(void)
+std::string arithParser_c::arithEqn_c::getStr(std::weak_ptr<arithParser_c> parentPtr)
 {
   std::string l_str = "UNDEFINED";
-  if (auto o_parent = p_parent.lock())
+  if (auto o_parent = parentPtr.lock())
     l_str = "supercalifragilistic -- " + o_parent->getIdent();
   else
     ; // ERROR!
   return l_str;
+}
+
+void arithParser_c::arithEqn_c::callErr (const std::string &eStr)
+{
+  if (do_err)
+    do_err(eStr);
+#ifndef AA_NO_DEFAULT_ERR
+  else
+    fprintf(stderr,"[ARITHMETIC ANALYZER] %s",eStr.c_str());
+#endif
+}
+
+void arithParser_c::arithEqn_c::callExit(const std::string &eStr)
+{
+  if (do_exit)
+    do_exit(eStr);
+#ifndef AA_NO_DEFAULT_ERR
+  else {
+    fprintf(stderr,"[ARITHMETIC ANALYZER] %s",eStr.c_str());
+    exit(EXIT_FAILURE);
+  }
+#endif
 }
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 parsTokAux_c::parsTokAux_c(const std::string &targetStr)
@@ -813,11 +806,11 @@ void arithElem_c::ConfigDataType( std::vector<std::shared_ptr<arithElem_c> > &el
     __SS_CMD__;                         \
     ssErr << "\n    File: " << __FILE__ \
           << "\n    Line: " << __LINE__;\
-    pp_parent->exitCall(ssErr.str());   \
+    pp_parent->callExit(ssErr.str());   \
     travAbrt = 1;                       \
 }
 
-int arithElem_c::auxTraverseInt(std::shared_ptr<arithParser_c> pp_parent, int &travAbrt)
+int arithElem_c::auxTraverseInt(std::shared_ptr<arithParser_c::arithEqn_c> pp_parent, int &travAbrt)
 {
   /*
     1- Get first non-op element -- check for left unary OP, check for right unary OP
@@ -905,7 +898,7 @@ int arithElem_c::auxTraverseInt(std::shared_ptr<arithParser_c> pp_parent, int &t
       // if right unary or left unary, resolve if dat_n_var==1
       if ((rtUnaryIdx > 0) || (lfUnaryIdx >= 0)) {
         if (dat_n_var > 0) {
-          dat_nuevo = pp_parent->getVarInt( entList[dat_n_idx]->strId );
+          dat_nuevo = pp_parent->get_int( entList[dat_n_idx]->strId );
           dat_n_idx = -1;
           dat_n_var =  0;
         }
@@ -915,8 +908,8 @@ int arithElem_c::auxTraverseInt(std::shared_ptr<arithParser_c> pp_parent, int &t
       if (rtUnaryIdx > 0) {
         switch (entList[rtUnaryIdx]->opIdent)
         {
-        case OP_PLUSPLUS:   pp_parent->setVarInt( entList[elIdx-1]->strId, dat_nuevo+1 ); break;
-        case OP_MINUSMINUS: pp_parent->setVarInt( entList[elIdx-1]->strId, dat_nuevo-1 ); break;
+        case OP_PLUSPLUS:   pp_parent->set_int( entList[elIdx-1]->strId, dat_nuevo+1 ); break;
+        case OP_MINUSMINUS: pp_parent->set_int( entList[elIdx-1]->strId, dat_nuevo-1 ); break;
         default:
           SS_ERR_ATI_ABORT(ssErr << "This state supposedly unreachable!" << aa_util_entListDbg(entList,rtUnaryIdx));
           return -1;
@@ -933,11 +926,11 @@ int arithElem_c::auxTraverseInt(std::shared_ptr<arithParser_c> pp_parent, int &t
 
           switch (unaryOp)
           {
-          case OP_PLUSPLUS:   pp_parent->setVarInt( entList[elIdx-1]->strId, dat_nuevo+1 ); dat_nuevo++; break;
-          case OP_MINUSMINUS: pp_parent->setVarInt( entList[elIdx-1]->strId, dat_nuevo-1 ); dat_nuevo--; break;
-          case OP_BIT_INV:    dat_nuevo = ~dat_nuevo;                                                    break;
-          case OP_LOG_NOT:    dat_nuevo = !dat_nuevo ? 1 : 0;                                            break;
-          case OP_MINUS:      dat_nuevo = -dat_nuevo;                                                    break;
+          case OP_PLUSPLUS:   pp_parent->set_int( entList[elIdx-1]->strId, dat_nuevo+1 ); dat_nuevo++; break;
+          case OP_MINUSMINUS: pp_parent->set_int( entList[elIdx-1]->strId, dat_nuevo-1 ); dat_nuevo--; break;
+          case OP_BIT_INV:    dat_nuevo = ~dat_nuevo;                                                  break;
+          case OP_LOG_NOT:    dat_nuevo = !dat_nuevo ? 1 : 0;                                          break;
+          case OP_MINUS:      dat_nuevo = -dat_nuevo;                                                  break;
           default:
             SS_ERR_ATI_ABORT(ssErr << "This state supposedly unreachable!" << aa_util_entListDbg(entList,lfUnaryIdx));
             return -1;
@@ -962,22 +955,22 @@ int arithElem_c::auxTraverseInt(std::shared_ptr<arithParser_c> pp_parent, int &t
         }
         // If nuevo is a variable, resolve
         if (dat_n_var) {
-          dat_nuevo = pp_parent->getVarInt( entList[dat_n_idx]->strId );
+          dat_nuevo = pp_parent->get_int( entList[dat_n_idx]->strId );
           dat_n_var = 0;
         }
         // Perform assignment, and write back
         AA_DEBUG("  ### '%s' <-- %d\n",entList[dat_a_idx]->strId.c_str(),dat_nuevo);
         dat_accum = performAsInt(pp_parent,entList[dat_a_idx]->strId,lastOpId,dat_nuevo);
         dat_a_var = 0;
-        pp_parent->setVarInt(entList[dat_a_idx]->strId,dat_accum);
+        pp_parent->set_int(entList[dat_a_idx]->strId,dat_accum);
       } else {
         // if dat_a_var==1 or dat_n_var==1, resolve
         if (dat_a_var) {
-          dat_accum = pp_parent->getVarInt( entList[dat_a_idx]->strId );
+          dat_accum = pp_parent->get_int( entList[dat_a_idx]->strId );
           dat_a_var = 0;
         }
         if (dat_n_var) {
-          dat_nuevo = pp_parent->getVarInt( entList[dat_n_idx]->strId );
+          dat_nuevo = pp_parent->get_int( entList[dat_n_idx]->strId );
           dat_n_var = 0;
         }
         // Perform OP
@@ -1016,7 +1009,7 @@ int arithElem_c::auxTraverseInt(std::shared_ptr<arithParser_c> pp_parent, int &t
   }
 
   if (dat_a_var)
-    dat_accum = pp_parent->getVarInt( entList[dat_a_idx]->strId );
+    dat_accum = pp_parent->get_int( entList[dat_a_idx]->strId );
   AA_DEBUG("  ~ returning %d ~~~~~~~~~~~~~\n",dat_accum);
   return dat_accum;
 }
@@ -1045,11 +1038,11 @@ int arithElem_c::getIntFromStr(const std::string &strId, int &intVal)
   return 0;
 }
 
-int arithElem_c::performAsInt(std::shared_ptr<arithParser_c> pp_parent, const std::string &varId, int opId, int rhsVal)
+int arithElem_c::performAsInt(std::shared_ptr<arithParser_c::arithEqn_c> pp_parent, const std::string &varId, int opId, int rhsVal)
 {
   int lhsVal = 0;
   if (opId != OP_ASGN_EQ)
-    lhsVal = pp_parent->getVarInt( varId );
+    lhsVal = pp_parent->get_int( varId );
   switch (opId)
   {
   case OP_ASGN_EQ:       lhsVal   = rhsVal; break;
@@ -1063,9 +1056,9 @@ int arithElem_c::performAsInt(std::shared_ptr<arithParser_c> pp_parent, const st
   case OP_ASGN_AND:      lhsVal  &= rhsVal; break;
   case OP_ASGN_XOR:      lhsVal  ^= rhsVal; break;
   case OP_ASGN_OR:       lhsVal  |= rhsVal; break;
-  default: pp_parent->exitCall("[arithElem_c::performAsInt] this state supposdely unreachable!"); break;
+  default: pp_parent->callExit("[arithElem_c::performAsInt] this state supposdely unreachable!"); break;
   }
-  pp_parent->setVarInt( varId, lhsVal );
+  pp_parent->set_int( varId, lhsVal );
   return lhsVal;
 }
 

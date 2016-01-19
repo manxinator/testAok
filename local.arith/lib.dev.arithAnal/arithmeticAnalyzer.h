@@ -40,10 +40,7 @@ class arithParser_c : public std::enable_shared_from_this<arithParser_c> {
 public:
 
   //++++++++++++++++++++++++++++++++++++
-  class arithEqn_c {
-  private:
-    std::weak_ptr<arithParser_c> p_parent;
-
+  class arithEqn_c : public std::enable_shared_from_this<arithParser_c::arithEqn_c> {
   public:
     std::shared_ptr<arithElem_c> topNode;
 
@@ -54,24 +51,31 @@ public:
     // Interface to parent
     void setParent(std::shared_ptr<arithParser_c> parenObj);
 
-    // Delegates - Variables
-    // Future Optimization:
-    //   - eliminate p_parent check
-    //   - call these functions within the evaluate function only
-    //   !!! Actually, elminate these functions altogether
-    int  get_int(const std::string &);
-    void set_int(const std::string &, int);
-
-    // Delegates - Error logging
-    void doErr  (const std::string &);
-    void doExit (const std::string &);
-
     // Compute calls
-    std::shared_ptr<arithElem_c> compute(void);
-
+    //
     int computeInt(void);
 
-    std::string getStr(void); // DEBUG
+    // Delegates - Variables
+    // Note:      Delegate functions are copied here
+    // Rationale: Equation class must be able to function even after the
+    //            Arithmetic Parser class that created was already freed
+    //
+    std::function<int (const std::string&)>     get_int;
+    std::function<void(const std::string&,int)> set_int;
+
+    std::string getStr(std::weak_ptr<arithParser_c> parentPtr); // DEBUG
+
+    // Error logging and their corresponding delegates
+    //
+    void callErr  (const std::string &);
+    void callExit (const std::string &);
+
+private:
+    std::function<void(const std::string&)> do_err;
+    std::function<void(const std::string&)> do_exit;
+
+    // Compute call -- generic
+    std::shared_ptr<arithElem_c> compute(void);
   };
   //++++++++++++++++++++++++++++++++++++
 
@@ -112,6 +116,8 @@ public:
   std::function<void(const std::string&)>     f_errFunc;
   std::function<void(const std::string&)>     f_exitFunc;
 
+private:
+    // TODO: eliminate these functions
   int  getVarInt(const std::string &);
   void setVarInt(const std::string &, int);
   void errCall  (const std::string &);

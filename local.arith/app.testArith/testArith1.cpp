@@ -34,6 +34,8 @@
 
 using namespace std;
 
+//#define TEST_CALCULATE_AFTER_FREE       1
+
 map<string,string>        varMap;
 shared_ptr<arithParser_c> g_arithParser;
 
@@ -98,23 +100,6 @@ int g_verbose = 1;
     varMap[varName] = ssVal.str();
   }
 
-  /*
-  void checkIntValue(const string& varName, int expVal)
-  {
-    auto it = varMap.find(varName);
-    if (it == varMap.end()) {
-      printf("[checkIntValue] ERROR: variable '%s' not found! Expected value: %d\n",varName.c_str(),expVal);
-      exit(-1);
-    }
-    int readVal = atoi(it->second.c_str());
-    if (readVal != expVal) {
-      printf("[checkIntValue] ERROR: variable '%s' is %d! Expected value: %d\n",varName.c_str(),readVal,expVal);
-      exit(-1);
-    }
-    printf("[checkIntValue] OK: variable '%s' is %d\n",varName.c_str(),expVal);
-  }
-  */
-
   void dumpVars(void)
   {
     printf("  [dumpVars] dumping values!\n");
@@ -150,8 +135,14 @@ int testEqnInt1(const string &eqnStr, int expVal)
   printf("\n  ************\n");
   printf("  [testEqnInt] parsing '%s'\n",eqnStr.c_str());
   auto eqObj  = g_arithParser->parseEqn(eqnStr);
+#ifdef TEST_CALCULATE_AFTER_FREE
+ g_arithParser.reset();
+#endif
   int  resVal = eqObj->computeInt();
   printf("  [testEqnInt] Computed Value: %d, Expected: %d {0x%x, 0x%x}\n",resVal,expVal,resVal,expVal);
+#ifdef TEST_CALCULATE_AFTER_FREE
+ testInit();
+#endif
   return resVal != expVal;
 }
 
