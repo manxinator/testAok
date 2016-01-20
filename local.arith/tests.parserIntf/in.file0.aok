@@ -1,0 +1,12 @@
+
+
+#include "incl_file.aok"
+
+%California
+  sanFrancisco = 5
+
+<CTHREAD id=1>
+  this is one thread
+</CTHREAD>
+
+

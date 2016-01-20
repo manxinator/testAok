@@ -117,48 +117,99 @@ void aokParserContext_c::setIntVar(const string& varName, int newVal)
     - comment_ml function
     - xml        function
   */
+#define DECL_ENT_CLASS(_NAME_,_PRIM_,_ET_)    \
+  class _NAME_ : public fileEnt_c {           \
+  public:                                     \
+    shared_ptr<ex_knobs::_PRIM_> p_ent;       \
+                                              \
+             _NAME_() : fileEnt_c(_ET_) { }   \
+    virtual ~_NAME_()                   { }   \
+  };
 class aokParsFile_c {
 public:
   aokParserContext_c *ctx;
   string              fileName;
 
+  typedef enum _entType_e_ {
+    ENT_UNDEF   = 0,
+    ENT_COMMAND = 1,
+    ENT_OBJECT  = 2,
+    ENT_KNOB    = 3,
+    ENT_XML     = 4,
+    ENT_FILE    = 5
+  } entType_e;
+
+  class fileEnt_c {
+  public:
+    entType_e et;
+
+             fileEnt_c(entType_e entT) { et = entT; }
+    virtual ~fileEnt_c()               { }
+  };
+
+  DECL_ENT_CLASS(entCmd_c,primCommand_c,ENT_COMMAND);
+  DECL_ENT_CLASS(entObj_c,primObject_c, ENT_OBJECT);
+  DECL_ENT_CLASS(entKnb_c,primKnob_c,   ENT_KNOB);
+  DECL_ENT_CLASS(entXml_c,primXml_c,    ENT_XML);
+
+  class entFile_c : public fileEnt_c {
+  public:
+    string                    fileName;
+    shared_ptr<aokParsFile_c> parseFile;
+
+             entFile_c() : fileEnt_c(ENT_FILE) { }
+    virtual ~entFile_c()                       { }
+  };
+
+  vector<fileEnt_c*> entPtrLst;
+
 public:
            aokParsFile_c(aokParserContext_c *a_ctx) { ctx = a_ctx; }
-  virtual ~aokParsFile_c()                          { ctx = 0;     }
-
-  int doParse(const string &fnStr);
-
-  void ek_command(shared_ptr<ex_knobs::primCommand_c> cmdPrim)  { printf("+++++ [ek_command] line: %3d : %s\n",cmdPrim->getLineNum(),cmdPrim->ident.c_str()); }
-  void ek_object (shared_ptr<ex_knobs::primObject_c>  objPrim)  { printf("+++++ [ek_object]  line: %3d\n",     objPrim->getLineNum()); }
-  void ek_knob   (shared_ptr<ex_knobs::primKnob_c>    knobPrim) { printf("+++++ [ek_knob]    line: %3d\n",     knobPrim->getLineNum()); }
-  void ek_remSL  (shared_ptr<string>          remStr, int lNum) { printf("+++++ [ek_remSL]   line: %3d ~%s~\n",lNum,remStr->c_str()); }
-  void ek_remML  (shared_ptr<string>          remStr, int lNum) { printf("+++++ [ek_remML]   line: %3d ~%s~\n",lNum,remStr->c_str()); }
-  void ek_xml    (shared_ptr<ex_knobs::primXml_c>     xmlPrim)  { printf("+++++ [ek_xml]     line: %3d Ident: '%s'\n",xmlPrim->getLineNum(),xmlPrim->ident.c_str()); }
-};
-
-
-
-int aokParsFile_c::doParse(const string &fnStr)
-{
-  fileName = fnStr;
-
-  ex_knobs::ek_command_f    = std::bind(&aokParsFile_c::ek_command,this,std::placeholders::_1);
-  ex_knobs::ek_object_f     = std::bind(&aokParsFile_c::ek_object, this,std::placeholders::_1);
-  ex_knobs::ek_knob_f       = std::bind(&aokParsFile_c::ek_knob,   this,std::placeholders::_1);
-  ex_knobs::ek_comment_sl_f = std::bind(&aokParsFile_c::ek_remSL,  this,std::placeholders::_1, std::placeholders::_2);
-  ex_knobs::ek_comment_ml_f = std::bind(&aokParsFile_c::ek_remML,  this,std::placeholders::_1, std::placeholders::_2);
-  ex_knobs::ek_xml_f        = std::bind(&aokParsFile_c::ek_xml,    this,std::placeholders::_1);
-
-  int retVal = ex_knobs::ek_readfile(fnStr.c_str(),0);
-  if (!retVal) {
-    stringstream ss;
-    ss << "[aokParsFile_c::doParse] Failed to load file: " << fnStr << "!!!";
-    ctx->arithParser->f_errFunc(ss.str());
-    return 0;
+  virtual ~aokParsFile_c() {
+    ctx = 0;  // We don't own this
   }
 
-  return 1;
-}
+  void ek_command(shared_ptr<ex_knobs::primCommand_c> cmdPrim)  { entPtrLst.push_back( new entCmd_c() ); static_cast<entCmd_c*>(entPtrLst.back())->p_ent = cmdPrim;  }
+  void ek_object (shared_ptr<ex_knobs::primObject_c>  objPrim)  { entPtrLst.push_back( new entObj_c() ); static_cast<entObj_c*>(entPtrLst.back())->p_ent = objPrim;  }
+  void ek_knob   (shared_ptr<ex_knobs::primKnob_c>    knobPrim) { entPtrLst.push_back( new entKnb_c() ); static_cast<entKnb_c*>(entPtrLst.back())->p_ent = knobPrim; }
+  void ek_xml    (shared_ptr<ex_knobs::primXml_c>     xmlPrim)  { entPtrLst.push_back( new entXml_c() ); static_cast<entXml_c*>(entPtrLst.back())->p_ent = xmlPrim;  }
+  void ek_remSL  (shared_ptr<string>          remStr, int lNum) { }
+  void ek_remML  (shared_ptr<string>          remStr, int lNum) { }
+
+  int doParse(const string &fnStr) {
+    fileName = fnStr;
+
+    ex_knobs::ek_command_f    = std::bind(&aokParsFile_c::ek_command,this,std::placeholders::_1);
+    ex_knobs::ek_object_f     = std::bind(&aokParsFile_c::ek_object, this,std::placeholders::_1);
+    ex_knobs::ek_knob_f       = std::bind(&aokParsFile_c::ek_knob,   this,std::placeholders::_1);
+    ex_knobs::ek_comment_sl_f = std::bind(&aokParsFile_c::ek_remSL,  this,std::placeholders::_1, std::placeholders::_2);
+    ex_knobs::ek_comment_ml_f = std::bind(&aokParsFile_c::ek_remML,  this,std::placeholders::_1, std::placeholders::_2);
+    ex_knobs::ek_xml_f        = std::bind(&aokParsFile_c::ek_xml,    this,std::placeholders::_1);
+
+    int retVal = ex_knobs::ek_readfile(fnStr.c_str(),0);
+    if (!retVal) {
+      stringstream ss;
+      ss << "[aokParsFile_c::doParse] Failed to load file: " << fnStr << "!!!";
+      ctx->arithParser->f_errFunc(ss.str());
+      return 0;
+    }
+
+    printf("[aokParsFile_c::doParse] Listing the loaded entries!\n");
+    for (auto it = entPtrLst.begin(); it != entPtrLst.end(); it++) {
+      switch ((*it)->et)
+      {
+      case ENT_COMMAND: { auto eO = static_cast<entCmd_c*>(*it); printf("  [%3d] ENT_COMMAND : %s\n",eO->p_ent->getLineNum(),  eO->p_ent->ident.c_str()); break; }
+      case ENT_OBJECT:  { auto eO = static_cast<entObj_c*>(*it); printf("  [%3d] ENT_OBJECT\n",      eO->p_ent->getLineNum()); break;                            }
+      case ENT_KNOB:    { auto eO = static_cast<entKnb_c*>(*it); printf("  [%3d] ENT_KNOB  \n",      eO->p_ent->getLineNum()); break;                            }
+      case ENT_XML:     { auto eO = static_cast<entXml_c*>(*it); printf("  [%3d] ENT_XML   \n",      eO->p_ent->getLineNum()); break;                            }
+      default:
+        printf("ERROR: Unexpected condition!!!\n");
+      }
+    }
+
+    return 1;
+  }
+};
 
 
 //------------------------------------------------------------------------------
