@@ -1,6 +1,8 @@
 
 
-#include "incl_file.aok"
+#include "mod_file.aok"
+#include <mod_file.aok>
+#include 'mod_file.aok'
 
 %California
   sanFrancisco = 5

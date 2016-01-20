@@ -40,6 +40,8 @@ using namespace std;
   //
 mutex g_ek_mutex;
 
+#define AOKPI_DEBUG         1
+
 //------------------------------------------------------------------------------
 
 class aokParsFile_c;
@@ -50,7 +52,7 @@ public:
   map<string,shared_ptr<aokParsFile_c> > fileMap;
 
   // AA (internal)
-  shared_ptr<arithParser_c> arithParser;
+  shared_ptr<arithParser_c> arithAnal;
   map<string,string>        varMap;
 
 public:
@@ -82,7 +84,7 @@ public:
 
 aokParserContext_c::aokParserContext_c()
 {
-  arithParser = make_shared<arithParser_c>();
+  arithAnal = make_shared<arithParser_c>();
 }
 
 int aokParserContext_c::getIntVar(const string& varName)
@@ -130,6 +132,7 @@ public:
   aokParserContext_c *ctx;
   string              fileName;
 
+    // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
   typedef enum _entType_e_ {
     ENT_UNDEF   = 0,
     ENT_COMMAND = 1,
@@ -147,19 +150,19 @@ public:
     virtual ~fileEnt_c()               { }
   };
 
-  DECL_ENT_CLASS(entCmd_c,primCommand_c,ENT_COMMAND);
-  DECL_ENT_CLASS(entObj_c,primObject_c, ENT_OBJECT);
-  DECL_ENT_CLASS(entKnb_c,primKnob_c,   ENT_KNOB);
-  DECL_ENT_CLASS(entXml_c,primXml_c,    ENT_XML);
-
   class entFile_c : public fileEnt_c {
   public:
-    string                    fileName;
-    shared_ptr<aokParsFile_c> parseFile;
+    string fileName;
 
              entFile_c() : fileEnt_c(ENT_FILE) { }
     virtual ~entFile_c()                       { }
   };
+
+  DECL_ENT_CLASS(entCmd_c,primCommand_c,ENT_COMMAND);
+  DECL_ENT_CLASS(entObj_c,primObject_c, ENT_OBJECT);
+  DECL_ENT_CLASS(entKnb_c,primKnob_c,   ENT_KNOB);
+  DECL_ENT_CLASS(entXml_c,primXml_c,    ENT_XML);
+    // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
   vector<fileEnt_c*> entPtrLst;
 
@@ -169,6 +172,8 @@ public:
     ctx = 0;  // We don't own this
   }
 
+    // Delegates to wrap up and save the incoming primitives to a vector
+    //
   void ek_command(shared_ptr<ex_knobs::primCommand_c> cmdPrim)  { entPtrLst.push_back( new entCmd_c() ); static_cast<entCmd_c*>(entPtrLst.back())->p_ent = cmdPrim;  }
   void ek_object (shared_ptr<ex_knobs::primObject_c>  objPrim)  { entPtrLst.push_back( new entObj_c() ); static_cast<entObj_c*>(entPtrLst.back())->p_ent = objPrim;  }
   void ek_knob   (shared_ptr<ex_knobs::primKnob_c>    knobPrim) { entPtrLst.push_back( new entKnb_c() ); static_cast<entKnb_c*>(entPtrLst.back())->p_ent = knobPrim; }
@@ -176,7 +181,11 @@ public:
   void ek_remSL  (shared_ptr<string>          remStr, int lNum) { }
   void ek_remML  (shared_ptr<string>          remStr, int lNum) { }
 
-  int doParse(const string &fnStr) {
+    /*
+      Connect the delegates and load the file
+    */
+  int doParse(const string &fnStr)
+  {
     fileName = fnStr;
 
     ex_knobs::ek_command_f    = std::bind(&aokParsFile_c::ek_command,this,std::placeholders::_1);
@@ -187,14 +196,15 @@ public:
     ex_knobs::ek_xml_f        = std::bind(&aokParsFile_c::ek_xml,    this,std::placeholders::_1);
 
     int retVal = ex_knobs::ek_readfile(fnStr.c_str(),0);
-    if (!retVal) {
+    if (retVal < 1) {
       stringstream ss;
       ss << "[aokParsFile_c::doParse] Failed to load file: " << fnStr << "!!!";
-      ctx->arithParser->f_errFunc(ss.str());
+      ctx->arithAnal->f_errFunc(ss.str());
       return 0;
     }
 
-    printf("[aokParsFile_c::doParse] Listing the loaded entries!\n");
+#ifdef AOKPI_DEBUG
+    printf("[aokParsFile_c::doParse] Listing the loaded entries for file='%s'\n",fileName.c_str());
     for (auto it = entPtrLst.begin(); it != entPtrLst.end(); it++) {
       switch ((*it)->et)
       {
@@ -206,16 +216,95 @@ public:
         printf("ERROR: Unexpected condition!!!\n");
       }
     }
+    printf("[aokParsFile_c::doParse] Listing done!  ----------------------\n\n");
+#endif
 
     return 1;
   }
+
+  // Processing functions
+  //
+  int digest (void);
+    // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    // Utility
+  string elemVecToStr  (vector<ex_knobs::element_c*> &elemVec);
+  string strRemoveEncap(const string& tgtStr);
 };
+
+int aokParsFile_c::digest (void)
+{
+  // Load any included files
+  int vecSize = (int)entPtrLst.size();
+  for (int iii=0; iii<vecSize; iii++) {
+    if (entPtrLst[iii]->et != ENT_COMMAND)
+      continue;
+    auto primCmd = static_cast<entCmd_c*>(entPtrLst[iii]);
+    auto entCmd  = primCmd->p_ent;
+    if (entCmd->ident != "include")
+      continue;
+
+    // Evaluate into string
+    string incFileName = elemVecToStr( entCmd->argLst );
+
+    // Check in context to see if file is already loaded
+    // Perform load
+    if (ctx->fileMap.end() == ctx->fileMap.find(incFileName)) {
+      printf("---> [%3d] include -=%s=- [digest] to be loaded!\n",entCmd->getLineNum(),incFileName.c_str());
+      auto oneFile = make_shared<aokParsFile_c>(ctx);
+      ctx->fileMap[incFileName] = oneFile;  // Save file into File Map
+      if (!oneFile->doParse(incFileName))
+        return 0; // ERROR
+      if (!oneFile->digest())
+        return 0; // ERROR
+    } else {
+      printf("---> [%3d] include -=%s=- [digest] already loaded!\n",entCmd->getLineNum(),incFileName.c_str());
+    }
+  }
+
+  return 1;
+}
+//++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+string aokParsFile_c::elemVecToStr(vector<ex_knobs::element_c*> &elemVec)
+{
+  string retStr;
+  //printf("---> [elemVecToStr] elemVec.size(): %d\n",elemVec.size());
+  for (auto it = elemVec.begin(); it != elemVec.end(); it++) {
+    ex_knobs::elementType_e elemType = (*it)->getElemType();
+    switch (elemType)
+    {
+    case ex_knobs::ELEM_STRING: {
+        auto elem_str = static_cast<ex_knobs::elemStr_c*>(*it);
+        retStr += strRemoveEncap(elem_str->varStr);
+      }
+      break;
+    case ex_knobs::ELEM_QSTRING: {
+        auto elem_str = static_cast<ex_knobs::elemQStr_c*>(*it);
+        retStr += strRemoveEncap(elem_str->varStr);;
+      }
+      break;
+    default:
+      ctx->arithAnal->f_exitFunc("ERROR\nERROR [aokParsFile_c::elemVecToStr] Not implemented!!!\nERROR\n\n");
+      break;
+    }
+  }
+  return retStr;
+}
+string aokParsFile_c::strRemoveEncap(const string& tgtStr)
+{
+  string retStr;
+  char c = tgtStr[0];
+  if ((c == '[') || (c == '\"') || (c == '\'') || (c == '<'))
+    retStr = tgtStr.substr(1,tgtStr.size()-2);
+  else
+    return tgtStr;
+  return retStr;
+}
 
 
 //------------------------------------------------------------------------------
 
   /*
-    - Top-level class
+    Parser Interface -- Top-level class
   */
 
 aokParserIntf_c::aokParserIntf_c()  { ctx = new aokParserContext_c(); }
@@ -229,16 +318,19 @@ int aokParserIntf_c::loadFile(const string& fileNameStr)
     return 0;
   }
 
+  // Set the mutex and prepare to parse
   lock_guard<mutex> load_guard(g_ek_mutex);
-
   prepareAA();
 
   // Load first file -- save to map + name of top-level file
   // Go thru file and load includes
   ctx->topFile = fileNameStr;
   auto oneFile = make_shared<aokParsFile_c>(ctx);
-  ctx->fileMap[fileNameStr] = oneFile;
+  ctx->fileMap[fileNameStr] = oneFile;  // Save file into File Map
   if (!oneFile->doParse(fileNameStr))
+    return 0; // ERROR
+
+  if (!oneFile->digest())
     return 0; // ERROR
 
   return 1;
@@ -247,19 +339,21 @@ int aokParserIntf_c::loadFile(const string& fileNameStr)
 void aokParserIntf_c::prepareAA (void)
 {
   // Propagate functions to AA object
-  ctx->arithParser->f_errFunc   = f_errFunc;
-  ctx->arithParser->f_exitFunc  = f_exitFunc;
-  ctx->arithParser->f_getIntVar = bind(&aokParserContext_c::getIntVar,ctx,placeholders::_1);
-  ctx->arithParser->f_setIntVar = bind(&aokParserContext_c::setIntVar,ctx,placeholders::_1,placeholders::_2);
+  ctx->arithAnal->f_errFunc   = f_errFunc;
+  ctx->arithAnal->f_exitFunc  = f_exitFunc;
+  ctx->arithAnal->f_getIntVar = bind(&aokParserContext_c::getIntVar,ctx,placeholders::_1);
+  ctx->arithAnal->f_setIntVar = bind(&aokParserContext_c::setIntVar,ctx,placeholders::_1,placeholders::_2);
 }
 
 int aokParserIntf_c::checkAttributes(void)
 {
-  if (!ctx->arithParser) return 0;
-  if (!f_errFunc)        return 0;
-  if (!f_exitFunc)       return 0;
+  if (!ctx->arithAnal) return 0;
+  if (!f_errFunc)      return 0;
+  if (!f_exitFunc)     return 0;
   return 1;
 }
+
+    // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
 void aokParserIntf_c::setErrFunc ( function<void(const string&)> a_errFunc )
 {
