@@ -4,6 +4,8 @@
 #include <mod_file.aok>
 #include 'mod_file.aok'
 
+#define HELLO THERE
+
 %California
   sanFrancisco = 5
 

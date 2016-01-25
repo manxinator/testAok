@@ -55,6 +55,8 @@ public:
   shared_ptr<arithParser_c> arithAnal;
   map<string,string>        varMap;
 
+  // Function DB? -- Plugins
+
 public:
            aokParserContext_c();
   virtual ~aokParserContext_c() { }
@@ -164,7 +166,7 @@ public:
   DECL_ENT_CLASS(entXml_c,primXml_c,    ENT_XML);
     // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-  vector<fileEnt_c*> entPtrLst;
+  vector<fileEnt_c*> entPtrLst; // Entries of the file
 
 public:
            aokParsFile_c(aokParserContext_c *a_ctx) { ctx = a_ctx; }
@@ -233,8 +235,12 @@ public:
 
 int aokParsFile_c::digest (void)
 {
-  // Load any included files
+  // Load any include files [Probably can't delegate]
+  //
   int vecSize = (int)entPtrLst.size();
+  if (vecSize<=0)
+    return 1;   // Empty file -- still valid
+
   for (int iii=0; iii<vecSize; iii++) {
     if (entPtrLst[iii]->et != ENT_COMMAND)
       continue;
@@ -246,19 +252,44 @@ int aokParsFile_c::digest (void)
     // Evaluate into string
     string incFileName = elemVecToStr( entCmd->argLst );
 
-    // Check in context to see if file is already loaded
-    // Perform load
+    // Check in ctx to see if file is already loaded, otherwise load the file
+    //
     if (ctx->fileMap.end() == ctx->fileMap.find(incFileName)) {
       printf("---> [%3d] include -=%s=- [digest] to be loaded!\n",entCmd->getLineNum(),incFileName.c_str());
       auto oneFile = make_shared<aokParsFile_c>(ctx);
       ctx->fileMap[incFileName] = oneFile;  // Save file into File Map
-      if (!oneFile->doParse(incFileName))
+      if (!oneFile->doParse(incFileName))   // Load the file
         return 0; // ERROR
       if (!oneFile->digest())
         return 0; // ERROR
     } else {
       printf("---> [%3d] include -=%s=- [digest] already loaded!\n",entCmd->getLineNum(),incFileName.c_str());
     }
+
+    // Replace entPtrLst[iii]
+    //
+    auto newEnt = new entFile_c();
+    newEnt->fileName = incFileName;
+    entPtrLst[iii] = newEnt;
+    delete primCmd;
+  }
+
+  // Digest the entire file
+  //
+  printf("YOYOYOYOYOYO! -- Digesting File %s!!!\n",fileName.c_str());
+  for (int iii=0; iii<vecSize; iii++) {
+    int entNum = static_cast<int>(entPtrLst[iii]->et);
+    printf("  --> entNum: %d\n",entNum);
+
+    //
+    // IDEA: process {cmd, obj, knob} in process class -- so that plugins can use standard functions
+    //       xml and file in a {recursive} function within this class
+    // Arguments to a Plugins: fileEnt_c, context, proc class, entPtrLst, index
+    //
+
+    // Start with #defines -- and find a way to fork this out to a delegate database / plugins
+    // Plugins: fileEnt_c, context, entPtrLst, index
+    // Create recursive functions for looping
   }
 
   return 1;
@@ -320,7 +351,7 @@ int aokParserIntf_c::loadFile(const string& fileNameStr)
 
   // Set the mutex and prepare to parse
   lock_guard<mutex> load_guard(g_ek_mutex);
-  prepareAA();
+  prepareContext();
 
   // Load first file -- save to map + name of top-level file
   // Go thru file and load includes
@@ -336,13 +367,16 @@ int aokParserIntf_c::loadFile(const string& fileNameStr)
   return 1;
 }
 
-void aokParserIntf_c::prepareAA (void)
+void aokParserIntf_c::prepareContext (void)
 {
   // Propagate functions to AA object
   ctx->arithAnal->f_errFunc   = f_errFunc;
   ctx->arithAnal->f_exitFunc  = f_exitFunc;
   ctx->arithAnal->f_getIntVar = bind(&aokParserContext_c::getIntVar,ctx,placeholders::_1);
   ctx->arithAnal->f_setIntVar = bind(&aokParserContext_c::setIntVar,ctx,placeholders::_1,placeholders::_2);
+
+  // Connect standard plugins
+  // - TODO: make plugins modifiable from outside
 }
 
 int aokParserIntf_c::checkAttributes(void)

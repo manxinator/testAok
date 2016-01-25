@@ -70,7 +70,7 @@ private:
   std::function<void(const std::string&)> f_exitFunc;
 
   int  checkAttributes(void);
-  void prepareAA      (void);
+  void prepareContext (void);
 };
 
 
