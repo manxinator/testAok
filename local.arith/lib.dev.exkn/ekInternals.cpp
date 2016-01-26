@@ -27,7 +27,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "ekRead.h"
+#include "ekRdInternals.h"
 #include "ekInternals.h"
+#include <stdexcept>
 #include <sstream>
 using namespace std;
 using namespace ex_knobs;
@@ -40,12 +42,12 @@ extern void ek_yyerror(const char *s);
 
   // Delegate Interface
   //
-function<void(shared_ptr<primCommand_c>)> ex_knobs::ek_command_f;
-function<void(shared_ptr<primObject_c>)>  ex_knobs::ek_object_f;
-function<void(shared_ptr<primKnob_c>)>    ex_knobs::ek_knob_f;
-function<void(shared_ptr<string>,int)>    ex_knobs::ek_comment_sl_f;
-function<void(shared_ptr<string>,int)>    ex_knobs::ek_comment_ml_f;
-function<void(shared_ptr<primXml_c>)>     ex_knobs::ek_xml_f;
+function<void(shared_ptr<primitive_c>)> ex_knobs::ek_command_f;
+function<void(shared_ptr<primitive_c>)> ex_knobs::ek_object_f;
+function<void(shared_ptr<primitive_c>)> ex_knobs::ek_knob_f;
+function<void(shared_ptr<primitive_c>)> ex_knobs::ek_comment_sl_f;
+function<void(shared_ptr<primitive_c>)> ex_knobs::ek_comment_ml_f;
+function<void(shared_ptr<primitive_c>)> ex_knobs::ek_xml_f;
 
 extern void ek_lexInit   (void);
 extern void ek_lexCleanup(void);
@@ -91,14 +93,15 @@ void ek_parserCleanup(void)
 void eki_commandIdent (const char* dbgStr, const char *cmdId)
 {
   E_DEBUG("[%3d]   +   [%s] [eki_commandIdent] %s\n",ek_yyLineNum,dbgStr,cmdId);
-  prim_command->setIdent(cmdId,ekint_commandLineNum);
+  prim_command->setLineNum(ekint_commandLineNum);
+  prim_command->setIdent(cmdId);
 
   // Process command -- for now, just print
   //
   if (ek_command_f)
     ek_command_f(prim_command);
   else
-    prim_command->print();
+    ; //prim_command->print();
 
   // After the command has been processed, renew
   //
@@ -108,7 +111,7 @@ void eki_commandIdent (const char* dbgStr, const char *cmdId)
 void eki_commandArgs (const char* dbgStr, const char *cmdArgs)
 {
   E_DEBUG("[%3d]   +   [%s] [eki_commandArgs]  %s\n",ek_yyLineNum,dbgStr,cmdArgs);
-  prim_command->setArg(cmdArgs,0);
+  prim_command->setStr(cmdArgs,false);
 }
 
 void eki_commandQStr (const char* dbgStr, shared_ptr<vector<string> > quoteStr)
@@ -116,7 +119,7 @@ void eki_commandQStr (const char* dbgStr, shared_ptr<vector<string> > quoteStr)
   E_DEBUG("[%3d]   +   [%s] [eki_commandQStr]  %s, vector.size(): %d\n",ek_yyLineNum,dbgStr,quoteStr->begin()->c_str(),quoteStr->size());
   string workStr;
   spQStrToStr(quoteStr,workStr);
-  prim_command->setArg(workStr,1);
+  prim_command->setStr(workStr,true);
 }
 
 void eki_commandBTick(const char* dbgStr)
@@ -149,7 +152,7 @@ void eki_objectDone (const char* dbgStr)
   if (ek_object_f)
     ek_object_f(prim_object);
   else
-    prim_object->print();
+    ; //prim_object->print();
 
   // After the command has been processed, renew
   //
@@ -159,7 +162,8 @@ void eki_objectDone (const char* dbgStr)
 void eki_objectStr (const char* dbgStr, const char *objStr)
 {
   E_DEBUG("[%3d] + [%s] [eki_objectStr] objStr: %s\n",ek_yyLineNum,dbgStr,objStr);
-  prim_object->setStr(objStr,ek_yyLineNum,0);
+  prim_object->setLineNum(ek_yyLineNum);
+  prim_object->setStr(objStr,false);
 }
 
 void eki_objectQStr (const char* dbgStr, shared_ptr<vector<string> > quoteStr)
@@ -167,7 +171,8 @@ void eki_objectQStr (const char* dbgStr, shared_ptr<vector<string> > quoteStr)
   E_DEBUG("[%3d] + [%s] [eki_objectQStr] quoteStr->size(): %d\n",ek_yyLineNum,dbgStr,quoteStr->size());
   string workStr;
   spQStrToStr(quoteStr,workStr);
-  prim_object->setStr(workStr,ek_yyLineNum,1);
+  prim_object->setLineNum(ek_yyLineNum);
+  prim_object->setStr(workStr,true);
 }
 
 void eki_objectBTick (const char* dbgStr)
@@ -195,7 +200,7 @@ void eki_knobDone (const char* dbgStr)
   if (ek_knob_f)
     ek_knob_f(prim_knob);
   else
-    prim_knob->print();
+    ; //prim_knob->print();
 
   // After the command has been processed, renew
   //
@@ -205,7 +210,8 @@ void eki_knobDone (const char* dbgStr)
 void eki_knobStr (const char* dbgStr, int isRhs, const char *knobStr)
 {
   E_DEBUG("[%3d] + [%s] [eki_knobStr] isRhs: %d, knobStr: %s\n",ek_yyLineNum,dbgStr,isRhs,knobStr);
-  prim_knob->setStr(knobStr,ek_yyLineNum,0,isRhs);
+  prim_knob->setLineNum(ek_yyLineNum);
+  prim_knob->setStr(knobStr,false,isRhs ? true : false);
 }
 
 void eki_knobQStr (const char* dbgStr, int isRhs, shared_ptr<vector<string> > quoteStr)
@@ -213,7 +219,8 @@ void eki_knobQStr (const char* dbgStr, int isRhs, shared_ptr<vector<string> > qu
   E_DEBUG("[%3d] + [%s] [eki_knobQStr] isRhs: %d, quoteStr->size(): %d\n",ek_yyLineNum,dbgStr,isRhs,quoteStr->size());
   string workStr;
   spQStrToStr(quoteStr,workStr);
-  prim_knob->setStr(workStr,ek_yyLineNum,1,isRhs);
+  prim_knob->setLineNum(ek_yyLineNum);
+  prim_knob->setStr(workStr,true,isRhs ? true : false);
 }
 
 void eki_knobBTick (const char* dbgStr, int isRhs)
@@ -223,7 +230,7 @@ void eki_knobBTick (const char* dbgStr, int isRhs)
   string      btParenStr;
 
   ekl_collectBTInfo(btIdentStr,btParenStr,btType);
-  prim_knob->setBTick(static_cast<int>(btType),btIdentStr,btParenStr,isRhs);
+  prim_knob->setBTick(static_cast<int>(btType),btIdentStr,btParenStr,isRhs ? true : false);
 
   E_DEBUG("[%3d] + [%s] [eki_knobBTick] ------> isRhs: %d, identStr: '%s', btType: %d\n",ek_yyLineNum,dbgStr,isRhs,btIdentStr.c_str(),btType);
 }
@@ -260,15 +267,15 @@ void eki_xmlDone (const char* dbgStr)
       else
         break;
     }
-    prim_xml->addBody(workStr);
+    prim_xml->addText(workStr);
   }
 
-  // Process XML -- for now, just print
+  // Process XML
   //
   if (ek_xml_f)
     ek_xml_f(prim_xml);
   else
-    prim_xml->print();
+    ; //prim_xml->print();
 
   // After the command has been processed, renew
   //
@@ -284,21 +291,21 @@ void eki_xmlStart (const char* dbgStr, const char *xmlId)
 {
   E_DEBUG("[%3d] + [%s] [eki_xmlStart] xmlId: %s\n",ek_yyLineNum,dbgStr,xmlId);
   prim_xml->setLineNum(ekint_xmlLineNum);
-  prim_xml->ident.assign(xmlId);
+  prim_xml->setIdent(xmlId);
 }
 
 void eki_xmlStr (const char* dbgStr, const char *argStr)
 {
   E_DEBUG("[%3d] + [%s] [eki_xmlStr] argStr: %s\n",ek_yyLineNum,dbgStr,argStr);
-  prim_xml->setStr(argStr,0);
+  prim_xml->addOpt(argStr,false);
 }
 
-void eki_xmlQStr (const char* dbgStr, std::shared_ptr<std::vector<std::string> > quoteStr)
+void eki_xmlQStr (const char* dbgStr, shared_ptr<vector<string> > quoteStr)
 {
   E_DEBUG("[%3d] + [%s] [eki_xmlQStr] quoteStr->size(): %d\n",ek_yyLineNum,dbgStr,quoteStr->size());
   string workStr;
   spQStrToStr(quoteStr,workStr);
-  prim_xml->setStr(workStr,1);
+  prim_xml->addOpt(workStr,true);
 }
 
 
@@ -307,40 +314,35 @@ void eki_xmlQStr (const char* dbgStr, std::shared_ptr<std::vector<std::string> >
 
 void eki_commentSL(const char* commentStr, int lineNum)
 {
-  shared_ptr<string> strObj = make_shared<string>(commentStr);
-  strObj->resize(strObj->length()-1);
-  if (ek_comment_sl_f)
-    ek_comment_sl_f(strObj,lineNum);
+  if (ek_comment_sl_f) {
+    string strObj(commentStr);
+    strObj.resize(strObj.length()-1);
+
+    auto dlgPtr = make_shared<primCommentSL_c>();
+    dlgPtr->setComment(strObj);
+    dlgPtr->setLineNum(lineNum);
+
+    shared_ptr<primitive_c> passPtr = dlgPtr;
+    ek_comment_sl_f(passPtr);
+  }
 }
 
 void eki_commentML(vector<string> *commLines, int lineNum)
 {
   if (ek_comment_ml_f)
   {
-    int strLen = 8;
-    for (auto it = commLines->begin(); it != commLines->end(); it++)
-      strLen += it->length() + 2;
+    auto dlgPtr = make_shared<primCommentML_c>();
+    dlgPtr->setComment(*commLines);
+    dlgPtr->setLineNum(lineNum);
 
-    shared_ptr<string> strObj = make_shared<string>();
-    string &workStr = *strObj.get();
-    workStr.reserve(strLen);
-
-    for (auto it = commLines->begin(); ; ) {
-      workStr += *it;
-      it++;
-      if (it != commLines->end())
-        workStr += "\n";
-      else
-        break;
-    }
-
-    ek_comment_ml_f(strObj,lineNum);
+    shared_ptr<primitive_c> passPtr = dlgPtr;
+    ek_comment_ml_f(passPtr);
   }
 }
 
 
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-element_c* ex_knobs::exkn_str2elem(const string& myStr, int isQ)
+element_c* ex_knobs::exkn_str2elem(const string& myStr, bool isQ)
 {
   element_c *elem;
   if (isQ) { elem = new elemQStr_c(); static_cast<elemQStr_c*>(elem)->varStr = myStr; }
@@ -399,6 +401,26 @@ void ex_knobs::spQStrToStr (shared_ptr<vector<string> > quoteStr, string &destPt
       break;
   }
 }
+
+
+
+
+//++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+shared_ptr<primitive_c> primitive_factory (primitiveType_e primType)
+{
+  switch (primType)
+  {
+    case PRIM_COMMAND:    return make_shared<primCommand_c>();
+    case PRIM_OBJECT:     return make_shared<primObject_c>();
+    case PRIM_KNOB:       return make_shared<primKnob_c>();
+    case PRIM_XML:        return make_shared<primXml_c>();
+    case PRIM_COMMENT_SL: return make_shared<primCommentSL_c>();
+    case PRIM_COMMENT_ML: return make_shared<primCommentML_c>();
+    case PRIM_FILE:       return make_shared<primFile_c>();
+    default: break;
+  }
+  throw std::invalid_argument("Unknown argument to ex_knobs::primitive_factory()");
+}
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 void primitive_c::setLineNum(int lNum)
 {
@@ -410,16 +432,49 @@ int primitive_c::getLineNum(void)
   return lineNum;
 }
 
+primitiveType_e primitive_c::getPrimitiveType(void)
+{
+  return primType;
+}
+
+void primitive_c::setIdent    (const string &idStr)           {        virt_setIdent  (idStr); }
+bool primitive_c::getIdentRC  (string &idStr)                 { return virt_getIdentRC(idStr); }
+void primitive_c::addOpt      (const string& optStr, bool qt) {        virt_addOpt    (optStr,qt); }
+void primitive_c::addText     (const string& txtStr)          {        virt_addText   (txtStr);  }
+void primitive_c::setComment  (const string &commStr)         {        virt_setComment(commStr); }
+void primitive_c::setComment  (const vector<string> &commLst) {        virt_setComment(commLst); }
+bool primitive_c::getCommentRC(string &retStr)                { return virt_getComment(retStr);  }
+vector<element_c*>* primitive_c::getArgListRC(bool &rc)       { return virt_getArgListRC(rc); }
+vector<element_c*>* primitive_c::getLhsListRC(bool &rc)       { return virt_getLhsListRC(rc); }
+vector<element_c*>* primitive_c::getRhsListRC(bool &rc)       { return virt_getRhsListRC(rc); }
+vector<element_c*>* primitive_c::getOptionsRC(bool &rc)       { return virt_getOptionsRC(rc); }
+vector<element_c*>* primitive_c::getTextRC   (bool &rc)       { return virt_getTextRC   (rc); }
+void primitive_c::setFileName (const string &newFileName)     {        virt_setFileName(newFileName); }
+bool primitive_c::getFileName (string &retStr)                { return virt_getFileName(retStr); }
+void primitive_c::setStr  (const string& arStr, bool isQ, bool isRhs)                           { virt_setStr(arStr,isQ,isRhs);               }
+void primitive_c::setBTick(int btType, const string& idStr, const string& parenStr, bool isRhs) { virt_setBTick(btType,idStr,parenStr,isRhs); }
+
 void primitive_c::virt_setLineNum(int lNum)
 {
   if (lineNum < 0)
     lineNum = lNum;
 }
-
-primitiveType_e primitive_c::getPrimitiveType(void)
-{
-  return primType;
-}
+void primitive_c::virt_setIdent  (const string &idStr)           { }
+bool primitive_c::virt_getIdentRC(string &idStr)                 { return false; }
+void primitive_c::virt_addOpt    (const string& optStr, bool qt) { }
+void primitive_c::virt_addText   (const string& txtStr)          { }
+void primitive_c::virt_setComment(const string &commStr)         { }
+void primitive_c::virt_setComment(const vector<string> &commLst) { }
+bool primitive_c::virt_getComment(string &retStr)                { return false; }
+vector<element_c*>* primitive_c::virt_getArgListRC(bool &rc)     { rc = false; return NULL; }
+vector<element_c*>* primitive_c::virt_getLhsListRC(bool &rc)     { rc = false; return NULL; }
+vector<element_c*>* primitive_c::virt_getRhsListRC(bool &rc)     { rc = false; return NULL; }
+vector<element_c*>* primitive_c::virt_getOptionsRC(bool &rc)     { rc = false; return NULL; }
+vector<element_c*>* primitive_c::virt_getTextRC   (bool &rc)     { rc = false; return NULL; }
+void primitive_c::virt_setFileName(const string &newFileName)    { }
+bool primitive_c::virt_getFileName(string &retStr)               { return false; }
+void primitive_c::virt_setStr    (const string& arStr, bool isQ, bool isRhs)                           { }
+void primitive_c::virt_setBTick  (int btType, const string& idStr, const string& parenStr, bool isRhs) { }
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 void primCommand_c::virt_setLineNum(int lNum)
 {
@@ -427,46 +482,51 @@ void primCommand_c::virt_setLineNum(int lNum)
   else if (lineNum > lNum) lineNum = lNum;
 }
 
-void primCommand_c::setIdent(const string& idStr, int l_lineNum)
+void primCommand_c::virt_setIdent(const string &idStr)
 {
-  setLineNum(l_lineNum);
   ident = idStr;
 }
 
-void primCommand_c::setArg (const string& arStr, int isQ)
+bool primCommand_c::virt_getIdentRC(string &idStr)
+{
+  idStr = ident;
+  return true;
+}
+
+void primCommand_c::virt_setStr(const string& arStr, bool isQ, bool isRhs)
 {
   argLst.push_back(exkn_str2elem(arStr,isQ));
 }
 
-void primCommand_c::setBTick(int btType, const string& idStr, const string& parenStr)
+void primCommand_c::virt_setBTick(int btType, const string& idStr, const string& parenStr, bool isRhs)
 {
   argLst.push_back(backTickToElem(btType,idStr,parenStr));
 }
 
-void primCommand_c::print (void)
+vector<element_c*>* primCommand_c::virt_getArgListRC(bool &rc)
 {
-  printf("[primCommand_c::print] line: %d %s\n",lineNum,ident.c_str());
+  rc = true;
+  return &argLst;
 }
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-void primObject_c::setStr (const string& arStr, int l_lineNum, int isQ)
+void primObject_c::virt_setStr(const string& arStr, bool isQ, bool isRhs)
 {
-  setLineNum(l_lineNum);
   argLst.push_back(exkn_str2elem(arStr,isQ));
 }
 
-void primObject_c::setBTick (int btType, const string& idStr, const string& parenStr)
+void primObject_c::virt_setBTick(int btType, const string& idStr, const string& parenStr, bool isRhs)
 {
   argLst.push_back(backTickToElem(btType,idStr,parenStr));
 }
 
-void primObject_c::print (void)
+vector<element_c*>* primObject_c::virt_getArgListRC(bool &rc)
 {
-  printf("[primObject_c::print] line: %d, argLst.size(): %d",lineNum,argLst.size());
+  rc = true;
+  return &argLst;
 }
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-void primKnob_c::setStr (const string& arStr, int l_lineNum, int isQ, int isRhs)
+void primKnob_c::virt_setStr(const string& arStr, bool isQ, bool isRhs)
 {
-  setLineNum(l_lineNum);
   element_c* l_elem = exkn_str2elem(arStr,isQ);
   if (isRhs)
     rhsLst.push_back(l_elem);
@@ -474,7 +534,7 @@ void primKnob_c::setStr (const string& arStr, int l_lineNum, int isQ, int isRhs)
     lhsLst.push_back(l_elem);
 }
 
-void primKnob_c::setBTick (int btType, const string& idStr, const string& parenStr, int isRhs)
+void primKnob_c::virt_setBTick(int btType, const string& idStr, const string& parenStr, bool isRhs)
 {
   element_c* l_elem = backTickToElem(btType,idStr,parenStr);
   if (isRhs)
@@ -483,27 +543,98 @@ void primKnob_c::setBTick (int btType, const string& idStr, const string& parenS
     lhsLst.push_back(l_elem);
 }
 
-void primKnob_c::print (void)
+vector<element_c*>* primKnob_c::virt_getLhsListRC(bool &rc)
 {
-  printf("[primKnob_c::print] line: %d, lhsLst.size(): %d, rhsLst.size(): %d",lineNum,lhsLst.size(),rhsLst.size());
+  rc = true;
+  return &lhsLst;
+}
+
+vector<element_c*>* primKnob_c::virt_getRhsListRC(bool &rc)
+{
+  rc = true;
+  return &rhsLst;
 }
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-void primXml_c::setStr (const string& arStr, int isQ)
+void primXml_c::virt_setIdent(const string &idStr)
 {
-  element_c* l_elem = exkn_str2elem(arStr,isQ);
+  ident = idStr;
+}
+
+bool primXml_c::virt_getIdentRC(string &idStr)
+{
+  idStr = ident;
+  return true;
+}
+
+void primXml_c::virt_addOpt(const string& optStr, bool isQ)
+{
+  element_c* l_elem = exkn_str2elem(optStr,isQ);
   optLst.push_back(l_elem);
 }
 
-void primXml_c::addBody(const string& bodStr)
+void primXml_c::virt_addText(const string& bodStr)
 {
   elemStr_c *l_elemStr = new elemStr_c ();
   l_elemStr->varStr = bodStr;
   lineLst.push_back( static_cast<elemStr_c*>(l_elemStr) );
 }
 
-void primXml_c::print (void)
+vector<element_c*>* primXml_c::virt_getOptionsRC(bool &rc)
 {
-  printf("[primXml_c::print] line: %d, ident: %s, optLst.size(): %d",lineNum,ident.c_str(),optLst.size());
+  rc = true;
+  return &optLst;
+}
+
+vector<element_c*>* primXml_c::virt_getTextRC(bool &rc)
+{
+  rc = true;
+  return &lineLst;
+}
+//++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+void primCommentSL_c::virt_setComment(const string &commStr)
+{
+  commentStr = commStr;
+}
+
+bool primCommentSL_c::virt_getComment(string &retStr)
+{
+  retStr = commentStr;
+  return true;
+}
+//++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+void primCommentML_c::virt_setComment(const vector<string> &commLst)
+{
+  int strLen = 8;
+  for (auto it = commLst.begin(); it != commLst.end(); it++)
+    strLen += it->length() + 2;
+
+  commentStr.reserve(strLen);
+
+  for (auto it = commLst.begin(); ; ) {
+    commentStr += *it;
+    it++;
+    if (it != commLst.end())
+      commentStr += "\n";
+    else
+      break;
+  }
+}
+
+bool primCommentML_c::virt_getComment(string &retStr)
+{
+  retStr = commentStr;
+  return true;
+}
+//++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+void primFile_c::virt_setFileName(const string &newFileName)
+{
+  fileName = newFileName;
+}
+
+bool primFile_c::virt_getFileName(string &retStr)
+{
+  retStr = fileName;
+  return true;
 }
 //------------------------------------------------------------------------------
 

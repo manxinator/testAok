@@ -47,11 +47,14 @@ namespace ex_knobs
   } elementType_e;
 
   typedef enum _primitiveType_e_ {
-    PRIM_UNDEF   = 0,
-    PRIM_COMMAND = 1,
-    PRIM_OBJECT  = 2,
-    PRIM_KNOB    = 3,
-    PRIM_XML     = 4
+    PRIM_UNDEF      = 0,
+    PRIM_COMMAND    = 1,
+    PRIM_OBJECT     = 2,
+    PRIM_KNOB       = 3,
+    PRIM_XML        = 4,
+    PRIM_COMMENT_SL = 5,
+    PRIM_COMMENT_ML = 6,
+    PRIM_FILE       = 1001
   } primitiveType_e;
 
     // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -127,98 +130,112 @@ namespace ex_knobs
 
     primitiveType_e getPrimitiveType(void);
 
+    // XML and Command
+    void setIdent  (const std::string &idStr);
+    bool getIdentRC(std::string &idStr);
+      // Return Code:
+      //   True  - value placed in idStr
+      //   False - idStr untouched
+
+    // Command, Object, Knob
+    void setStr  (const std::string& arStr, bool isQ, bool isRhs=false);
+    void setBTick(int btType, const std::string& idStr, const std::string& parenStr, bool isRhs=false);
+
+    // Command and Object
+    std::vector<element_c*>* getArgListRC(bool &rc);
+    // Knob
+    std::vector<element_c*>* getLhsListRC(bool &rc);
+    std::vector<element_c*>* getRhsListRC(bool &rc);
+
+    // XML
+    void addOpt (const std::string& arStr, bool isQ);
+    void addText(const std::string& arStr);
+
+    // Comments
+    void setComment  (const std::string &commStr);
+    void setComment  (const std::vector<std::string> &commLst);
+    bool getCommentRC(std::string &retStr);
+      // Return Code:
+      //   True  - value placed in retStr
+      //   False - retStr untouched
+
+    // XML
+    std::vector<element_c*>* getOptionsRC(bool &rc);
+    std::vector<element_c*>* getTextRC   (bool &rc);
+
+    // File
+    void setFileName(const std::string &newFileName);
+    bool getFileName(std::string &retStr);
+      // Return Code:
+      //   True  - value placed in retStr
+      //   False - retStr untouched
+
   protected:
-    primitiveType_e primType;
-    int             lineNum;
-
-    virtual void virt_setLineNum(int);
-  };
-
-  class primCommand_c : public primitive_c {
-  public:
-    std::string ident;
-
-    std::vector<element_c*> argLst;
-
-  public:
-             primCommand_c() : primitive_c(PRIM_COMMAND) {}
-    virtual ~primCommand_c() {
-      for (auto it = argLst.begin(); it != argLst.end(); it++)
-        delete *it;
-    }
-
-    void setIdent(const std::string& idStr, int l_lineNum);
-    void setArg  (const std::string& arStr, int isQ);
-
-    void setBTick(int btType, const std::string& idStr, const std::string& parenStr);
-
-    void print (void);
+    int lineNum;
 
   private:
+    primitiveType_e primType;
+
     virtual void virt_setLineNum(int);
+
+    virtual void virt_setIdent  (const std::string &idStr);
+    virtual bool virt_getIdentRC(std::string &idStr);
+    virtual void virt_addOpt    (const std::string& arStr, bool isQ);
+    virtual void virt_addText   (const std::string& arStr);
+
+    virtual void virt_setStr  (const std::string& arStr, bool isQ, bool isRhs);
+    virtual void virt_setBTick(int btType, const std::string& idStr, const std::string& parenStr, bool isRhs);
+
+    virtual void virt_setComment(const std::string &commStr);
+    virtual void virt_setComment(const std::vector<std::string> &commLst);
+    virtual bool virt_getComment(std::string &retStr);
+
+    virtual std::vector<element_c*>* virt_getArgListRC(bool &rc);
+    virtual std::vector<element_c*>* virt_getLhsListRC(bool &rc);
+    virtual std::vector<element_c*>* virt_getRhsListRC(bool &rc);
+
+    virtual std::vector<element_c*>* virt_getOptionsRC(bool &rc);
+    virtual std::vector<element_c*>* virt_getTextRC   (bool &rc);
+
+    virtual void virt_setFileName(const std::string &newFileName);
+    virtual bool virt_getFileName(std::string &retStr);
   };
 
-  class primObject_c : public primitive_c {
-  public:
-    std::vector<element_c*> argLst;
+  std::shared_ptr<primitive_c> primitive_factory (primitiveType_e primType);
 
-  public:
-             primObject_c() : primitive_c(PRIM_OBJECT) {}
-    virtual ~primObject_c() {
-      for (auto it = argLst.begin(); it != argLst.end(); it++)
-        delete *it;
-    }
+    // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+  /*
+    Valid get functions of each primitive type are as follows:
 
-    void setStr  (const std::string& arStr, int l_lineNum, int isQ);
-    void setBTick(int btType, const std::string& idStr, const std::string& parenStr);
+      PRIM_COMMAND:
+        - getIdentRC()
+        - getArgListRC()
 
-    void print (void);
-  };
+      PRIM_OBJECT:
+        - getArgListRC()
 
-  class primKnob_c : public primitive_c {
-  public:
-    std::vector<element_c*> lhsLst;
-    std::vector<element_c*> rhsLst;
+      PRIM_KNOB:
+        - getLhsListRC()
+        - getRhsListRC()
 
-  public:
-             primKnob_c() : primitive_c(PRIM_KNOB) {}
-    virtual ~primKnob_c() {
-      for (auto it = lhsLst.begin(); it != lhsLst.end(); it++) delete *it;
-      for (auto it = rhsLst.begin(); it != rhsLst.end(); it++) delete *it;
-    }
+      PRIM_XML:
+        - getIdentRC()
+        - getOptionsRC()
+        - getTextRC()
 
-    void setStr  (const std::string& arStr, int l_lineNum, int isQ, int isRhs);
-    void setBTick(int btType, const std::string& idStr, const std::string& parenStr, int isRhs);
+      PRIM_COMMENT_SL:
+      PRIM_COMMENT_ML:
+        - getCommentRC()
 
-    void print (void);
-  };
-
-  class primXml_c : public primitive_c {
-  public:
-    std::string             ident;
-    std::vector<element_c*> optLst;
-    std::vector<element_c*> lineLst;
-
-  public:
-             primXml_c() : primitive_c(PRIM_XML) {}
-    virtual ~primXml_c() {
-      for (auto it = optLst.begin();  it != optLst.end();  it++) delete *it;
-      for (auto it = lineLst.begin(); it != lineLst.end(); it++) delete *it;
-    }
-
-    void setStr (const std::string& arStr, int isQ);
-    void addBody(const std::string& bodStr);
-
-    void print (void);
-  };
+      PRIM_FILE:
+        - getFileName()
+  */
 
     // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     // Utility functions
     //
 
-  extern element_c* exkn_str2elem (const std::string& myStr, int isQ);
-  extern element_c* backTickToElem(int btType, const std::string& idStr, const std::string& parenStr);
-  extern void       spQStrToStr   (std::shared_ptr<std::vector<std::string> > quoteStr, std::string &destPtr);
+  extern void spQStrToStr (std::shared_ptr<std::vector<std::string> > quoteStr, std::string &destPtr);
 
     // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     // Interface functions
@@ -226,12 +243,12 @@ namespace ex_knobs
 
   extern int ek_readfile(const char* inFN, int exitOnErr);
 
-  extern std::function<void(std::shared_ptr<primCommand_c>)>   ek_command_f;
-  extern std::function<void(std::shared_ptr<primObject_c>)>    ek_object_f;
-  extern std::function<void(std::shared_ptr<primKnob_c>)>      ek_knob_f;
-  extern std::function<void(std::shared_ptr<std::string>,int)> ek_comment_sl_f;
-  extern std::function<void(std::shared_ptr<std::string>,int)> ek_comment_ml_f;
-  extern std::function<void(std::shared_ptr<primXml_c>)>       ek_xml_f;
+  extern std::function<void(std::shared_ptr<primitive_c>)>  ek_command_f;
+  extern std::function<void(std::shared_ptr<primitive_c>)>  ek_object_f;
+  extern std::function<void(std::shared_ptr<primitive_c>)>  ek_knob_f;
+  extern std::function<void(std::shared_ptr<primitive_c>)>  ek_comment_sl_f;
+  extern std::function<void(std::shared_ptr<primitive_c>)>  ek_comment_ml_f;
+  extern std::function<void(std::shared_ptr<primitive_c>)>  ek_xml_f;
 }
 
 //------------------------------------------------------------------------------

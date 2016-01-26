@@ -27,13 +27,23 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "ekRead.h"
+#include <stdexcept>
 
 //------------------------------------------------------------------------------
 
-void TestEK_command(std::shared_ptr<ex_knobs::primCommand_c> cmdPrim)
+void TestEK_command(std::shared_ptr<ex_knobs::primitive_c> cmdPrim)
 {
-  printf("+++++ [TestEK_command] line: %d { %s",cmdPrim->getLineNum(),cmdPrim->ident.c_str());
-  for (auto it = cmdPrim->argLst.begin(); it != cmdPrim->argLst.end(); it++) {
+  bool argRC = false;
+  auto argLst = cmdPrim->getArgListRC(argRC);
+  if (!argRC)
+    throw std::runtime_error("[TestEK_command] ERROR: failed to get argument list!!!\n");
+
+  std::string identStr("ERROR Ident not set!!!");
+  if (!cmdPrim->getIdentRC(identStr))
+    throw std::runtime_error("[TestEK_command] ERROR: failed to get Ident string!!!\n");
+
+  printf("+++++ [TestEK_command] line: %d { %s",cmdPrim->getLineNum(),identStr.c_str());
+  for (auto it = argLst->begin(); it != argLst->end(); it++) {
     ex_knobs::elementType_e elem_type = (*it)->getElemType();
     switch (elem_type)
     {
@@ -61,11 +71,17 @@ void TestEK_command(std::shared_ptr<ex_knobs::primCommand_c> cmdPrim)
   printf(" }\n");
 }
 
-void TestEK_object(std::shared_ptr<ex_knobs::primObject_c> objPrim)
+void TestEK_object(std::shared_ptr<ex_knobs::primitive_c> objPrim)
 {
   printf("+++++ [TestEK_object] line: %d { ",objPrim->getLineNum());
-  for (auto it = objPrim->argLst.begin(); it != objPrim->argLst.end(); it++) {
-    if (it != objPrim->argLst.begin())
+
+  bool argRC = false;
+  auto argLst = objPrim->getArgListRC(argRC);
+  if (!argRC)
+    throw std::runtime_error("[TestEK_object] ERROR: failed to get argument list!!!\n");
+
+  for (auto it = argLst->begin(); it != argLst->end(); it++) {
+    if (it != argLst->begin())
       printf(", ");
     ex_knobs::elementType_e elem_type = (*it)->getElemType();
     switch (elem_type)
@@ -94,11 +110,18 @@ void TestEK_object(std::shared_ptr<ex_knobs::primObject_c> objPrim)
   printf(" }\n");
 }
 
-void TestEK_knob(std::shared_ptr<ex_knobs::primKnob_c> knobPrim)
+void TestEK_knob(std::shared_ptr<ex_knobs::primitive_c> knobPrim)
 {
   printf("+++++ [TestEK_knob] LHS line: %d { ",knobPrim->getLineNum());
-  for (auto it = knobPrim->lhsLst.begin(); it != knobPrim->lhsLst.end(); it++) {
-    if (it != knobPrim->lhsLst.begin())
+
+  bool lhsRC = false, rhsRC = false;
+  auto lhsLst = knobPrim->getLhsListRC(lhsRC);
+  auto rhsLst = knobPrim->getRhsListRC(rhsRC);
+  if (!lhsRC || !rhsRC)
+    throw std::runtime_error("[TestEK_knob] ERROR: failed to get argument list!!!\n");
+
+  for (auto it = lhsLst->begin(); it != lhsLst->end(); it++) {
+    if (it != lhsLst->begin())
       printf(", ");
     ex_knobs::elementType_e elem_type = (*it)->getElemType();
     switch (elem_type)
@@ -127,8 +150,8 @@ void TestEK_knob(std::shared_ptr<ex_knobs::primKnob_c> knobPrim)
   printf(" }\n");
 
   printf("+++++ [TestEK_knob] RHS line: %d { ",knobPrim->getLineNum());
-  for (auto it = knobPrim->rhsLst.begin(); it != knobPrim->rhsLst.end(); it++) {
-    if (it != knobPrim->rhsLst.begin())
+  for (auto it = rhsLst->begin(); it != rhsLst->end(); it++) {
+    if (it != rhsLst->begin())
       printf(", ");
     ex_knobs::elementType_e elem_type = (*it)->getElemType();
     switch (elem_type)
@@ -157,23 +180,41 @@ void TestEK_knob(std::shared_ptr<ex_knobs::primKnob_c> knobPrim)
   printf(" }\n");
 }
 
-void TestEK_RemSL(std::shared_ptr<std::string> remStr, int lineNum)
+void TestEK_RemSL(std::shared_ptr<ex_knobs::primitive_c> commPrim)
 {
-  printf("+++++ [TestEK_RemSL] line: %d ~%s~\n",lineNum,remStr->c_str());
+  std::string commentStr("ERROR Comment not set!!!");
+  commPrim->getCommentRC(commentStr);
+  printf("+++++ [TestEK_RemSL] line: %d ~%s~\n",commPrim->getLineNum(),commentStr.c_str());
 }
 
-void TestEK_RemML(std::shared_ptr<std::string> remStr, int lineNum)
+void TestEK_RemML(std::shared_ptr<ex_knobs::primitive_c> commPrim)
 {
-  printf("+++++ [TestEK_RemML] line: %d ~%s~\n",lineNum,remStr->c_str());
+  std::string commentStr("ERROR Comment not set!!!");
+  commPrim->getCommentRC(commentStr);
+  printf("+++++ [TestEK_RemML] line: %d ~%s~\n",commPrim->getLineNum(),commentStr.c_str());
 }
 
-void TestEK_xml(std::shared_ptr<ex_knobs::primXml_c> xmlPrim)
+void TestEK_xml(std::shared_ptr<ex_knobs::primitive_c> xmlPrim)
 {
-  printf("+++++ [TestEK_xml] line: %d Ident: '%s'\n",xmlPrim->getLineNum(),xmlPrim->ident.c_str());
-  if (xmlPrim->optLst.size() > 0) {
+  std::string identStr("ERROR Ident not set!!!");
+  xmlPrim->getIdentRC(identStr);
+
+  bool optRC = false, txtRC = false;
+  auto optLstPtr = xmlPrim->getOptionsRC(optRC);
+  auto txtLstPtr = xmlPrim->getTextRC   (txtRC);
+
+  std::string rcPrintStr;
+  if (!optRC || !txtRC)
+    rcPrintStr = "ERROR: option / text return code error!!!";
+
+  printf("+++++ [TestEK_xml] line: %d Ident: '%s' %s\n",xmlPrim->getLineNum(),identStr.c_str(),rcPrintStr.c_str());
+  if (!optRC || !txtRC)
+    throw std::runtime_error(rcPrintStr);
+
+  if (optLstPtr->size() > 0) {
     printf("+++++ [TestEK_xml] options: { ");
-    for (auto it = xmlPrim->optLst.begin(); it != xmlPrim->optLst.end(); it++) {
-      if (it != xmlPrim->optLst.begin())
+    for (auto it = optLstPtr->begin(); it != optLstPtr->end(); it++) {
+      if (it != optLstPtr->begin())
         printf(", ");
       ex_knobs::elementType_e elem_type = (*it)->getElemType();
       switch (elem_type)
@@ -187,7 +228,7 @@ void TestEK_xml(std::shared_ptr<ex_knobs::primXml_c> xmlPrim)
     printf(" }\n");
   }
   printf("+++++ [TestEK_xml] body:\n");
-  for (auto it = xmlPrim->lineLst.begin(); it != xmlPrim->lineLst.end(); it++) {
+  for (auto it = txtLstPtr->begin(); it != txtLstPtr->end(); it++) {
     ex_knobs::elementType_e elem_type = (*it)->getElemType();
     if (elem_type == ex_knobs::ELEM_STRING)
       printf("@@%s@@",static_cast<ex_knobs::elemStr_c*> (*it)->varStr.c_str());
@@ -209,8 +250,8 @@ int main(int argc, char *argv[])
   ex_knobs::ek_command_f    = std::bind(&TestEK_command,std::placeholders::_1);
   ex_knobs::ek_object_f     = std::bind(&TestEK_object, std::placeholders::_1);
   ex_knobs::ek_knob_f       = std::bind(&TestEK_knob,   std::placeholders::_1);
-  ex_knobs::ek_comment_sl_f = std::bind(&TestEK_RemSL,  std::placeholders::_1, std::placeholders::_2);
-  ex_knobs::ek_comment_ml_f = std::bind(&TestEK_RemML,  std::placeholders::_1, std::placeholders::_2);
+  ex_knobs::ek_comment_sl_f = std::bind(&TestEK_RemSL,  std::placeholders::_1);
+  ex_knobs::ek_comment_ml_f = std::bind(&TestEK_RemML,  std::placeholders::_1);
   ex_knobs::ek_xml_f        = std::bind(&TestEK_xml,    std::placeholders::_1);
 
   char* inpFN  = argv[1];
