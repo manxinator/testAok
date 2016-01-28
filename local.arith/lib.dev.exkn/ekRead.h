@@ -206,6 +206,7 @@ namespace ex_knobs
     // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
   /*
     Valid get functions of each primitive type are as follows:
+      getLineNum() is valid for all primitive types
 
       PRIM_COMMAND:
         - getIdentRC()

@@ -63,7 +63,7 @@ public:
 private:
     // Allows us to abstract implementation details away from user
     // Requires us to implement a proper copy / move constructor -- not for now!
-    // Not shared_ptr for easy debugging -- may be changed after development
+    // Raw pointer for easy debugging -- may be changed after development
   aokParserContext_c *ctx;
 
   std::function<void(const std::string&)> f_errFunc;

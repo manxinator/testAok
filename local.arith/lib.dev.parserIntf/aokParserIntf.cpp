@@ -43,6 +43,11 @@ mutex g_ek_mutex;
 #define AOKPI_DEBUG         1
 
 //------------------------------------------------------------------------------
+  // Utility Functions
+  //
+  int    str2int       (const string &intStr);
+  string strRemoveEncap(const string& tgtStr);
+//------------------------------------------------------------------------------
 
 class aokParsFile_c;
 
@@ -57,36 +62,30 @@ public:
 
   // Function DB? -- Plugins
 
+  // Error Delegates
+  std::function<void(const std::string&)> f_errFunc;
+  std::function<void(const std::string&)> f_exitFunc;
+
 public:
-           aokParserContext_c();
+           aokParserContext_c() { arithAnal = make_shared<arithParser_c>(); }
   virtual ~aokParserContext_c() { }
+
+  void config ( function<void(const string&)> a_errFunc,
+                function<void(const string&)> a_exitFunc );
 
   int  getIntVar(const string& varName);
   void setIntVar(const string& varName, int newVal);
-
-  int str2int(const string &intStr)
-  {
-    int retVal;
-    try {
-      retVal = stoi(intStr,nullptr,0);
-    } catch (const out_of_range& oor) {
-      // No need to check string length since this exception requires a long string
-      // basically, just perform typecasting -- upcast, and then downcast again
-      if ((intStr[0] == '0') && ((intStr[1] == 'x') || (intStr[1] == 'X'))) {
-        auto ullInt = stoull(intStr,nullptr,0);
-        retVal = (int) ullInt;
-      } else {
-        auto ulInt = stoul(intStr,nullptr,0);
-        retVal = (int) ulInt;
-      }
-    }
-    return retVal;
-  }
 };
 
-aokParserContext_c::aokParserContext_c()
+void aokParserContext_c::config ( function<void(const string&)> a_errFunc,
+                                  function<void(const string&)> a_exitFunc )
 {
-  arithAnal = make_shared<arithParser_c>();
+  f_errFunc  = a_errFunc;
+  f_exitFunc = a_exitFunc;
+  arithAnal->f_errFunc   = f_errFunc;
+  arithAnal->f_exitFunc  = f_exitFunc;
+  arithAnal->f_getIntVar = bind(&aokParserContext_c::getIntVar,this,placeholders::_1);
+  arithAnal->f_setIntVar = bind(&aokParserContext_c::setIntVar,this,placeholders::_1,placeholders::_2);
 }
 
 int aokParserContext_c::getIntVar(const string& varName)
@@ -111,7 +110,7 @@ void aokParserContext_c::setIntVar(const string& varName, int newVal)
 
   /*
     aokParsFile_c
-    - Class to load one file
+    - Class to abstract a single file
 
     EK
     - command    function
@@ -121,52 +120,27 @@ void aokParserContext_c::setIntVar(const string& varName, int newVal)
     - comment_ml function
     - xml        function
   */
-#define DECL_ENT_CLASS(_NAME_,_PRIM_,_ET_)    \
-  class _NAME_ : public fileEnt_c {           \
-  public:                                     \
-    shared_ptr<ex_knobs::_PRIM_> p_ent;       \
-                                              \
-             _NAME_() : fileEnt_c(_ET_) { }   \
-    virtual ~_NAME_()                   { }   \
-  };
 class aokParsFile_c {
-public:
+private:
   aokParserContext_c *ctx;
   string              fileName;
 
+  vector<shared_ptr<ex_knobs::primitive_c> > fileEntries;
+
+    // Delegates to wrap up and save the incoming primitives to a vector
+    //
+  void ek_command(shared_ptr<ex_knobs::primitive_c> cmdPrim)  { fileEntries.push_back( cmdPrim  ); }
+  void ek_object (shared_ptr<ex_knobs::primitive_c> objPrim)  { fileEntries.push_back( objPrim  ); }
+  void ek_knob   (shared_ptr<ex_knobs::primitive_c> knobPrim) { fileEntries.push_back( knobPrim ); }
+  void ek_xml    (shared_ptr<ex_knobs::primitive_c> xmlPrim)  { fileEntries.push_back( xmlPrim  ); }
+  void ek_remSL  (shared_ptr<ex_knobs::primitive_c> remStr)   { }
+  void ek_remML  (shared_ptr<ex_knobs::primitive_c> remStr)   { }
+
+  int loadIncludes(void);
+
     // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-  typedef enum _entType_e_ {
-    ENT_UNDEF   = 0,
-    ENT_COMMAND = 1,
-    ENT_OBJECT  = 2,
-    ENT_KNOB    = 3,
-    ENT_XML     = 4,
-    ENT_FILE    = 5
-  } entType_e;
-
-  class fileEnt_c {
-  public:
-    entType_e et;
-
-             fileEnt_c(entType_e entT) { et = entT; }
-    virtual ~fileEnt_c()               { }
-  };
-
-  class entFile_c : public fileEnt_c {
-  public:
-    string fileName;
-
-             entFile_c() : fileEnt_c(ENT_FILE) { }
-    virtual ~entFile_c()                       { }
-  };
-
-  DECL_ENT_CLASS(entCmd_c,primCommand_c,ENT_COMMAND);
-  DECL_ENT_CLASS(entObj_c,primObject_c, ENT_OBJECT);
-  DECL_ENT_CLASS(entKnb_c,primKnob_c,   ENT_KNOB);
-  DECL_ENT_CLASS(entXml_c,primXml_c,    ENT_XML);
-    // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-
-  vector<fileEnt_c*> entPtrLst; // Entries of the file
+    // Utility
+  string elemVecToStr  (vector<ex_knobs::element_c*> &elemVec);
 
 public:
            aokParsFile_c(aokParserContext_c *a_ctx) { ctx = a_ctx; }
@@ -174,112 +148,124 @@ public:
     ctx = 0;  // We don't own this
   }
 
-    // Delegates to wrap up and save the incoming primitives to a vector
-    //
-  void ek_command(shared_ptr<ex_knobs::primCommand_c> cmdPrim)  { entPtrLst.push_back( new entCmd_c() ); static_cast<entCmd_c*>(entPtrLst.back())->p_ent = cmdPrim;  }
-  void ek_object (shared_ptr<ex_knobs::primObject_c>  objPrim)  { entPtrLst.push_back( new entObj_c() ); static_cast<entObj_c*>(entPtrLst.back())->p_ent = objPrim;  }
-  void ek_knob   (shared_ptr<ex_knobs::primKnob_c>    knobPrim) { entPtrLst.push_back( new entKnb_c() ); static_cast<entKnb_c*>(entPtrLst.back())->p_ent = knobPrim; }
-  void ek_xml    (shared_ptr<ex_knobs::primXml_c>     xmlPrim)  { entPtrLst.push_back( new entXml_c() ); static_cast<entXml_c*>(entPtrLst.back())->p_ent = xmlPrim;  }
-  void ek_remSL  (shared_ptr<string>          remStr, int lNum) { }
-  void ek_remML  (shared_ptr<string>          remStr, int lNum) { }
-
-    /*
-      Connect the delegates and load the file
-    */
-  int doParse(const string &fnStr)
-  {
-    fileName = fnStr;
-
-    ex_knobs::ek_command_f    = std::bind(&aokParsFile_c::ek_command,this,std::placeholders::_1);
-    ex_knobs::ek_object_f     = std::bind(&aokParsFile_c::ek_object, this,std::placeholders::_1);
-    ex_knobs::ek_knob_f       = std::bind(&aokParsFile_c::ek_knob,   this,std::placeholders::_1);
-    ex_knobs::ek_comment_sl_f = std::bind(&aokParsFile_c::ek_remSL,  this,std::placeholders::_1, std::placeholders::_2);
-    ex_knobs::ek_comment_ml_f = std::bind(&aokParsFile_c::ek_remML,  this,std::placeholders::_1, std::placeholders::_2);
-    ex_knobs::ek_xml_f        = std::bind(&aokParsFile_c::ek_xml,    this,std::placeholders::_1);
-
-    int retVal = ex_knobs::ek_readfile(fnStr.c_str(),0);
-    if (retVal < 1) {
-      stringstream ss;
-      ss << "[aokParsFile_c::doParse] Failed to load file: " << fnStr << "!!!";
-      ctx->arithAnal->f_errFunc(ss.str());
-      return 0;
-    }
-
-#ifdef AOKPI_DEBUG
-    printf("[aokParsFile_c::doParse] Listing the loaded entries for file='%s'\n",fileName.c_str());
-    for (auto it = entPtrLst.begin(); it != entPtrLst.end(); it++) {
-      switch ((*it)->et)
-      {
-      case ENT_COMMAND: { auto eO = static_cast<entCmd_c*>(*it); printf("  [%3d] ENT_COMMAND : %s\n",eO->p_ent->getLineNum(),  eO->p_ent->ident.c_str()); break; }
-      case ENT_OBJECT:  { auto eO = static_cast<entObj_c*>(*it); printf("  [%3d] ENT_OBJECT\n",      eO->p_ent->getLineNum()); break;                            }
-      case ENT_KNOB:    { auto eO = static_cast<entKnb_c*>(*it); printf("  [%3d] ENT_KNOB  \n",      eO->p_ent->getLineNum()); break;                            }
-      case ENT_XML:     { auto eO = static_cast<entXml_c*>(*it); printf("  [%3d] ENT_XML   \n",      eO->p_ent->getLineNum()); break;                            }
-      default:
-        printf("ERROR: Unexpected condition!!!\n");
-      }
-    }
-    printf("[aokParsFile_c::doParse] Listing done!  ----------------------\n\n");
-#endif
-
-    return 1;
-  }
-
   // Processing functions
   //
   int digest (void);
-    // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    // Utility
-  string elemVecToStr  (vector<ex_knobs::element_c*> &elemVec);
-  string strRemoveEncap(const string& tgtStr);
+  int doParse(const string &fnStr);
 };
 
-int aokParsFile_c::digest (void)
+int aokParsFile_c::doParse(const string &fnStr)
 {
-  // Load any include files [Probably can't delegate]
+  fileName = fnStr;
+    /*
+      Connect the delegates and load the file
+    */
+  ex_knobs::ek_command_f    = std::bind(&aokParsFile_c::ek_command,this,std::placeholders::_1);
+  ex_knobs::ek_object_f     = std::bind(&aokParsFile_c::ek_object, this,std::placeholders::_1);
+  ex_knobs::ek_knob_f       = std::bind(&aokParsFile_c::ek_knob,   this,std::placeholders::_1);
+  ex_knobs::ek_comment_sl_f = std::bind(&aokParsFile_c::ek_remSL,  this,std::placeholders::_1);
+  ex_knobs::ek_comment_ml_f = std::bind(&aokParsFile_c::ek_remML,  this,std::placeholders::_1);
+  ex_knobs::ek_xml_f        = std::bind(&aokParsFile_c::ek_xml,    this,std::placeholders::_1);
+
+  int retVal = ex_knobs::ek_readfile(fnStr.c_str(),0);
+  if (retVal < 1) {
+    stringstream ss;
+    ss << "[aokParsFile_c::doParse] Failed to load file: " << fnStr << "!!!";
+    ctx->f_errFunc(ss.str());
+    return 0;
+  }
+
+#ifdef AOKPI_DEBUG
+  printf("[aokParsFile_c::doParse] Listing the loaded entries for file='%s'\n",fileName.c_str());
+  for (auto it = fileEntries.begin(); it != fileEntries.end(); it++) {
+    auto entPtr = *it;
+    string identStr;
+    if (ex_knobs::PRIM_COMMAND == entPtr->getPrimitiveType())
+      entPtr->getIdentRC(identStr);
+    switch (entPtr->getPrimitiveType())
+    {
+    case ex_knobs::PRIM_COMMAND: { printf("  [%3d] ENT_COMMAND : %s\n",entPtr->getLineNum(),  identStr.c_str()); break; }
+    case ex_knobs::PRIM_OBJECT:  { printf("  [%3d] ENT_OBJECT\n",      entPtr->getLineNum()); break;                    }
+    case ex_knobs::PRIM_KNOB:    { printf("  [%3d] ENT_KNOB\n",        entPtr->getLineNum()); break;                    }
+    case ex_knobs::PRIM_XML:     { printf("  [%3d] ENT_XML\n",         entPtr->getLineNum()); break;                    }
+    default:
+      printf("ERROR: Unexpected condition!!!\n");
+    }
+  }
+  printf("[aokParsFile_c::doParse] Listing done!  ----------------------\n\n");
+#endif
+
+  return loadIncludes();
+}
+
+int aokParsFile_c::loadIncludes (void)
+{
+  // Load any include files
   //
-  int vecSize = (int)entPtrLst.size();
+  int vecSize = (int)fileEntries.size();
   if (vecSize<=0)
     return 1;   // Empty file -- still valid
 
   for (int iii=0; iii<vecSize; iii++) {
-    if (entPtrLst[iii]->et != ENT_COMMAND)
+    auto oneEnt = fileEntries[iii];
+    if (oneEnt->getPrimitiveType() != ex_knobs::PRIM_COMMAND)
       continue;
-    auto primCmd = static_cast<entCmd_c*>(entPtrLst[iii]);
-    auto entCmd  = primCmd->p_ent;
-    if (entCmd->ident != "include")
+    string identStr;
+    bool rc = oneEnt->getIdentRC(identStr);
+    if (identStr != "include")
       continue;
+    if (!rc) {
+      stringstream ss;
+      ss << "[aokParsFile_c::loadIncludes] this state should be unreachable!";
+      ctx->f_errFunc(ss.str());
+      return 0;
+    }
 
-    // Evaluate into string
-    string incFileName = elemVecToStr( entCmd->argLst );
+    // Evaluate arguments into string
+    string incFileName;
+    {
+      auto alRawPtr = oneEnt->getArgListRC(rc);
+      if (!rc || !alRawPtr) {
+        ctx->f_errFunc("Unexpected #include without a file name!");
+        return 0;
+      }
+      incFileName = elemVecToStr( *alRawPtr );
+    }
 
     // Check in ctx to see if file is already loaded, otherwise load the file
     //
     if (ctx->fileMap.end() == ctx->fileMap.find(incFileName)) {
-      printf("---> [%3d] include -=%s=- [digest] to be loaded!\n",entCmd->getLineNum(),incFileName.c_str());
+      printf("---> [%3d] include -=%s=- [loadIncludes] to be loaded!\n",oneEnt->getLineNum(),incFileName.c_str());
       auto oneFile = make_shared<aokParsFile_c>(ctx);
       ctx->fileMap[incFileName] = oneFile;  // Save file into File Map
       if (!oneFile->doParse(incFileName))   // Load the file
-        return 0; // ERROR
-      if (!oneFile->digest())
-        return 0; // ERROR
+        return 0; // f_errFunc() should already have been called
     } else {
-      printf("---> [%3d] include -=%s=- [digest] already loaded!\n",entCmd->getLineNum(),incFileName.c_str());
+      printf("---> [%3d] include -=%s=- [loadIncludes] already loaded!\n",oneEnt->getLineNum(),incFileName.c_str());
     }
 
-    // Replace entPtrLst[iii]
-    //
-    auto newEnt = new entFile_c();
-    newEnt->fileName = incFileName;
-    entPtrLst[iii] = newEnt;
-    delete primCmd;
+    auto filePrim = ex_knobs::primitive_factory(ex_knobs::PRIM_FILE);
+    filePrim->setFileName( incFileName );
+    filePrim->setLineNum ( oneEnt->getLineNum() );
+    fileEntries[iii] = filePrim;
   }
+
+  return 1;
+}
+
+int aokParsFile_c::digest (void)
+{
+  int vecSize = (int)fileEntries.size();
+  if (vecSize<=0)
+    return 1;   // Empty file -- still valid
 
   // Digest the entire file
   //
   printf("YOYOYOYOYOYO! -- Digesting File %s!!!\n",fileName.c_str());
   for (int iii=0; iii<vecSize; iii++) {
-    int entNum = static_cast<int>(entPtrLst[iii]->et);
-    printf("  --> entNum: %d\n",entNum);
+    auto oneEnt = fileEntries[iii];
+    int  primNo = static_cast<int>(oneEnt->getPrimitiveType());
+    printf("  --> [%3d] Primitive Type: %4d\n",oneEnt->getLineNum(),primNo);
 
     //
     // IDEA: process {cmd, obj, knob} in process class -- so that plugins can use standard functions
@@ -314,13 +300,13 @@ string aokParsFile_c::elemVecToStr(vector<ex_knobs::element_c*> &elemVec)
       }
       break;
     default:
-      ctx->arithAnal->f_exitFunc("ERROR\nERROR [aokParsFile_c::elemVecToStr] Not implemented!!!\nERROR\n\n");
+      ctx->f_exitFunc("ERROR\nERROR [aokParsFile_c::elemVecToStr] Not implemented!!!\nERROR\n\n");
       break;
     }
   }
   return retStr;
 }
-string aokParsFile_c::strRemoveEncap(const string& tgtStr)
+string strRemoveEncap(const string& tgtStr)
 {
   string retStr;
   char c = tgtStr[0];
@@ -330,9 +316,27 @@ string aokParsFile_c::strRemoveEncap(const string& tgtStr)
     return tgtStr;
   return retStr;
 }
-
-
+int str2int(const string &intStr)
+{
+  int retVal;
+  try {
+    retVal = stoi(intStr,nullptr,0);
+  } catch (const out_of_range& oor) {
+    // No need to check string length since this exception requires a long string
+    // basically, just perform typecasting -- upcast, and then downcast again
+    if ((intStr[0] == '0') && ((intStr[1] == 'x') || (intStr[1] == 'X'))) {
+      auto ullInt = stoull(intStr,nullptr,0);
+      retVal = (int) ullInt;
+    } else {
+      auto ulInt = stoul(intStr,nullptr,0);
+      retVal = (int) ulInt;
+    }
+  }
+  return retVal;
+}
 //------------------------------------------------------------------------------
+
+
 
   /*
     Parser Interface -- Top-level class
@@ -369,11 +373,8 @@ int aokParserIntf_c::loadFile(const string& fileNameStr)
 
 void aokParserIntf_c::prepareContext (void)
 {
-  // Propagate functions to AA object
-  ctx->arithAnal->f_errFunc   = f_errFunc;
-  ctx->arithAnal->f_exitFunc  = f_exitFunc;
-  ctx->arithAnal->f_getIntVar = bind(&aokParserContext_c::getIntVar,ctx,placeholders::_1);
-  ctx->arithAnal->f_setIntVar = bind(&aokParserContext_c::setIntVar,ctx,placeholders::_1,placeholders::_2);
+  // Propagate functions to Context (which, in turn, propagates to AA object)
+  ctx->config( f_errFunc, f_exitFunc );
 
   // Connect standard plugins
   // - TODO: make plugins modifiable from outside

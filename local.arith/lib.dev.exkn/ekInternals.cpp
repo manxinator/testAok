@@ -406,7 +406,7 @@ void ex_knobs::spQStrToStr (shared_ptr<vector<string> > quoteStr, string &destPt
 
 
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-shared_ptr<primitive_c> primitive_factory (primitiveType_e primType)
+shared_ptr<primitive_c> ex_knobs::primitive_factory (primitiveType_e primType)
 {
   switch (primType)
   {
