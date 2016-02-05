@@ -20,7 +20,7 @@
 * SOFTWARE.
 ********************************************************************************
 * aokParserIntf.h
-* Author:  tdeloco
+* Author:  manxinator
 * Created: Sat Jan 16 03:10:18 PST 2016
 *******************************************************************************/
 
@@ -28,18 +28,21 @@
 #define __AOK_PARSER_INTF__
 
 #include <string>
+#include <vector>
 #include <memory>
 #include <functional>
+#include "ekRead.h"
 
 //------------------------------------------------------------------------------
 
 class aokParserContext_c;
+class aokParserPlugin_c;
 
   /***********************************************
   RECONSIDER:
     Two sets of arithParser_c
-    1- Internal for #defines
-    2- External for AOK equations
+    1- Internal for #defines       [defines and variables only]
+    2- External for AOK equations  [object/knob equations]
   ***********************************************/
 
   /*
@@ -55,10 +58,16 @@ public:
 
     // Top-level load function
     // - Returns 1 for success, otherwise 0
-  int loadFile(const std::string& fileNameStr);
+  int loadFile (const std::string& fileNameStr);
+  int loadFiles(const std::vector<std::string>& fileNameVec);
 
   void setErrFunc ( std::function<void(const std::string&)> );
   void setExitFunc( std::function<void(const std::string&)> );
+
+  // TODO: add AOK Interfaces -- equivalent to getObjProp, etc.
+  //
+
+  void registerPlugin( std::shared_ptr<aokParserPlugin_c> plugin, bool overWrite=false );
 
 private:
     // Allows us to abstract implementation details away from user
@@ -71,6 +80,53 @@ private:
 
   int  checkAttributes(void);
   void prepareContext (void);
+
+  void connectStandardPlugins (void);
+};
+
+
+  /*
+    Parser Plugins:
+    * Base class for plugins to the parser interface
+
+    NOTE: Derived classes must conform to Non-Virtual Interface Idiom
+          https://en.wikibooks.org/wiki/More_C%2B%2B_Idioms/Non-Virtual_Interface
+
+    WARN: currently does not conform to rule of 5
+  */
+class aokParserPlugin_c {
+protected:
+  std::string idStr, commandStr;
+    // ID      - Uniquely identify this class
+    // Command - File command to invoke plugin
+
+public:
+           aokParserPlugin_c() { }
+  virtual ~aokParserPlugin_c() { }
+
+  std::string& getCommandStr(void);
+  std::string& getIdStr     (void);
+
+  int digest(int idx);
+    // Digest processes one entry
+    // Returns number of entries processed
+    // - 0 means re-process; WARNING: infinite loop
+    // - Less than 0 is an error
+
+    // TODO: Interface to random functions
+
+    // Delegates
+    //
+  std::function<int (const std::string&)>     f_getIntVar;
+  std::function<void(const std::string&,int)> f_setIntVar;
+  std::function<void(const std::string&)>     f_errFunc;
+  std::function<void(const std::string&)>     f_exitFunc;
+
+  std::function<int(int)>                                    f_processEntry;
+  std::function<std::shared_ptr<ex_knobs::primitive_c>(int)> f_getEntry;
+
+private:
+  virtual int digest_impl(int idx) = 0;
 };
 
 

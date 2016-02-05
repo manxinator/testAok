@@ -1,0 +1,10 @@
+
+
+#define NUM_ITER  2
+
+%MYOBJ
+#for (I=0; I<NUM_ITER; I++)
+  bag"I" = I
+#endfor
+
+

@@ -31,15 +31,16 @@ _MK_PARSER_INTF_=1
 
 CXX_FILES+=\
   aokParserIntf.cpp \
+  aokParserPlugin.cpp \
 
 INCPATH+=\
-  ${LOCAL_WS_DIR}/lib.dev.parserIntf \
+  ${LOCAL_WS_DIR}/lib.stage.parserIntf \
 
 vpath %c \
-  ${LOCAL_WS_DIR}/lib.dev.parserIntf \
+  ${LOCAL_WS_DIR}/lib.stage.parserIntf \
 
 vpath %cpp \
-  ${LOCAL_WS_DIR}/lib.dev.parserIntf \
+  ${LOCAL_WS_DIR}/lib.stage.parserIntf \
 
         #-------------------------------------------------------------
 endif
