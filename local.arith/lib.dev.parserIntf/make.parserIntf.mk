@@ -32,6 +32,7 @@ _MK_PARSER_INTF_=1
 CXX_FILES+=\
   aokParserIntf.cpp \
   aokParserPlugin.cpp \
+  aokTools.cpp \
 
 INCPATH+=\
   ${LOCAL_WS_DIR}/lib.stage.parserIntf \

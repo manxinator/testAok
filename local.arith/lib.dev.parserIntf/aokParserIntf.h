@@ -32,6 +32,7 @@
 #include <memory>
 #include <functional>
 #include "ekRead.h"
+#include "aokTools.h"
 
 //------------------------------------------------------------------------------
 
@@ -107,26 +108,38 @@ public:
   std::string& getCommandStr(void);
   std::string& getIdStr     (void);
 
-  int digest(int idx);
     // Digest processes one entry
     // Returns number of entries processed
     // - 0 means re-process; WARNING: infinite loop
     // - Less than 0 is an error
+  int digest(int idx);
 
-    // TODO: Interface to random functions
-
-    // Delegates
+    // Delegates -- will be filled in by registerPlugin()
     //
-  std::function<int (const std::string&)>     f_getIntVar;
-  std::function<void(const std::string&,int)> f_setIntVar;
   std::function<void(const std::string&)>     f_errFunc;
   std::function<void(const std::string&)>     f_exitFunc;
+  std::function<int (const std::string&)>     f_getIntDef;    // Preproc defines
+  std::function<void(const std::string&,int)> f_setIntDef;
+
+  std::function<std::string(const std::string&)>             f_getStrDef;    // Preproc defines
+  std::function<void(const std::string&,const std::string&)> f_setStrDef;
 
   std::function<int(int)>                                    f_processEntry;
   std::function<std::shared_ptr<ex_knobs::primitive_c>(int)> f_getEntry;
 
+    // TODO: Interface to random functions
+
+  bool checkAttributes(void);
+
 private:
   virtual int digest_impl(int idx) = 0;
+
+protected:
+  // collect string from a vector of elements
+  std::string collectString(std::vector<ex_knobs::element_c*>::iterator &itRef,
+                            std::vector<ex_knobs::element_c*>::iterator endRef,
+                            bool doError=true, int count=-1);
+  // collect elements - takes in ::vector<element_c*>::iterator, count=-1
 };
 
 

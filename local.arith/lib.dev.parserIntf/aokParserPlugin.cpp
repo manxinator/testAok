@@ -69,6 +69,101 @@ string& aokParserPlugin_c::getCommandStr(void)    { return commandStr; }
 string& aokParserPlugin_c::getIdStr     (void)    { return idStr;      }
 int     aokParserPlugin_c::digest       (int idx) { return digest_impl(idx); }
 
+bool aokParserPlugin_c::checkAttributes(void)
+{
+  if (!f_errFunc)      return false;
+  if (!f_exitFunc)     return false;
+  if (!f_getIntDef)    return false;
+  if (!f_setIntDef)    return false;
+  if (!f_getStrDef)    return false;
+  if (!f_setStrDef)    return false;
+  if (!f_processEntry) return false;
+  if (!f_getEntry)     return false;
+  return true;
+}
+string aokParserPlugin_c::collectString(vector<ex_knobs::element_c*>::iterator &itRef,
+                                        vector<ex_knobs::element_c*>::iterator endRef,
+                                        bool doError, int count)
+{
+  if (itRef == endRef) {
+    string noneStr;
+    return noneStr;
+  }
+
+  /*
+    Collect Rules:
+    - Combine adjacent strings if both are quoted
+    - Non-quoted after non-quoted gets one space
+    - if reduced to solitary quoted string, strip quotes, but flag as non-integer
+  */
+
+
+  // Check for homogeneity
+  //
+  int idx = 0;
+  bool homogeneous = true;
+  ex_knobs::elementType_e prevElemType = ex_knobs::ELEM_UNDEF;
+  for (auto it2 = itRef; it2 != endRef; it2++) {
+    auto curElemType = (*it2)->getElemType();
+    if ((curElemType != ex_knobs::ELEM_STRING) && (curElemType != ex_knobs::ELEM_QSTRING)) {
+      if (doError)
+        f_errFunc("[aokParserPlugin_c::collectString] Non-string type found!");
+      count = idx;
+      break;
+    }
+    if (idx > 0) {
+      if (prevElemType != curElemType)
+        homogeneous = false;
+    }
+    prevElemType = curElemType;
+    idx++;
+    if (count > 0)
+      if (idx >= count)
+        break;
+  }
+
+  // Collect the string
+  //
+  idx = 0;
+  prevElemType = ex_knobs::ELEM_UNDEF;
+
+  stringstream accumSS;
+  for ( ; itRef != endRef; itRef++) {
+    auto elemType = (*itRef)->getElemType();
+    string curStr;
+    if      (ex_knobs::ELEM_STRING  == elemType) curStr = static_cast<ex_knobs::elemStr_c*>  (*itRef)->varStr;
+    else if (ex_knobs::ELEM_QSTRING == elemType) curStr = static_cast<ex_knobs::elemQStr_c*> (*itRef)->varStr;
+
+    if (homogeneous)
+      accumSS << curStr;
+    else {
+      if (idx < 1) {
+        if (ex_knobs::ELEM_STRING == elemType)
+          accumSS << curStr;
+        else
+          accumSS << '\"' << curStr;
+      }
+      else if (prevElemType == elemType)
+        accumSS << ' ' << curStr;
+      else {
+        if (ex_knobs::ELEM_STRING == elemType)
+          accumSS << "\" " << curStr;
+        else
+          accumSS << " \"" << curStr;
+      }
+    }
+
+    prevElemType = elemType;
+    idx++;
+    if (count > 0)
+      if (idx >= count)
+        break;
+  }
+  if ((!homogeneous) && (prevElemType == ex_knobs::ELEM_QSTRING))
+    accumSS << '\"';
+  return accumSS.str();
+}
+
     // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
 #define CL_THROW_RUN_ERR(__MSG__) do {                                  \
@@ -76,6 +171,7 @@ int     aokParserPlugin_c::digest       (int idx) { return digest_impl(idx); }
   stringstream ssErr;                                                   \
   ssErr << "[" << className << "::" << __FUNCTION__ << "] ERROR: ";     \
   ssErr << __MSG__;                                                     \
+  ssErr << std::endl;                                                   \
   throw std::runtime_error(ssErr.str());                                \
 } while(0)
 #define CL_THROW_NOTIMP() CL_THROW_RUN_ERR("not implemented!!!")
@@ -91,27 +187,38 @@ int definePlug_c::digest_impl(int idx)
   if (!argRC)
     CL_THROW_RUN_ERR("failed to get argument list!!!");
 
+  /*
+    Defines are very simple
+    - First element must be a string or quoted string
+    - Succeeding elements must be collected and reduced to a single string or number
+    - Support empty defines? ie: value = ""
+  */
+
   string defStr;
   string valStr;
 
   auto it = argLst->begin();
-  if (ex_knobs::ELEM_STRING == (*it)->getElemType())
-    defStr = static_cast<ex_knobs::elemStr_c*> (*it)->varStr;
+  if      (ex_knobs::ELEM_STRING  == (*it)->getElemType()) defStr = static_cast<ex_knobs::elemStr_c*>  (*it)->varStr;
+  else if (ex_knobs::ELEM_QSTRING == (*it)->getElemType()) defStr = static_cast<ex_knobs::elemQStr_c*> (*it)->varStr;
   else
     CL_THROW_NOTIMP();
 
   it++;
-  if (it == argLst->end())
-    CL_THROW_RUN_ERR(" define " << defStr << "%s has no value!!!");
 
-  if (ex_knobs::ELEM_STRING == (*it)->getElemType())
-    valStr = static_cast<ex_knobs::elemStr_c*> (*it)->varStr;
-  else
-    CL_THROW_NOTIMP();
+  valStr = collectString(it,argLst->end());
+  if (valStr.size() < 1)
+    CL_THROW_RUN_ERR("#define " << defStr << " not followed by definition! " <<
+                     "Empty defines are not supported at this time!");
 
-  int valInt = atoi(valStr.c_str());
-  printf("+ Call f_setIntVar(%s,%d)\n",defStr.c_str(),valInt);
-  f_setIntVar(defStr,valInt);
+  // Call set define
+  int valInt = 0;
+  if (aok_tools::getIntRC(valStr,valInt)) {
+    printf("+ Call f_setIntDef(%s,%d)\n",defStr.c_str(),valInt);
+    f_setIntDef(defStr,valInt);
+  } else {
+    printf("+ Call f_setStrDef(%s,%s)\n",defStr.c_str(),valStr.c_str());
+    f_setStrDef(defStr,valStr);
+  }
 
   return 1;
 }
@@ -125,7 +232,7 @@ int forLoopPlug_c::digest_impl(int idx)
           Implement execute bit
           Go thru normal steps, but do not execute
           Push execute bit in initLoop, pop when exiting
-       ** Create a list of commands that obey the execute bit
+       ** Create a registry of commands that obey the execute bit
   */
 
   int numEnts = 0;

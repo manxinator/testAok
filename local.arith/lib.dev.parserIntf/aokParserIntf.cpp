@@ -54,21 +54,26 @@ class aokParserContext_c;
 //------------------------------------------------------------------------------
 
 class aokParserContext_c {
-public:
-  string                                 curParsFile; // index to fileMap
-  string                                 topFile;     // Assume only one file for now
-  map<string,shared_ptr<aokParsFile_c> > fileMap;
-
-  // AA (internal)
-  shared_ptr<arithParser_c> arithAnal;
-  map<string,string>        varMap;
+private:
+  // Defines
+  map<string,string> defMap;
 
   // Plugins / Function DB
   map<string,shared_ptr<aokParserPlugin_c> > plugMap;
+public:
+  map<string,shared_ptr<aokParsFile_c> >
+          fileMap;
+  string  curParsFile; // index to fileMap
+  string  topFile;     // Assume only one file for now
+
+  // AA (internal)
+  shared_ptr<arithParser_c> arithAnal;
 
   // Error Delegates
   std::function<void(const std::string&)> f_errFunc;
   std::function<void(const std::string&)> f_exitFunc;
+
+  bool checkAttributes(void);
 
 public:
            aokParserContext_c() { arithAnal = make_shared<arithParser_c>(); }
@@ -77,9 +82,14 @@ public:
   void config ( function<void(const string&)> a_errFunc,
                 function<void(const string&)> a_exitFunc );
 
-  int  getIntVar(const string& varName);
-  void setIntVar(const string& varName, int newVal);
+  // Defines
+  int  getIntDef(const string& defName);
+  void setIntDef(const string& defName, int newVal);
 
+  string getStrDef(const string& defName);
+  void   setStrDef(const string& defName, const string& newVal);
+
+  // Get entry at index idx of current file
   shared_ptr<ex_knobs::primitive_c> getEntry(int idx);
 
   int processEntry(int idx);
@@ -139,13 +149,16 @@ public:
 
 //------------------------------------------------------------------------------
 /*
-  TODO: Standardize when to use throw and when to use error/fail callback
+  TODO:
+  - Standardize when to use throw and when to use error/fail callback
+  - Of course, we can always use throw inside the callback
 */
 #define CL_THROW_RUN_ERR(__MSG__) do {                                  \
   auto className = abi::__cxa_demangle(typeid(*this).name(),0,0,0);     \
   stringstream ssErr;                                                   \
   ssErr << "[" << className << "::" << __FUNCTION__ << "] ERROR: ";     \
   ssErr << __MSG__;                                                     \
+  ssErr << std::endl;                                                   \
   throw std::runtime_error(ssErr.str());                                \
 } while(0)
 #define CL_THROW_NOTIMP() CL_THROW_RUN_ERR("not implemented!!!")
@@ -158,26 +171,50 @@ void aokParserContext_c::config ( function<void(const string&)> a_errFunc,
   f_exitFunc = a_exitFunc;
   arithAnal->f_errFunc   = f_errFunc;
   arithAnal->f_exitFunc  = f_exitFunc;
-  arithAnal->f_getIntVar = bind(&aokParserContext_c::getIntVar,this,placeholders::_1);
-  arithAnal->f_setIntVar = bind(&aokParserContext_c::setIntVar,this,placeholders::_1,placeholders::_2);
+  arithAnal->f_getIntVar = bind(&aokParserContext_c::getIntDef,this,placeholders::_1);
+  arithAnal->f_setIntVar = bind(&aokParserContext_c::setIntDef,this,placeholders::_1,placeholders::_2);
 }
 
-int aokParserContext_c::getIntVar(const string& varName)
+int aokParserContext_c::getIntDef(const string& defName)
 {
   int retVal = 0;
-  auto it = varMap.find(varName);
-  if (it == varMap.end())
-    varMap[varName] = "0";
+  auto it = defMap.find(defName);
+  if (it == defMap.end())
+    defMap[defName] = "0";
   else
     retVal = str2int(it->second);
   return retVal;
 }
 
-void aokParserContext_c::setIntVar(const string& varName, int newVal)
+void aokParserContext_c::setIntDef(const string& defName, int newVal)
 {
   stringstream ssVal;
   ssVal << newVal;
-  varMap[varName] = ssVal.str();
+  defMap[defName] = ssVal.str();
+}
+
+string aokParserContext_c::getStrDef(const string& defName)
+{
+  string retVal("__NOT_DEFINED__");
+  auto it = defMap.find(defName);
+  if (it != defMap.end())
+    retVal = defMap[defName];
+  return retVal;
+}
+
+void aokParserContext_c::setStrDef(const string& defName, const string& newVal)
+{
+  defMap[defName] = newVal;
+}
+
+bool aokParserContext_c::checkAttributes(void)
+{
+  if (!arithAnal) return 0;
+  for (auto &kv : plugMap) { // kv is a single map entry represented as a pair<K,V>
+    if (!kv.second->checkAttributes())
+      return false;
+  }
+  return true;
 }
 
 shared_ptr<ex_knobs::primitive_c> aokParserContext_c::getEntry(int idx)
@@ -187,6 +224,10 @@ shared_ptr<ex_knobs::primitive_c> aokParserContext_c::getEntry(int idx)
 
 void aokParserContext_c::registerPlugin( shared_ptr<aokParserPlugin_c> plugin, bool overWrite )
 {
+  plugin->f_getStrDef = bind(&aokParserContext_c::getStrDef,this,placeholders::_1);
+  plugin->f_setStrDef = bind(&aokParserContext_c::setStrDef,this,placeholders::_1,placeholders::_2);
+
+  // Add to plugMap
   string &cmdStr = plugin->getCommandStr();
   if ( plugMap.find(cmdStr) != plugMap.end() )
     if (!overWrite)
@@ -263,8 +304,7 @@ int aokParsFile_c::doParse(const string &fnStr)
 
 #ifdef AOKPI_DEBUG
   printf("[aokParsFile_c::doParse] Listing the loaded entries for file='%s'\n",fileName.c_str());
-  for (auto it = fileEntries.begin(); it != fileEntries.end(); it++) {
-    auto entPtr = *it;
+  for (auto entPtr : fileEntries) {
     string identStr;
     if (ex_knobs::PRIM_COMMAND == entPtr->getPrimitiveType())
       entPtr->getIdentRC(identStr);
@@ -451,9 +491,9 @@ int aokParserIntf_c::loadFiles(const vector<string>& fileNameVec)
   // Load first file -- save to map
   // Go thru file and load includes
   vector<shared_ptr<aokParsFile_c> > parseFileVec;
-  for (auto it = fileNameVec.begin(); it != fileNameVec.end(); it++)
+  for (auto&& oneFNameStr : fileNameVec)
   {
-    string oneFNameStr = *it;
+    //string oneFNameStr = *it;
     if (ctx->fileMap.find(oneFNameStr) != ctx->fileMap.end())
       continue;
 
@@ -464,8 +504,7 @@ int aokParserIntf_c::loadFiles(const vector<string>& fileNameVec)
     parseFileVec.push_back(oneFile);
   }
 
-  for (auto it = parseFileVec.begin(); it != parseFileVec.end(); it++) {
-    auto filePtr = *it;
+  for (auto filePtr : parseFileVec) {
     ctx->curParsFile = filePtr->getFileName();
     if (!filePtr->digest())
       return 0; // ERROR
@@ -484,9 +523,9 @@ void aokParserIntf_c::prepareContext (void)
 
 int aokParserIntf_c::checkAttributes(void)
 {
-  if (!ctx->arithAnal) return 0;
-  if (!f_errFunc)      return 0;
-  if (!f_exitFunc)     return 0;
+  if (!ctx->checkAttributes()) return 0;
+  if (!f_errFunc)              return 0;
+  if (!f_exitFunc)             return 0;
   // TODO: Interface to Random functions
   // TODO: AOK Interfaces
   return 1;
@@ -496,8 +535,8 @@ void aokParserIntf_c::registerPlugin( shared_ptr<aokParserPlugin_c> plugin, bool
 {
   plugin->f_errFunc   = f_errFunc;
   plugin->f_exitFunc  = f_exitFunc;
-  plugin->f_getIntVar = ctx->arithAnal->f_getIntVar;
-  plugin->f_setIntVar = ctx->arithAnal->f_setIntVar;
+  plugin->f_getIntDef = ctx->arithAnal->f_getIntVar;
+  plugin->f_setIntDef = ctx->arithAnal->f_setIntVar;
 
   plugin->f_processEntry = bind(&aokParserContext_c::processEntry,ctx,placeholders::_1);
   plugin->f_getEntry     = bind(&aokParserContext_c::getEntry,    ctx,placeholders::_1);
