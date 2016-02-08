@@ -26,9 +26,9 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include "arithmeticAnalyzer.h"
 #include "aokParserIntf.h"
-#include "ekRead.h"
+#include "aokTools.h"
+#include "aokIntf.h"
 #include <sstream>
 #include <cxxabi.h>
 using namespace std;
@@ -49,12 +49,15 @@ class forLoopPlug_c : public aokParserPlugin_c {
 private:
   virtual int digest_impl(int idx);
 
-  int internalIdx, startIdx;
+  int startIdx;
+
+  shared_ptr<arithParser_c::arithEqn_c> checkEqn;
+  shared_ptr<arithParser_c::arithEqn_c> iterEqn;
 
   int  initLoop(int idx);
   bool doLoop  (int &idx);
 public:
-           forLoopPlug_c() { idStr = commandStr = "for"; internalIdx = startIdx = 0; }
+           forLoopPlug_c() { idStr = commandStr = "for"; startIdx = 0; }
   virtual ~forLoopPlug_c() { }
 };
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -65,9 +68,16 @@ void aokParserIntf_c::connectStandardPlugins (void)
   registerPlugin( static_cast<aokParserPluginSPtr>( make_shared<forLoopPlug_c>() ), false );
 }
 //------------------------------------------------------------------------------
-string& aokParserPlugin_c::getCommandStr(void)    { return commandStr; }
 string& aokParserPlugin_c::getIdStr     (void)    { return idStr;      }
+string& aokParserPlugin_c::getCommandStr(void)    { return commandStr; }
 int     aokParserPlugin_c::digest       (int idx) { return digest_impl(idx); }
+
+vector<string>& aokParserPlugin_c::getCommandVec     (void) { return getCommandVec_impl(); }
+vector<string>& aokParserPlugin_c::getCommandVec_impl(void)
+{
+static vector<string> aokpp_gcvi_empty;
+  return aokpp_gcvi_empty;
+}
 
 bool aokParserPlugin_c::checkAttributes(void)
 {
@@ -79,6 +89,10 @@ bool aokParserPlugin_c::checkAttributes(void)
   if (!f_setStrDef)    return false;
   if (!f_processEntry) return false;
   if (!f_getEntry)     return false;
+  if (!f_getExecBit)   return false;
+  if (!f_pushExecBit)  return false;
+  if (!f_popExecBit)   return false;
+  if (!f_cmdInMBEReg)  return false;
   return true;
 }
 string aokParserPlugin_c::collectString(vector<ex_knobs::element_c*>::iterator &itRef,
@@ -163,6 +177,22 @@ string aokParserPlugin_c::collectString(vector<ex_knobs::element_c*>::iterator &
     accumSS << '\"';
   return accumSS.str();
 }
+string aokParserPlugin_c::collectParsExec(vector<ex_knobs::element_c*>::iterator &itRef,
+                                          vector<ex_knobs::element_c*>::iterator endRef,
+                                          bool doError, int count)
+{
+  /*
+    NOTE: Not implemented at this time
+          To simplify the current revision, support STRING and QSTRING only
+    Implementation idea:
+      - return a vector of parser execution units (vector passed by reference)
+        - execute to resolve equations and functions, then may be passed into AA
+        - execution unit might contain a single string (or numeric string)
+        - execution unit is within aokParserIntf domain -- NOT AOK!
+      - delimiter, strip encap char
+  */
+  return collectString(itRef, endRef, doError, count);
+}
 
     // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
@@ -212,7 +242,7 @@ int definePlug_c::digest_impl(int idx)
 
   // Call set define
   int valInt = 0;
-  if (aok_tools::getIntRC(valStr,valInt)) {
+  if (aok_tools::str2int(valStr,valInt)) {
     printf("+ Call f_setIntDef(%s,%d)\n",defStr.c_str(),valInt);
     f_setIntDef(defStr,valInt);
   } else {
@@ -235,52 +265,125 @@ int forLoopPlug_c::digest_impl(int idx)
        ** Create a registry of commands that obey the execute bit
   */
 
-  int numEnts = 0;
-  int entIdx = initLoop(idx);
-  while (doLoop(entIdx))
+  bool execBit = f_getExecBit();
+  bool bLoop;
+
+  int numEnts;
+  int laPrima = 1;
+  int entIdx  = initLoop(idx);
+  while ( (bLoop = doLoop(entIdx)) || laPrima )
   {
     numEnts = 0;
-    for (int iii=0; ; ) {
-      int procIdx = entIdx + iii;
+    laPrima = 0;
+    if (!bLoop || !execBit) {
+      execBit = false;
+      f_pushExecBit(false);
+    }
 
-      // check if entry is #endfor
-      auto line_prim = f_getEntry(procIdx);
-      if (ex_knobs::PRIM_COMMAND == line_prim->getPrimitiveType()) {
-        string identStr;
-        if (!line_prim->getIdentRC(identStr))
-          CL_THROW_RUN_ERR(" failed to get command identifier!!!");
-        if ("endfor" == identStr) {
-          numEnts = iii;
-          break;
+    if (execBit)
+    {
+      // Execute for loop contents
+      //
+      for (int iii=0; ; ) {
+        int procIdx = entIdx + iii;
+
+        // check if entry is #endfor
+        auto line_prim = f_getEntry(procIdx);
+        if (ex_knobs::PRIM_COMMAND == line_prim->getPrimitiveType()) {
+          string identStr;
+          if (!line_prim->getIdentRC(identStr))
+            CL_THROW_RUN_ERR(" failed to get command identifier!!!");
+          if ("endfor" == identStr) {
+            numEnts = iii;
+            break;
+          }
         }
-        // If execute bit turned off, but identStr in execute bit registry
-        //   call processEntry, and continue
+
+        printf("* FOR Processing entry: %d\n",iii);
+        iii += f_processEntry(procIdx);
+      }
+    }
+    else
+    {
+      // Go thru loop but do not execute
+      //
+      for (int iii=0; ; ) {
+        int procIdx = entIdx + iii;
+
+        // check if entry is in Mind Exec Bit registry
+        auto line_prim = f_getEntry(procIdx);
+        if (ex_knobs::PRIM_COMMAND == line_prim->getPrimitiveType()) {
+          string identStr;
+          if (!line_prim->getIdentRC(identStr))
+            CL_THROW_RUN_ERR(" failed to get command identifier!!!");
+          if ("endfor" == identStr) {
+            numEnts = iii;
+            break;
+          }
+
+          // Check registry
+          if ( f_cmdInMBEReg(identStr) ) {
+            printf("* FOR Mock Processing entry: %d\n",iii);
+            iii += f_processEntry(procIdx);
+            continue;
+          }
+        }
+
+        printf("* FOR Skipping entry: %d\n",iii);
+        iii++;
       }
 
-      printf("* FOR Processing entry: %d\n",iii);
-      iii += f_processEntry(procIdx);
+      f_popExecBit();
     }
+    printf("      @@@ iter: %d\n",iterEqn->computeInt());
   }
-  // TODO: pop execute bit
+
   printf("* FOR done! numEnts: %d\n",numEnts);
   return numEnts+2;
 }
 int forLoopPlug_c::initLoop(int idx)
 {
-  internalIdx = 0;
-  startIdx    = idx+1;
+  startIdx = idx+1;
+
+  bool argRC    = false;
+  auto cmd_prim = f_getEntry(idx);
+  auto argLst   = cmd_prim->getArgListRC(argRC);
+  if (!argRC)
+    CL_THROW_RUN_ERR("failed to get argument list!!!");
+
+  auto   it     = argLst->begin();
+  string valStr = collectParsExec(it,argLst->end());
+  vector<string> eqnVec;
+
+  if (!aok_tools::str2strVec(valStr,eqnVec,"(;) \t\n") || (eqnVec.size() != 3))
+    CL_THROW_RUN_ERR("for loop failed to parse parentheses statement!");
+
+  printf("[forLoopPlug_c::initLoop] *************** valStr: '%s' -->",valStr.c_str());
+  for (auto oneStr : eqnVec) printf(" '%s'",oneStr.c_str());
+  printf("\n");
+
+  auto startEqn = arithAnal->parseEqn(eqnVec[0]);
+  checkEqn      = arithAnal->parseEqn(eqnVec[1]);
+  iterEqn       = arithAnal->parseEqn(eqnVec[2]);
+
+  printf("      @@@ start: %d\n",startEqn->computeInt());
+
   return 1;
 }
-int AAAAAAAAAAA = 0;
 bool forLoopPlug_c::doLoop (int &idx)
 {
   idx = startIdx;
 
-  if (AAAAAAAAAAA++ < 2)
-    return true;
-  else
-    return false;
+  int check =
+        checkEqn->computeInt();
+  printf("      @@@ check: %d\n",check);
+  return checkEqn->computeInt() != 0;
 }
 //------------------------------------------------------------------------------
+/*
+  Plugins to support:
+  - #solve (same as #eval)
+  - #if, ifdef, ifndef, elif, elsif, else -- try to support in one class
+*/
 /* As a use-case example, add CSV support */
 

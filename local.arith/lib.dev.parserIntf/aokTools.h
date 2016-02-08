@@ -28,12 +28,26 @@
 #define __AOK_TOOLS__
 
 #include <string>
+#include <vector>
 
 //------------------------------------------------------------------------------
 
 namespace aok_tools
 {
-  bool getIntRC(const std::string &valStr, int &retVal);
+  bool str2int   (const std::string &valStr, int &retVal); // false means string
+
+  bool str2strVec(const std::string &valStr, std::vector<std::string> &r_vs, const std::string &opSep="", bool stripEnc=true);
+
+    // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+  class tokenizer_c {
+  private:
+    std::string wrkStr, delStr;
+  public:
+    tokenizer_c(const std::string &targetStr, const std::string &delimStr);
+
+    bool getTok(std::string &tokStr);
+  };
 }
 
 //------------------------------------------------------------------------------

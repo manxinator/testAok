@@ -25,6 +25,7 @@
 *******************************************************************************/
 
 #include "aokParserIntf.h"
+#include "aokTools.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -113,6 +114,22 @@ int main(int ac, const char *av[])
 }
 
 //--------------------------------------------------------------------
+
+void test1(void)
+{
+  vector<string> vs;
+  vs.clear(); aok_tools::str2strVec("[]",vs);
+  vs.clear(); aok_tools::str2strVec("[abc]",vs);
+  vs.clear(); aok_tools::str2strVec(" (kwanzaa) ",vs);
+  vs.clear(); aok_tools::str2strVec(" [",vs);
+  vs.clear(); aok_tools::str2strVec("  )",vs);
+  vs.clear(); aok_tools::str2strVec("[ ",vs);
+  vs.clear(); aok_tools::str2strVec(") ",vs);
+  vs.clear(); aok_tools::str2strVec(" { ",vs);
+  vs.clear(); aok_tools::str2strVec(" } ",vs);
+  vs.clear(); aok_tools::str2strVec(" ( kwanzaa ) ",vs);
+  vs.clear(); aok_tools::str2strVec(" ( kwanzaa ; spring ) ",vs);
+}
 
 
 

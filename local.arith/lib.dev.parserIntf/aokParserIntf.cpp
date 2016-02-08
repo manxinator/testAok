@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright (c) 2016 tdeloco
+* Copyright (c) 2016 manxinator
 *
 * Permission is hereby granted, free of charge, to any person obtaining a copy
 * of this software and associated documentation files (the "Software"), to deal
@@ -30,7 +30,9 @@
 #include "aokParserIntf.h"
 #include <mutex>
 #include <map>
+#include <stack>
 #include <sstream>
+#include <set>
 #include <stdexcept>
 #include <cxxabi.h>
 using namespace std;
@@ -60,6 +62,10 @@ private:
 
   // Plugins / Function DB
   map<string,shared_ptr<aokParserPlugin_c> > plugMap;
+
+  // Exec bit
+  stack<bool> ebStack;
+  set<string> mbeRegistry;
 public:
   map<string,shared_ptr<aokParsFile_c> >
           fileMap;
@@ -70,8 +76,8 @@ public:
   shared_ptr<arithParser_c> arithAnal;
 
   // Error Delegates
-  std::function<void(const std::string&)> f_errFunc;
-  std::function<void(const std::string&)> f_exitFunc;
+  std::function<void(const string&)> f_errFunc;
+  std::function<void(const string&)> f_exitFunc;
 
   bool checkAttributes(void);
 
@@ -79,10 +85,20 @@ public:
            aokParserContext_c() { arithAnal = make_shared<arithParser_c>(); }
   virtual ~aokParserContext_c() { }
 
+    // config    - configure this class;
+    // preDigest - call before digesting top-level file(s)
   void config ( function<void(const string&)> a_errFunc,
                 function<void(const string&)> a_exitFunc );
+  void preDigest(const string &curFN);
 
-  // Defines
+    // Exec bit
+  bool getExecBit(void)      { return ebStack.top();                }
+  void popExecBit(void)      { ebStack.pop();                       }
+  void pushExecBit(bool set) { ebStack.push(ebStack.top() and set); }
+
+  bool cmdInMBEReg(const string& idStr);
+
+  // Defines -- currently only integer and string (might expand int to long int)
   int  getIntDef(const string& defName);
   void setIntDef(const string& defName, int newVal);
 
@@ -175,6 +191,19 @@ void aokParserContext_c::config ( function<void(const string&)> a_errFunc,
   arithAnal->f_setIntVar = bind(&aokParserContext_c::setIntDef,this,placeholders::_1,placeholders::_2);
 }
 
+void aokParserContext_c::preDigest(const string &curFN)
+{
+  curParsFile = curFN;
+  while (!ebStack.empty())
+    ebStack.pop();
+  ebStack.push(true);
+}
+
+bool aokParserContext_c::cmdInMBEReg(const string& idStr)
+{
+  return mbeRegistry.find(idStr) != mbeRegistry.end();
+}
+
 int aokParserContext_c::getIntDef(const string& defName)
 {
   int retVal = 0;
@@ -224,17 +253,75 @@ shared_ptr<ex_knobs::primitive_c> aokParserContext_c::getEntry(int idx)
 
 void aokParserContext_c::registerPlugin( shared_ptr<aokParserPlugin_c> plugin, bool overWrite )
 {
+  plugin->arithAnal = arithAnal;
+
+  // Exec bit
+  plugin->f_getExecBit  = bind(&aokParserContext_c::getExecBit, this);
+  plugin->f_pushExecBit = bind(&aokParserContext_c::pushExecBit,this,placeholders::_1);
+  plugin->f_popExecBit  = bind(&aokParserContext_c::popExecBit, this);
+  plugin->f_cmdInMBEReg = bind(&aokParserContext_c::cmdInMBEReg,this,placeholders::_1);
+
+  // Remaining Preproc
   plugin->f_getStrDef = bind(&aokParserContext_c::getStrDef,this,placeholders::_1);
   plugin->f_setStrDef = bind(&aokParserContext_c::setStrDef,this,placeholders::_1,placeholders::_2);
 
   // Add to plugMap
   string &cmdStr = plugin->getCommandStr();
-  if ( plugMap.find(cmdStr) != plugMap.end() )
-    if (!overWrite)
-      return;
-  plugMap[cmdStr] = plugin;
+  if (cmdStr.length() > 0) {
+    if ( plugMap.find(cmdStr) != plugMap.end() )
+      if (!overWrite)
+        return;
+    plugMap[cmdStr] = plugin;
+  } else {
+    vector<string> &cmdVec = plugin->getCommandVec();
+    for (auto &cmdStr : cmdVec) {
+      if ( plugMap.find(cmdStr) != plugMap.end() )
+        if (!overWrite)
+          continue;
+      plugMap[cmdStr] = plugin;
+    }
+  }
 }
 
+    void DBG_Command(std::shared_ptr<ex_knobs::primitive_c> cmdPrim)
+    {
+      bool argRC = false;
+      auto argLst = cmdPrim->getArgListRC(argRC);
+      if (!argRC)
+        throw std::runtime_error("[DBG_Command] ERROR: failed to get argument list!!!\n");
+
+      std::string identStr("ERROR Ident not set!!!");
+      if (!cmdPrim->getIdentRC(identStr))
+        throw std::runtime_error("[DBG_Command] ERROR: failed to get Ident string!!!\n");
+
+      printf("++++++++++++++++++++> [DBG_Command] line: %d { %s",cmdPrim->getLineNum(),identStr.c_str());
+      for (auto elemPtr : *argLst ) {
+        ex_knobs::elementType_e elem_type = elemPtr->getElemType();
+        switch (elem_type)
+        {
+        case ex_knobs::ELEM_STRING:   printf(", %s",    static_cast<ex_knobs::elemStr_c*> (elemPtr)->varStr.c_str()); break;
+        case ex_knobs::ELEM_QSTRING:  printf(", \'%s\'",static_cast<ex_knobs::elemQStr_c*>(elemPtr)->varStr.c_str()); break;
+        case ex_knobs::ELEM_FUNCTION: {
+            ex_knobs::elemFunc_c *eBtFn = dynamic_cast<ex_knobs::elemFunc_c*>(elemPtr);
+            printf(", elemFunc_c{%s,%s}",eBtFn->identStr.c_str(),eBtFn->parenStr.c_str());
+            break;
+          }
+        case ex_knobs::ELEM_EQUATION: {
+            ex_knobs::elemEqn_c *eBtFn = dynamic_cast<ex_knobs::elemEqn_c*>(elemPtr);
+            printf(", elemEqn_c{%s}",eBtFn->parenStr.c_str());
+            break;
+          }
+        case ex_knobs::ELEM_EXPANSION: {
+            ex_knobs::elemExp_c *eBtEx = dynamic_cast<ex_knobs::elemExp_c*>(elemPtr);
+            printf(", elemExp_c{%s,%s}",eBtEx->identStr.c_str(),eBtEx->parenStr.c_str());
+            break;
+          }
+        default:
+          printf(", ELEM_TYPE:%d",static_cast<int>(elem_type)); break;
+        }
+      }
+      printf(" }\n");
+    }
 int aokParserContext_c::processEntry(int idx)
 {
   // in processEntry()
@@ -257,6 +344,7 @@ int aokParserContext_c::processEntry(int idx)
         CL_THROW_RUN_ERR("failed to get command identifier!!!");
       if (plugMap.find(identStr) == plugMap.end())
         CL_THROW_RUN_ERR("Unknown command: " << identStr);
+DBG_Command(oneEnt);
       numDigest = plugMap[identStr]->digest(idx);
     }
     break;
@@ -505,7 +593,7 @@ int aokParserIntf_c::loadFiles(const vector<string>& fileNameVec)
   }
 
   for (auto filePtr : parseFileVec) {
-    ctx->curParsFile = filePtr->getFileName();
+    ctx->preDigest( filePtr->getFileName() );
     if (!filePtr->digest())
       return 0; // ERROR
   }
@@ -533,6 +621,7 @@ int aokParserIntf_c::checkAttributes(void)
 
 void aokParserIntf_c::registerPlugin( shared_ptr<aokParserPlugin_c> plugin, bool overWrite )
 {
+  // TODO: move some to aokParserContext_c::registerPlugin (see which ones belong there / here)
   plugin->f_errFunc   = f_errFunc;
   plugin->f_exitFunc  = f_exitFunc;
   plugin->f_getIntDef = ctx->arithAnal->f_getIntVar;

@@ -5,8 +5,10 @@
 #define FIVE       "5"
 
 %MYOBJ
-#for ( I=0; I<NUM_ITER;I++)
+#for ( I=2; I<NUM_ITER;++ I)
   bag"I" = I
 #endfor
+
+  %ANOTHER_OBJ
 
 

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright (c) 2016 tdeloco
+* Copyright (c) 2016 manxinator
 *
 * Permission is hereby granted, free of charge, to any person obtaining a copy
 * of this software and associated documentation files (the "Software"), to deal
@@ -31,8 +31,8 @@
 #include <vector>
 #include <memory>
 #include <functional>
+#include "arithmeticAnalyzer.h"
 #include "ekRead.h"
-#include "aokTools.h"
 
 //------------------------------------------------------------------------------
 
@@ -65,7 +65,7 @@ public:
   void setErrFunc ( std::function<void(const std::string&)> );
   void setExitFunc( std::function<void(const std::string&)> );
 
-  // TODO: add AOK Interfaces -- equivalent to getObjProp, etc.
+  // TODO: add AOK Interfaces -- get knob, set knob, etc...
   //
 
   void registerPlugin( std::shared_ptr<aokParserPlugin_c> plugin, bool overWrite=false );
@@ -89,6 +89,10 @@ private:
   /*
     Parser Plugins:
     * Base class for plugins to the parser interface
+    * Current revision only supports STRING and QSTRING elements
+    * Define types are important, currently they are:
+      * int (despite supporting hex, this is only an int -- might change to long int later)
+      * string
 
     NOTE: Derived classes must conform to Non-Virtual Interface Idiom
           https://en.wikibooks.org/wiki/More_C%2B%2B_Idioms/Non-Virtual_Interface
@@ -105,14 +109,21 @@ public:
            aokParserPlugin_c() { }
   virtual ~aokParserPlugin_c() { }
 
-  std::string& getCommandStr(void);
   std::string& getIdStr     (void);
+  std::string& getCommandStr(void);
+  std::vector<std::string>& getCommandVec(void);
 
     // Digest processes one entry
     // Returns number of entries processed
     // - 0 means re-process; WARNING: infinite loop
     // - Less than 0 is an error
   int digest(int idx);
+
+  // AA
+  std::shared_ptr<arithParser_c> arithAnal;
+
+  // TODO: group the functions into structures: defines, entries, ExecBit
+  //
 
     // Delegates -- will be filled in by registerPlugin()
     //
@@ -127,11 +138,21 @@ public:
   std::function<int(int)>                                    f_processEntry;
   std::function<std::shared_ptr<ex_knobs::primitive_c>(int)> f_getEntry;
 
+    // Exec bit
+    // - use case is odd right now -- only certain commands care about this
+  std::function<bool(void)>               f_getExecBit;
+  std::function<void(bool)>               f_pushExecBit;
+  std::function<void(void)>               f_popExecBit;
+  std::function<bool(const std::string&)> f_cmdInMBEReg;
+
     // TODO: Interface to random functions
+    // see http://en.cppreference.com/w/cpp/numeric/random -- TODO: MOVE TO OWN FILE!!!
 
   bool checkAttributes(void);
 
 private:
+  virtual std::vector<std::string>&
+              getCommandVec_impl(void);
   virtual int digest_impl(int idx) = 0;
 
 protected:
@@ -139,7 +160,10 @@ protected:
   std::string collectString(std::vector<ex_knobs::element_c*>::iterator &itRef,
                             std::vector<ex_knobs::element_c*>::iterator endRef,
                             bool doError=true, int count=-1);
-  // collect elements - takes in ::vector<element_c*>::iterator, count=-1
+  // collect aok uints from a vector of elements
+  std::string collectParsExec(std::vector<ex_knobs::element_c*>::iterator &itRef,
+                              std::vector<ex_knobs::element_c*>::iterator endRef,
+                              bool doError=true, int count=-1);
 };
 
 
