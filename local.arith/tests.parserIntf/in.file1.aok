@@ -7,6 +7,9 @@
 %MYOBJ
 #for ( I=2; I<NUM_ITER;++ I)
   bag"I" = I
+ #for (J=100;J<101;J++)
+  #define ASDF Here
+ #endfor
 #endfor
 
   %ANOTHER_OBJ

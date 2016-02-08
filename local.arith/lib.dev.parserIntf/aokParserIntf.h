@@ -105,13 +105,17 @@ protected:
     // ID      - Uniquely identify this class
     // Command - File command to invoke plugin
 
+  bool mindExecBit;
+
 public:
-           aokParserPlugin_c() { }
+           aokParserPlugin_c() { mindExecBit = false; }
   virtual ~aokParserPlugin_c() { }
 
   std::string& getIdStr     (void);
   std::string& getCommandStr(void);
   std::vector<std::string>& getCommandVec(void);
+
+  bool getMindExecBit(void);
 
     // Digest processes one entry
     // Returns number of entries processed

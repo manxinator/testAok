@@ -267,11 +267,14 @@ void aokParserContext_c::registerPlugin( shared_ptr<aokParserPlugin_c> plugin, b
 
   // Add to plugMap
   string &cmdStr = plugin->getCommandStr();
+  bool mindExecB = plugin->getMindExecBit();
   if (cmdStr.length() > 0) {
     if ( plugMap.find(cmdStr) != plugMap.end() )
       if (!overWrite)
         return;
     plugMap[cmdStr] = plugin;
+    if (mindExecB)
+      mbeRegistry.insert(cmdStr);
   } else {
     vector<string> &cmdVec = plugin->getCommandVec();
     for (auto &cmdStr : cmdVec) {
@@ -279,6 +282,8 @@ void aokParserContext_c::registerPlugin( shared_ptr<aokParserPlugin_c> plugin, b
         if (!overWrite)
           continue;
       plugMap[cmdStr] = plugin;
+      if (mindExecB)
+        mbeRegistry.insert(cmdStr);
     }
   }
 }
@@ -332,7 +337,7 @@ int aokParserContext_c::processEntry(int idx)
   auto oneEnt = getEntry(idx);
 
   int primNo = static_cast<int>(oneEnt->getPrimitiveType());
-  printf("  --> [%3d] Primitive Type: %4d\n",oneEnt->getLineNum(),primNo);
+  printf("  --> [%3d] Primitive Type: %4d [exec: %d]\n",oneEnt->getLineNum(),primNo,ebStack.top());
 
   int numDigest = 1;
   switch (oneEnt->getPrimitiveType())

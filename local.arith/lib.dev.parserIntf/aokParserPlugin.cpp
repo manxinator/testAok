@@ -33,6 +33,12 @@
 #include <cxxabi.h>
 using namespace std;
 
+#define DEBUG_AOK_PLUGIN    1
+#ifdef DEBUG_AOK_PLUGIN
+  #define PP_DEBUG(...)   printf(__VA_ARGS__)
+#else
+  #define PP_DEBUG(...)
+#endif
 
 typedef shared_ptr<aokParserPlugin_c> aokParserPluginSPtr;
 
@@ -57,7 +63,7 @@ private:
   int  initLoop(int idx);
   bool doLoop  (int &idx);
 public:
-           forLoopPlug_c() { idStr = commandStr = "for"; startIdx = 0; }
+           forLoopPlug_c() { idStr = commandStr = "for"; startIdx = 0; mindExecBit = true; }
   virtual ~forLoopPlug_c() { }
 };
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -68,9 +74,10 @@ void aokParserIntf_c::connectStandardPlugins (void)
   registerPlugin( static_cast<aokParserPluginSPtr>( make_shared<forLoopPlug_c>() ), false );
 }
 //------------------------------------------------------------------------------
-string& aokParserPlugin_c::getIdStr     (void)    { return idStr;      }
-string& aokParserPlugin_c::getCommandStr(void)    { return commandStr; }
-int     aokParserPlugin_c::digest       (int idx) { return digest_impl(idx); }
+string& aokParserPlugin_c::getIdStr      (void)    { return idStr;      }
+string& aokParserPlugin_c::getCommandStr (void)    { return commandStr; }
+int     aokParserPlugin_c::digest        (int idx) { return digest_impl(idx); }
+bool    aokParserPlugin_c::getMindExecBit(void)    { return mindExecBit; }
 
 vector<string>& aokParserPlugin_c::getCommandVec     (void) { return getCommandVec_impl(); }
 vector<string>& aokParserPlugin_c::getCommandVec_impl(void)
@@ -209,7 +216,7 @@ string aokParserPlugin_c::collectParsExec(vector<ex_knobs::element_c*>::iterator
 //------------------------------------------------------------------------------
 int definePlug_c::digest_impl(int idx)
 {
-  printf("[definePlug_c::digest_impl] idx: %d\n",idx);
+  PP_DEBUG("[definePlug_c::digest_impl] idx: %d\n",idx);
   auto cmd_prim = f_getEntry(idx);
 
   bool argRC = false;
@@ -243,10 +250,10 @@ int definePlug_c::digest_impl(int idx)
   // Call set define
   int valInt = 0;
   if (aok_tools::str2int(valStr,valInt)) {
-    printf("+ Call f_setIntDef(%s,%d)\n",defStr.c_str(),valInt);
+    PP_DEBUG("+ Call f_setIntDef(%s,%d)\n",defStr.c_str(),valInt);
     f_setIntDef(defStr,valInt);
   } else {
-    printf("+ Call f_setStrDef(%s,%s)\n",defStr.c_str(),valStr.c_str());
+    PP_DEBUG("+ Call f_setStrDef(%s,%s)\n",defStr.c_str(),valStr.c_str());
     f_setStrDef(defStr,valStr);
   }
 
@@ -255,8 +262,6 @@ int definePlug_c::digest_impl(int idx)
     // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 int forLoopPlug_c::digest_impl(int idx)
 {
-  printf("[forLoopPlug_c::digest_impl] idx: %d\n",idx);
-
   /*
     IDEA: Feature to prevent processing (not entering loop, continue, or break)
           Implement execute bit
@@ -267,6 +272,8 @@ int forLoopPlug_c::digest_impl(int idx)
 
   bool execBit = f_getExecBit();
   bool bLoop;
+
+  PP_DEBUG("[forLoopPlug_c::digest_impl] idx: %d, exec_bit: %d\n",idx,execBit);
 
   int numEnts;
   int laPrima = 1;
@@ -299,7 +306,7 @@ int forLoopPlug_c::digest_impl(int idx)
           }
         }
 
-        printf("* FOR Processing entry: %d\n",iii);
+        PP_DEBUG("* FOR Processing entry: %d\n",iii);
         iii += f_processEntry(procIdx);
       }
     }
@@ -323,22 +330,26 @@ int forLoopPlug_c::digest_impl(int idx)
 
           // Check registry
           if ( f_cmdInMBEReg(identStr) ) {
-            printf("* FOR Mock Processing entry: %d\n",iii);
+            PP_DEBUG("* FOR Mock Processing entry: %d\n",iii);
             iii += f_processEntry(procIdx);
             continue;
           }
         }
 
-        printf("* FOR Skipping entry: %d\n",iii);
+        PP_DEBUG("* FOR Skipping entry: %d\n",iii);
         iii++;
       }
 
       f_popExecBit();
     }
-    printf("      @@@ iter: %d\n",iterEqn->computeInt());
+ #ifdef DEBUG_AOK_PLUGIN
+    PP_DEBUG("      @@@ iter: %d\n",iterEqn->computeInt());
+ #else
+    iterEqn->computeInt();
+ #endif
   }
 
-  printf("* FOR done! numEnts: %d\n",numEnts);
+  PP_DEBUG("* FOR done! numEnts: %d\n",numEnts);
   return numEnts+2;
 }
 int forLoopPlug_c::initLoop(int idx)
@@ -358,15 +369,21 @@ int forLoopPlug_c::initLoop(int idx)
   if (!aok_tools::str2strVec(valStr,eqnVec,"(;) \t\n") || (eqnVec.size() != 3))
     CL_THROW_RUN_ERR("for loop failed to parse parentheses statement!");
 
-  printf("[forLoopPlug_c::initLoop] *************** valStr: '%s' -->",valStr.c_str());
-  for (auto oneStr : eqnVec) printf(" '%s'",oneStr.c_str());
-  printf("\n");
+ #ifdef DEBUG_AOK_PLUGIN
+  PP_DEBUG("[forLoopPlug_c::initLoop] *************** valStr: '%s' -->",valStr.c_str());
+  for (auto oneStr : eqnVec) PP_DEBUG(" '%s'",oneStr.c_str());
+  PP_DEBUG("\n");
+ #endif
 
   auto startEqn = arithAnal->parseEqn(eqnVec[0]);
   checkEqn      = arithAnal->parseEqn(eqnVec[1]);
   iterEqn       = arithAnal->parseEqn(eqnVec[2]);
 
-  printf("      @@@ start: %d\n",startEqn->computeInt());
+ #ifdef DEBUG_AOK_PLUGIN
+  PP_DEBUG("      @@@ start: %d\n",startEqn->computeInt());
+ #else
+  startEqn->computeInt();
+ #endif
 
   return 1;
 }
@@ -374,10 +391,13 @@ bool forLoopPlug_c::doLoop (int &idx)
 {
   idx = startIdx;
 
-  int check =
-        checkEqn->computeInt();
-  printf("      @@@ check: %d\n",check);
+ #ifdef DEBUG_AOK_PLUGIN
+  int check = checkEqn->computeInt();
+  PP_DEBUG("      @@@ check: %d\n",check);
+  return check != 0;
+ #else
   return checkEqn->computeInt() != 0;
+ #endif
 }
 //------------------------------------------------------------------------------
 /*
