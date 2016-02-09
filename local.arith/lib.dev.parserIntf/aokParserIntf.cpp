@@ -57,6 +57,9 @@ class aokParserContext_c;
 
 class aokParserContext_c {
 private:
+  // Current object / expander
+  string curObj;
+
   // Defines
   map<string,string> defMap;
 
@@ -353,8 +356,34 @@ DBG_Command(oneEnt);
       numDigest = plugMap[identStr]->digest(idx);
     }
     break;
-  case ex_knobs::PRIM_OBJECT:  break;
-  case ex_knobs::PRIM_KNOB:    break;
+  case ex_knobs::PRIM_OBJECT:
+    {
+      bool retCode;
+      auto lst = oneEnt->getArgListRC(retCode);
+      if (!retCode)
+        CL_THROW_RUN_ERR("Object didn't return argList!!!");
+      //auto itSt  = lst->begin();    // How to handle collect string??
+      //auto itEnd = lst->end();
+      //curObj = collectString(itSt, itEnd);
+      curObj = static_cast<ex_knobs::elemStr_c*>(*lst->begin())->varStr;
+      printf("'%s' <-------------- [ex_knobs::PRIM_OBJECT]\n",curObj.c_str());
+    }
+    break;
+  case ex_knobs::PRIM_KNOB:
+    {
+      bool retCode0, retCode1;
+      auto lhsLst = oneEnt->getLhsListRC(retCode0);
+      auto rhsLst = oneEnt->getRhsListRC(retCode1);
+      if (!retCode0 || !retCode1)
+        CL_THROW_RUN_ERR("Knob didn't return LHS List or RHS List!!!");
+      //auto itSt  = lst->begin();    // How to handle collect string??
+      //auto itEnd = lst->end();
+      //curObj = collectString(itSt, itEnd);
+      string lhsStr = static_cast<ex_knobs::elemStr_c*>(*lhsLst->begin())->varStr;
+      string rhsStr = static_cast<ex_knobs::elemStr_c*>(*rhsLst->begin())->varStr;
+      printf("'%s' = '%s' <-------------- [ex_knobs::PRIM_KNOB]\n",lhsStr.c_str(),rhsStr.c_str());
+    }
+    break;
   case ex_knobs::PRIM_FILE:
     // TODO: Process file here
     break;

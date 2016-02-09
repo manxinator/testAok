@@ -30,6 +30,7 @@
 #include "aokTools.h"
 #include "aokIntf.h"
 #include <sstream>
+#include <stack>
 #include <cxxabi.h>
 using namespace std;
 
@@ -60,8 +61,14 @@ private:
   shared_ptr<arithParser_c::arithEqn_c> checkEqn;
   shared_ptr<arithParser_c::arithEqn_c> iterEqn;
 
+  stack<int>                                    intStack;
+  stack<shared_ptr<arithParser_c::arithEqn_c> > eqnStack;
+
   int  initLoop(int idx);
   bool doLoop  (int &idx);
+
+  void push_state(void);
+  void pop_state (void);
 public:
            forLoopPlug_c() { idStr = commandStr = "for"; startIdx = 0; mindExecBit = true; }
   virtual ~forLoopPlug_c() { }
@@ -307,7 +314,9 @@ int forLoopPlug_c::digest_impl(int idx)
         }
 
         PP_DEBUG("* FOR Processing entry: %d\n",iii);
+        push_state();
         iii += f_processEntry(procIdx);
+        pop_state();
       }
     }
     else
@@ -331,7 +340,9 @@ int forLoopPlug_c::digest_impl(int idx)
           // Check registry
           if ( f_cmdInMBEReg(identStr) ) {
             PP_DEBUG("* FOR Mock Processing entry: %d\n",iii);
+            push_state();
             iii += f_processEntry(procIdx);
+            pop_state();
             continue;
           }
         }
@@ -351,6 +362,18 @@ int forLoopPlug_c::digest_impl(int idx)
 
   PP_DEBUG("* FOR done! numEnts: %d\n",numEnts);
   return numEnts+2;
+}
+void forLoopPlug_c::push_state(void)
+{
+  intStack.push(startIdx);
+  eqnStack.push(checkEqn);
+  eqnStack.push(iterEqn);
+}
+void forLoopPlug_c::pop_state(void)
+{
+  iterEqn  = eqnStack.top(); eqnStack.pop();
+  checkEqn = eqnStack.top(); eqnStack.pop();
+  startIdx = intStack.top(); intStack.pop();
 }
 int forLoopPlug_c::initLoop(int idx)
 {

@@ -26,9 +26,11 @@
 
 #include "aokParserIntf.h"
 #include "aokTools.h"
+#include "aokIntf.h"
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <map>
 using namespace std;
 
 //--------------------------------------------------------------------
@@ -57,6 +59,19 @@ private:
     exit(EXIT_FAILURE);
   }
     // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+public:
+  aokIntf_c aokInterface;
+
+  map<string,uint32_t> mapNum;
+  map<string,string>   mapStr;
+
+  uint32_t getU32(const string& obj, const string& knob, uint32_t def=0xFFFFFFFF, bool*rc   = NULL);
+  void     setU32(const string& obj, const string& knob, uint32_t val,            int  mode = 0);
+  int      getI32(const string& obj, const string& knob, int      def=-1,         bool*rc   = NULL);
+  void     setI32(const string& obj, const string& knob, int      val,            int  mode = 0);
+  string   getStr(const string& obj, const string& knob, const string &def = "__NOT_DEFINED__", bool *rc = NULL);
+  void     setStr(const string& obj, const string& knob, const string &val);
 
 public:
   void configure(void)
@@ -96,6 +111,52 @@ public:
 
 //--------------------------------------------------------------------
 
+#define ACC_G(OP,TYPE1,TYPE2,MAP)                                                       \
+TYPE1 parseIntfTester::OP(const string& obj, const string& knob, TYPE2 def, bool *rc) { \
+  string idxStr = obj + "::" + knob;                                                    \
+  if (MAP.end() == MAP.find(idxStr)) {                                                  \
+    if (rc) *rc = false;                                                                \
+    return def;                                                                         \
+  }                                                                                     \
+  if (rc) *rc = true;                                                                   \
+  return (TYPE1)MAP[idxStr];                                                            \
+}
+
+#define ACC_S(OP,TYPE1,TYPE2,MAP)                                                       \
+TYPE1 parseIntfTester::OP(const string& obj, const string& knob, TYPE2 val, int mode) { \
+  string idxStr = obj + "::" + knob;                                                    \
+  MAP[idxStr] = val;                                                                    \
+}
+#define ACC_Z(OP,TYPE1,TYPE2,MAP)                                                       \
+TYPE1 parseIntfTester::OP(const string& obj, const string& knob, TYPE2 val)           { \
+  string idxStr = obj + "::" + knob;                                                    \
+  MAP[idxStr] = val;                                                                    \
+}
+
+ACC_G(getU32,uint32_t,uint32_t,      mapNum)
+ACC_S(setU32,void,    uint32_t,      mapNum)
+ACC_G(getI32,int,     int,           mapNum)
+ACC_S(setI32,void,    int,           mapNum)
+ACC_G(getStr,string,  const string&, mapStr)
+ACC_Z(setStr,void,    const string&, mapStr)
+
+
+class aokIntfConfig_c {
+public:
+  aokIntfConfig_c(parseIntfTester* p_tgt)
+  {
+    p_tgt->aokInterface.f_getU32 = std::bind(&parseIntfTester::getU32, p_tgt, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4);
+    p_tgt->aokInterface.f_setU32 = std::bind(&parseIntfTester::setU32, p_tgt, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4);
+    p_tgt->aokInterface.f_getI32 = std::bind(&parseIntfTester::getI32, p_tgt, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4);
+    p_tgt->aokInterface.f_setI32 = std::bind(&parseIntfTester::setI32, p_tgt, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4);
+
+    p_tgt->aokInterface.f_getStr = std::bind(&parseIntfTester::getStr, p_tgt, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4);
+    p_tgt->aokInterface.f_setStr = std::bind(&parseIntfTester::setStr, p_tgt, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3);
+  }
+};
+
+//--------------------------------------------------------------------
+
 int main(int ac, const char *av[])
 {
   if (ac < 2) {
@@ -106,6 +167,7 @@ int main(int ac, const char *av[])
   printf("---------------- testParserIntf1 start!!\n\n");
 
   parseIntfTester piTest;
+  aokIntfConfig_c aokConfig(&piTest);
   piTest.loadFile(av[1]);
   piTest.cleanup();
 

@@ -5,11 +5,13 @@
 #define FIVE       "5"
 
 %MYOBJ
-#for ( I=2; I<NUM_ITER;++ I)
-  bag"I" = I
+  fine = day
+#for ( I=0; I<NUM_ITER;++ I)
+  bag"X" = I
  #for (J=100;J<101;J++)
   #define ASDF Here
  #endfor
+  more = there
 #endfor
 
   %ANOTHER_OBJ

@@ -139,6 +139,7 @@ public:
   std::function<std::string(const std::string&)>             f_getStrDef;    // Preproc defines
   std::function<void(const std::string&,const std::string&)> f_setStrDef;
 
+    // Processing file entries
   std::function<int(int)>                                    f_processEntry;
   std::function<std::shared_ptr<ex_knobs::primitive_c>(int)> f_getEntry;
 
